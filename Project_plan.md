@@ -149,6 +149,8 @@ Architectural rules:
 
 The following tables are frozen. No other domain tables may be added without approval (explicitly excluded: `SourceRecordProfessor`, `Author`, citation tables, embedding/ML tables, queue tables, audit/history tables).
 
+**Physical conventions (decided at the start of Phase 2):** UUID primary keys (native `uuid`), `timestamptz` timestamps, snake_case table and column names in PostgreSQL (camelCase in TypeScript via Prisma `@map`/`@@map`). The implemented schema is `backend/prisma/schema.prisma`.
+
 ## 6.1 User
 
 Authentication and authorization.
@@ -330,7 +332,10 @@ SyncTask
 * Professor deactivation keeps all data; identities of inactive professors are not synchronized.
 * Deleting an `ExternalIdentity` sets `ProfessorPublication.discovered_via_identity_id` to `NULL` (identity removal cleanup is described in Section 12.4).
 * A `Publication` cannot be deleted while source records or professor relationships reference it; use `SUPPRESSED`.
-* `SyncTask` rows belong to their `SyncRun`.
+* `SyncTask` rows belong to their `SyncRun` (deleted with it); deleting an identity keeps its tasks with `identity_id = NULL`.
+* A `Professor` cannot be hard-deleted while identities or relationships reference it (consistent with deactivation-only).
+* `DuplicateCandidate` references become `NULL` when a publication is removed (e.g. merged away), so resolved candidates keep their status and reason. A pair is stored once in canonical order (`publication_a_id < publication_b_id`, enforced by a CHECK constraint).
+* Deleting a `User` unlinks it (`SET NULL`) from its professor and from audit-style references (`created_by`, `decided_by`, `resolved_by`, `triggered_by`).
 
 ---
 
@@ -718,7 +723,6 @@ These are intentionally **not** decided yet and must remain marked as deferred u
 
 * Fuzzy matching (only after real data shows need; candidates only).
 * Exact DOI-contradiction criteria, generic-title list and minimum title length (Phase 3, test-driven).
-* Physical schema conventions — primary-key type, timestamp type, database naming convention (start of Phase 2).
 * PostgreSQL advisory locking (only if multiple backend instances are ever used).
 * Startup catch-up sync (optional; Phase 12).
 * Exact monthly schedule time (Phase 12).

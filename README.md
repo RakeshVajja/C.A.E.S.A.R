@@ -27,7 +27,8 @@ frontend/   Next.js (App Router) + Tailwind UI
 cd backend
 cp .env.example .env          # set DATABASE_URL for your machine
 npm install
-npm run prisma:generate
+npx prisma migrate dev        # apply migrations to the dev database
+npm run db:seed               # optional demo data (idempotent)
 npm run dev                   # http://localhost:5001/api/health
 
 # Frontend (separate terminal)
@@ -48,4 +49,4 @@ The backend validates its environment at startup and exits with a clear message 
 | Lint | — | `npm run lint` |
 | Build | `npm run build` | `npm run build` |
 
-Backend tests (Vitest + Supertest) never call the database or external APIs unless a test explicitly sets that up.
+Backend tests (Vitest + Supertest) never call external APIs. Database tests use a separate database — `DATABASE_URL`'s name plus `_test` (e.g. `cse_research_hub_test`), or `TEST_DATABASE_URL` if set — which is created and migrated automatically; tests refuse to touch any database whose name does not end in `_test`.

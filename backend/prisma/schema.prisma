@@ -1,4 +1,6 @@
-// Domain models are introduced in Phase 2 (see Project_plan.md §6).
+// CSE_Research_Hub data model — exactly 9 core tables (Project_plan.md §6).
+// Conventions (decision log #19): UUID primary keys, timestamptz columns,
+// snake_case table/column names in PostgreSQL, camelCase in TypeScript.
 
 generator client {
   provider = "prisma-client-js"
@@ -7,4 +9,342 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  PROFESSOR
+
+  @@map("user_role")
+}
+
+/// Sources a professor identity can belong to.
+enum IdentitySource {
+  OPENALEX
+  DBLP
+  ORCID
+
+  @@map("identity_source")
+}
+
+/// Sources a publication record can come from (MANUAL = professor-entered).
+enum PublicationSource {
+  OPENALEX
+  DBLP
+  ORCID
+  MANUAL
+
+  @@map("publication_source")
+}
+
+enum TypeFamily {
+  PREPRINT
+  CONFERENCE
+  JOURNAL
+  BOOK_CHAPTER
+  BOOK
+  OTHER
+
+  @@map("type_family")
+}
+
+enum PublicationStatus {
+  ACTIVE
+  SUPPRESSED
+
+  @@map("publication_status")
+}
+
+/// How a source record was attached to its canonical publication.
+enum MatchMethod {
+  DOI
+  TITLE_YEAR
+  NEW_PUBLICATION
+  ADMIN
+
+  @@map("match_method")
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("verification_status")
+}
+
+enum RelationshipOrigin {
+  DISCOVERED
+  MANUAL
+  ADMIN
+
+  @@map("relationship_origin")
+}
+
+enum DuplicateCandidateStatus {
+  OPEN
+  MERGED
+  DISMISSED
+
+  @@map("duplicate_candidate_status")
+}
+
+enum SyncTrigger {
+  MANUAL
+  SCHEDULED
+
+  @@map("sync_trigger")
+}
+
+enum SyncRunStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL_SUCCESS
+  FAILED
+
+  @@map("sync_run_status")
+}
+
+enum SyncTaskStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+
+  @@map("sync_task_status")
+}
+
+// ─── 1. User ───────────────────────────────────────────────────────────────
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  email              String   @unique
+  passwordHash       String   @map("password_hash")
+  role               UserRole
+  mustChangePassword Boolean  @default(true) @map("must_change_password")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  professor            Professor?
+  createdSourceRecords PublicationSourceRecord[] @relation("SourceRecordCreatedBy")
+  decidedRelationships ProfessorPublication[]    @relation("RelationshipDecidedBy")
+  resolvedDuplicates   DuplicateCandidate[]      @relation("DuplicateResolvedBy")
+  triggeredSyncRuns    SyncRun[]                 @relation("SyncRunTriggeredBy")
+
+  @@map("users")
+}
+
+// ─── 2. Professor ──────────────────────────────────────────────────────────
+
+model Professor {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @unique @map("user_id") @db.Uuid
+  name        String
+  department  String?
+  designation String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user         User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  identities   ExternalIdentity[]
+  publications ProfessorPublication[]
+
+  @@map("professors")
+}
+
+// ─── 3. ExternalIdentity ───────────────────────────────────────────────────
+
+/// A professor may have zero, one or several identities per source,
+/// but one identity can never belong to two professors.
+model ExternalIdentity {
+  id          String         @id @default(uuid()) @db.Uuid
+  professorId String         @map("professor_id") @db.Uuid
+  source      IdentitySource
+  externalId  String         @map("external_id")
+  isActive    Boolean        @default(true) @map("is_active")
+  verifiedAt  DateTime?      @map("verified_at") @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // Professors are deactivated, never hard-deleted, so deletion is restricted.
+  professor               Professor              @relation(fields: [professorId], references: [id], onDelete: Restrict)
+  discoveredRelationships ProfessorPublication[]
+  syncTasks               SyncTask[]
+
+  @@unique([source, externalId])
+  @@index([professorId])
+  @@map("external_identities")
+}
+
+// ─── 4. Publication (canonical) ────────────────────────────────────────────
+
+model Publication {
+  id                 String            @id @default(uuid()) @db.Uuid
+  title              String
+  normalizedTitle    String            @map("normalized_title")
+  year               Int?
+  venue              String?
+  typeFamily         TypeFamily        @map("type_family")
+  authorNamesDisplay String?           @map("author_names_display")
+  /// Normalized DOI; NULL allowed for many rows, unique when present.
+  doi                String?           @unique
+  status             PublicationStatus @default(ACTIVE)
+  isCurated          Boolean           @default(false) @map("is_curated")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sourceRecords        PublicationSourceRecord[]
+  professors           ProfessorPublication[]
+  duplicateCandidatesA DuplicateCandidate[]      @relation("DuplicateCandidateA")
+  duplicateCandidatesB DuplicateCandidate[]      @relation("DuplicateCandidateB")
+
+  @@index([normalizedTitle])
+  @@index([year])
+  @@map("publications")
+}
+
+// ─── 5. PublicationSourceRecord ────────────────────────────────────────────
+
+/// One publication as reported by one source. Several records (even from the
+/// same source) may point to one canonical publication.
+model PublicationSourceRecord {
+  id              String            @id @default(uuid()) @db.Uuid
+  publicationId   String            @map("publication_id") @db.Uuid
+  source          PublicationSource
+  /// OpenAlex W-id, DBLP record key, "{orcid}:{put-code}", or UUID for MANUAL.
+  externalId      String            @map("external_id")
+  title           String
+  normalizedTitle String            @map("normalized_title")
+  doi             String?
+  year            Int?
+  venue           String?
+  typeFamily      TypeFamily        @map("type_family")
+  /// Source payload minus abstracts, references and full-text content.
+  rawMetadata     Json?             @map("raw_metadata")
+  matchMethod     MatchMethod       @map("match_method")
+  matchDetail     String?           @map("match_detail")
+  createdByUserId String?           @map("created_by_user_id") @db.Uuid
+  firstSeenAt     DateTime          @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt      DateTime?         @map("last_seen_at") @db.Timestamptz(3)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // A publication cannot be deleted while source records reference it.
+  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  createdBy   User?       @relation("SourceRecordCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([source, externalId])
+  @@index([publicationId])
+  @@index([doi])
+  @@index([normalizedTitle])
+  @@map("publication_source_records")
+}
+
+// ─── 6. ProfessorPublication ───────────────────────────────────────────────
+
+model ProfessorPublication {
+  id                      String             @id @default(uuid()) @db.Uuid
+  professorId             String             @map("professor_id") @db.Uuid
+  publicationId           String             @map("publication_id") @db.Uuid
+  status                  VerificationStatus @default(PENDING)
+  origin                  RelationshipOrigin
+  /// Identity whose sync discovered this relationship; NULL for manual/admin links.
+  discoveredViaIdentityId String?            @map("discovered_via_identity_id") @db.Uuid
+  decidedAt               DateTime?          @map("decided_at") @db.Timestamptz(3)
+  decidedByUserId         String?            @map("decided_by_user_id") @db.Uuid
+  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  professor             Professor         @relation(fields: [professorId], references: [id], onDelete: Restrict)
+  publication           Publication       @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  discoveredViaIdentity ExternalIdentity? @relation(fields: [discoveredViaIdentityId], references: [id], onDelete: SetNull)
+  decidedBy             User?             @relation("RelationshipDecidedBy", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([professorId, publicationId])
+  @@index([professorId, status])
+  @@index([publicationId])
+  @@index([discoveredViaIdentityId])
+  @@map("professor_publications")
+}
+
+// ─── 7. DuplicateCandidate ─────────────────────────────────────────────────
+
+/// A possible duplicate that was deliberately not merged automatically.
+/// References become NULL if a publication is later removed (e.g. merged away),
+/// so resolved candidates keep their status and reason.
+model DuplicateCandidate {
+  id               String                   @id @default(uuid()) @db.Uuid
+  publicationAId   String?                  @map("publication_a_id") @db.Uuid
+  publicationBId   String?                  @map("publication_b_id") @db.Uuid
+  reason           String
+  status           DuplicateCandidateStatus @default(OPEN)
+  resolvedByUserId String?                  @map("resolved_by_user_id") @db.Uuid
+  resolvedAt       DateTime?                @map("resolved_at") @db.Timestamptz(3)
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  publicationA Publication? @relation("DuplicateCandidateA", fields: [publicationAId], references: [id], onDelete: SetNull)
+  publicationB Publication? @relation("DuplicateCandidateB", fields: [publicationBId], references: [id], onDelete: SetNull)
+  resolvedBy   User?        @relation("DuplicateResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  // The pair is stored in a canonical order (a < b), enforced by a CHECK constraint in the migration.
+  @@unique([publicationAId, publicationBId])
+  @@index([publicationBId])
+  @@index([status])
+  @@map("duplicate_candidates")
+}
+
+// ─── 8. SyncRun ────────────────────────────────────────────────────────────
+
+model SyncRun {
+  id                String        @id @default(uuid()) @db.Uuid
+  trigger           SyncTrigger
+  triggeredByUserId String?       @map("triggered_by_user_id") @db.Uuid
+  status            SyncRunStatus @default(RUNNING)
+  tasksTotal        Int           @default(0) @map("tasks_total")
+  tasksSucceeded    Int           @default(0) @map("tasks_succeeded")
+  tasksFailed       Int           @default(0) @map("tasks_failed")
+  recordsFetched    Int           @default(0) @map("records_fetched")
+  recordsNew        Int           @default(0) @map("records_new")
+  recordsUpdated    Int           @default(0) @map("records_updated")
+  linksCreated      Int           @default(0) @map("links_created")
+  candidatesCreated Int           @default(0) @map("candidates_created")
+  startedAt         DateTime      @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?     @map("finished_at") @db.Timestamptz(3)
+
+  triggeredBy User?      @relation("SyncRunTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  tasks       SyncTask[]
+
+  @@index([startedAt])
+  @@map("sync_runs")
+}
+
+// ─── 9. SyncTask ───────────────────────────────────────────────────────────
+
+/// One task per external identity per run.
+model SyncTask {
+  id                String         @id @default(uuid()) @db.Uuid
+  syncRunId         String         @map("sync_run_id") @db.Uuid
+  identityId        String?        @map("identity_id") @db.Uuid
+  source            IdentitySource
+  status            SyncTaskStatus @default(PENDING)
+  recordsFetched    Int            @default(0) @map("records_fetched")
+  recordsNew        Int            @default(0) @map("records_new")
+  recordsUpdated    Int            @default(0) @map("records_updated")
+  linksCreated      Int            @default(0) @map("links_created")
+  candidatesCreated Int            @default(0) @map("candidates_created")
+  warnings          Int            @default(0)
+  errorMessage      String?        @map("error_message")
+  startedAt         DateTime?      @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?      @map("finished_at") @db.Timestamptz(3)
+
+  syncRun  SyncRun           @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  identity ExternalIdentity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+
+  @@index([syncRunId])
+  @@index([identityId])
+  @@map("sync_tasks")
 }

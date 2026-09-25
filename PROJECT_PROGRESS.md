@@ -5,18 +5,41 @@
 ## Current Phase
 
 ```text
-Phase 1 — Minimal Project Setup
-STATUS: COMPLETE (pending architect review)
+Phase 2 — Minimal Database Foundation
+STATUS: COMPLETE (schema verified and approved)
 
-Next phase: Phase 2 — Minimal Database Foundation (NOT STARTED)
+Next phase: Phase 3 — Matching & Deduplication Engine (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phase 1 done)
+Implementation: IN PROGRESS (Phases 1–2 done)
 ```
+
+## Phase 2 Report
+
+**Implemented**
+
+* `backend/prisma/schema.prisma`: exactly the 9 core tables of `Project_plan.md` §6 with 12 enums, including `ProfessorPublication.discovered_via_identity_id` (nullable FK → `ExternalIdentity`, `ON DELETE SET NULL`).
+* Physical conventions (decision #19): native `uuid` keys, `timestamptz(3)` timestamps, snake_case tables/columns.
+* Constraints: unique `users.email`, `professors.user_id`, `external_identities(source, external_id)`, `publications.doi` (NULLs allowed), `publication_source_records(source, external_id)`, `professor_publications(professor_id, publication_id)`, `duplicate_candidates(publication_a_id, publication_b_id)`; hand-written CHECK `publication_a_id < publication_b_id`.
+* Delete behaviour per plan §6.10 (Restrict for professors/publications, SET NULL for identity/user references, Cascade SyncRun → SyncTask).
+* Indexes: normalized titles, year, source-record DOI, `(professor_id, status)`, all FK lookup columns, duplicate status, sync run start time.
+* Migration `20260925102606_init_domain_schema` applied to the dev database; no drift (`prisma migrate diff` clean).
+* Test database `cse_research_hub_test` (derived from `DATABASE_URL` + `_test`, created/migrated by `prisma migrate deploy` in Vitest global setup); helpers refuse to truncate any database not ending in `_test`.
+* Idempotent development seed (`npm run db:seed`): 2 demo professors, 3 identities, 3 publications (one shared across OpenAlex/DBLP/ORCID, one preprint kept separate, one manual), 5 source records, 4 relationships (APPROVED/PENDING, DISCOVERED/MANUAL), 1 duplicate candidate. Refuses to run in production. No admin account (needs Phase 8 hashing).
+
+**Validation**
+
+* `typecheck` ✅, `build` ✅, `test` 33/33 ✅ (22 new schema tests against the real test database: uniqueness, multiple identities per source, NULL DOIs, shared canonical publication across 4 sources, in-source duplicates, per-professor statuses, `discovered_via_identity_id` SET NULL, Restrict deletes, candidate ordering CHECK, candidate survives merge, SyncRun cascade, task history kept).
+* Seed run 3× with identical counts (idempotent) ✅; `prisma migrate status` up to date ✅.
+
+**Known limitations / open items**
+
+* `match_method` enum values (`DOI`, `TITLE_YEAR`, `NEW_PUBLICATION`, `ADMIN`) are an initial set; Phase 3 may extend them via migration.
+* Test database tests run files sequentially (`fileParallelism: false`) because they share one database.
 
 ## Phase 1 Report
 
@@ -46,10 +69,10 @@ Implementation: IN PROGRESS (Phase 1 done)
 
 **Known limitations / open items**
 
-* The local dev database still contains the old empty `system_health` table and its `_prisma_migrations` row. Prisma requires explicit user consent to reset the database; this will be done with consent at the start of Phase 2 (before the first real migration).
+* ~~Old `system_health` table left in the dev database~~ — resolved: dev database reset with user consent; it now has no application tables and no migrations, ready for Phase 2.
 * `npm audit` reports a high-severity advisory in `deepmerge-ts`, a transitive dependency of the Prisma 6 **CLI** (dev tool only, not shipped at runtime). No fix exists within Prisma 6; accepted, revisit if Prisma 6 publishes a patch.
 * The browser-side health check was verified via server logs and CORS headers, not visually (the in-app browser could not open localhost).
-* No separate test database yet — Phase 1 tests mock Prisma. The test database is introduced when database tests begin (Phase 2).
+* ~~No separate test database yet~~ — resolved in Phase 2.
 
 ## Phase Roadmap
 
@@ -57,7 +80,7 @@ Implementation: IN PROGRESS (Phase 1 done)
 |---|---|---|---|
 | 0 | Requirements & Architecture Freeze | Finalize requirements, scope, architecture, API assumptions, matching rules and schema decisions | **COMPLETE** |
 | 1 | Minimal Project Setup | Clean foundation: repo structure, config cleanup, env validation, Express/TypeScript consistency, health, testing foundation | **COMPLETE** (pending review) |
-| 2 | Minimal Database Foundation | Implement the 9-table model with relationships, constraints, indexes, migration and dev seed | NOT STARTED |
+| 2 | Minimal Database Foundation | Implement the 9-table model with relationships, constraints, indexes, migration and dev seed | **COMPLETE** (approved) |
 | 3 | Matching & Deduplication Engine | Normalization, type families, preprint detection, deterministic matching, vetoes, DuplicateCandidate, canonical metadata selection | NOT STARTED |
 | 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | NOT STARTED |
 | 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | NOT STARTED |
@@ -90,7 +113,7 @@ Implementation: IN PROGRESS (Phase 1 done)
 
 ## Deferred Decisions
 
-Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; exact DOI-contradiction criteria, generic-title list and minimum title length; physical schema conventions (key type, timestamp type, naming); advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
+Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; exact DOI-contradiction criteria, generic-title list and minimum title length; advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
 
 ## Progress Rules
 
@@ -125,5 +148,7 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; exact DOI
 | 16 | 2026-09-25 | Documentation consistency gate passed; wording aligned (both-years-known rule, rejection never reopens, valid-empty vs failed fetch, last-seen after successful processing) — no decision changed | Pre-Phase-1 consistency gate |
 | 17 | 2026-09-25 | Phase 1 tooling versions: Express 5, Zod 4, Vitest 5, Supertest 7 (Prisma stays 6.x) | Phase 1 — Express 5 resolves the types mismatch; Vitest 5 resolves a Vitest ≤4 security advisory |
 | 18 | 2026-09-25 | Standard API error shape `{ error: { code, message, details? } }` implemented | Project_plan.md §15.3 |
+| 19 | 2026-09-25 | Physical schema conventions: UUID keys (`uuid`), `timestamptz`, snake_case DB names (previously deferred) | Decided by the user at the start of Phase 2 |
+| 20 | 2026-09-25 | Delete details: Restrict professor/publication deletes; `DuplicateCandidate` FKs SET NULL + ordered-pair CHECK; user references SET NULL | Phase 2 — implements plan §6.10 / §8.5 without new tables; approved after schema-only verification |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).
