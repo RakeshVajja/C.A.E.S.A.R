@@ -5,18 +5,56 @@
 ## Current Phase
 
 ```text
-Phase 2 — Minimal Database Foundation
-STATUS: COMPLETE (schema verified and approved)
+Phase 3 — Matching & Deduplication Engine
+STATUS: COMPLETE (verified and approved)
 
-Next phase: Phase 3 — Matching & Deduplication Engine (NOT STARTED)
+Next phase: Phase 4 — OpenAlex Integration (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–2 done)
+Implementation: IN PROGRESS (Phases 1–3 done)
 ```
+
+## Phase 3 Report
+
+**Implemented** (`backend/src`)
+
+* `services/normalization/` — shared DOI normalization (§7.1), title normalization (§7.2), raw-metadata sanitizer (drops abstracts, references, full text at any depth), `NormalizedPublication` builder (§7) used by all future mappers and manual entry.
+* `integrations/{openalex,dblp,orcid}/typeFamily.ts` — per-source type-family mapping and preprint detection (§7.3/§7.4); pure functions only, no HTTP (Phases 4–6 add clients and mappers).
+* `services/matching/`
+  * `titleEligibility.ts` — generic-title list, prefixes, minimum length (decision #23).
+  * `rules.ts` — pure rule-2 contradiction checks (decision #22) and rule-3 title/year/type/DOI vetoes.
+  * `canonical.ts` — canonical metadata selection CURATED → OpenAlex → DBLP → ORCID → MANUAL (§9, decision #26).
+  * `engine.ts` — transactional `ingestPublication()`: rule 1 update-in-place, rule 2 DOI (canonical-owner precedence, decision #27), rule 3 exact title + year ±1, rule 4 new publication + `DuplicateCandidate`s; records `match_method`/`match_detail`; never moves a source record on DOI change; never reopens a dismissed candidate; curated publications never recomputed. All DOIs of a record are stored in `raw_metadata._normalizedDois` and secondary DOIs are searched (§6.5, decision #28). SUPPRESSED publications absorb matching records as provenance only; `IngestResult.publicationStatus` lets later phases skip professor links for them (decision #30). Does not create professor relationships (Phase 4 / Phase 11).
+* Schema correction (decision #21): nullable `publication_source_records.author_names_display` (migration `add_source_record_author_names`). No new table; still exactly 9 tables.
+* Seed: source records now carry author names.
+
+**Tests** — 155 new (188 total, all passing)
+
+* `tests/normalization/` (71): DOI variants/invalid values/URL-decoding/trailing punctuation; titles incl. real OpenAlex literal `\n`, DBLP trailing period, Büchi, HTML entities, MathML/sub/sup tags; builder validation; raw-metadata stripping; type-family mapping for all three sources (incl. OpenAlex "article" + conference source, deferred repository case).
+* `tests/matching/` unit (39): generic-title list and prefix coverage, 9/10-character and 1/2-word boundaries; DOI contradiction criteria; every rule-3 veto; canonical priority, OTHER handling, DOI ownership skip, in-source tie-break.
+* `tests/matching/engine.test.ts` (45, real test DB): secondary DOIs (stored list, match via secondary DOI, contradiction checks, canonical-owner precedence, DOI-change detection, payload preservation); SUPPRESSED absorption by DOI and title without new publication or professor link; same DOI across 3 sources; DOI despite type/year disagreement; in-source duplicates; source-record-only DOI; incorrect DOI split + candidate; canonical-owner precedence; preprint-vs-published DOI split; ambiguous DOI and title matches; title variations; year ±1 / ±2 / missing; conference vs journal; CoRR preprint vs published; preprint + preprint merge; OTHER; generic titles; DOI change without moving; dismissed candidate not reopened; canonical priority (OpenAlex replaces DBLP, MANUAL last); curated untouched; suppressed still matched; manual entry by DOI / title, later API discovery, uncertain manual → candidate; idempotent reruns.
+
+**Validation**
+
+* `typecheck` ✅, `test` 178/178 ✅, `build` ✅, `db:seed` ✅, `prisma migrate status` up to date and `migrate diff` clean ✅.
+* Mutation checks: year tolerance 1 → 2 makes 2 tests fail; removing the secondary-DOI lookup makes 3 tests fail (both restored).
+
+**Dependencies:** none added or changed.
+
+**Known limitations**
+
+* No fuzzy matching (deferred): a DOI match whose titles differ only by a typo, and an exact-title pair with a typo, both become `DuplicateCandidate`s rather than merges.
+* Titles differing only in characters outside a–z/0–9 that NFKD does not decompose (e.g. Greek letters, `ß`) normalize differently from their transliterations.
+* The OpenAlex repository preprint rule is deferred to Phase 4 (decision #25).
+* Type-family mappings are initial; Phases 4–6 refine them with recorded fixtures (§7.3).
+
+## Open Documentation / Roadmap Issues
+
+* **Duplicate-candidate resolution has no assigned phase** (decision #29). `Project_plan.md` §8.5 defines admin *dismiss*, *merge B into A* and *detach source record*, and §17 lists an admin "duplicate candidates" page, but no phase in §19 includes implementing them. Phase 3 only creates candidates. Awaiting the architect's assignment.
 
 ## Phase 2 Report
 
@@ -81,7 +119,7 @@ Implementation: IN PROGRESS (Phases 1–2 done)
 | 0 | Requirements & Architecture Freeze | Finalize requirements, scope, architecture, API assumptions, matching rules and schema decisions | **COMPLETE** |
 | 1 | Minimal Project Setup | Clean foundation: repo structure, config cleanup, env validation, Express/TypeScript consistency, health, testing foundation | **COMPLETE** (pending review) |
 | 2 | Minimal Database Foundation | Implement the 9-table model with relationships, constraints, indexes, migration and dev seed | **COMPLETE** (approved) |
-| 3 | Matching & Deduplication Engine | Normalization, type families, preprint detection, deterministic matching, vetoes, DuplicateCandidate, canonical metadata selection | NOT STARTED |
+| 3 | Matching & Deduplication Engine | Normalization, type families, preprint detection, deterministic matching, vetoes, DuplicateCandidate, canonical metadata selection | **COMPLETE** (approved) |
 | 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | NOT STARTED |
 | 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | NOT STARTED |
 | 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | NOT STARTED |
@@ -113,7 +151,7 @@ Implementation: IN PROGRESS (Phases 1–2 done)
 
 ## Deferred Decisions
 
-Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; exact DOI-contradiction criteria, generic-title list and minimum title length; advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
+Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; OpenAlex repository preprint rule (Phase 4); advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
 
 ## Progress Rules
 
@@ -137,7 +175,7 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; exact DOI
 | 5 | 2026-09-25 | Metadata priority CURATED → OpenAlex → DBLP → ORCID → MANUAL | Architecture review; MANUAL as final fallback |
 | 6 | 2026-09-25 | Deterministic matching rules and vetoes frozen; fuzzy matching deferred | Architecture review; live data (DOI conflicts common among same-title records) |
 | 7 | 2026-09-25 | Type families combine OpenAlex `type` with source/venue type; unknown/OTHER never auto-merges by title | Live evidence: OpenAlex labels conference papers `article` |
-| 8 | 2026-09-25 | Preprints kept separate; per-source detection (DBLP Informal/CoRR, OpenAlex preprint/10.48550/repository, ORCID preprint) | Live evidence: DBLP CoRR records lack DOIs and share titles/years with published versions |
+| 8 | 2026-09-25 | Preprints kept separate; per-source detection (DBLP Informal/CoRR, OpenAlex preprint/10.48550/repository — repository part deferred by #25, ORCID preprint) | Live evidence: DBLP CoRR records lack DOIs and share titles/years with published versions |
 | 9 | 2026-09-25 | Rule 3 does not auto-merge when a year is missing (becomes a DuplicateCandidate) | Clarification under "insufficient information → candidate"; confirmed at the pre-Phase-1 consistency gate |
 | 10 | 2026-09-25 | HTTP 200 is not success; response validation is mandatory | Live evidence: DBLP bot-protection HTML with 200; OpenAlex empty 200 for nonexistent IDs |
 | 11 | 2026-09-25 | DBLP accessed via SPARQL endpoint only | Live evidence: pid XML, search API and mirrors return bot-protection pages |
@@ -150,5 +188,15 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; exact DOI
 | 18 | 2026-09-25 | Standard API error shape `{ error: { code, message, details? } }` implemented | Project_plan.md §15.3 |
 | 19 | 2026-09-25 | Physical schema conventions: UUID keys (`uuid`), `timestamptz`, snake_case DB names (previously deferred) | Decided by the user at the start of Phase 2 |
 | 20 | 2026-09-25 | Delete details: Restrict professor/publication deletes; `DuplicateCandidate` FKs SET NULL + ordered-pair CHECK; user references SET NULL | Phase 2 — implements plan §6.10 / §8.5 without new tables; approved after schema-only verification |
+| 21 | 2026-09-27 | Schema correction: nullable `PublicationSourceRecord.author_names_display` (migration `add_source_record_author_names`) | Genuine inconsistency: §6.4/§9 derive canonical author names from source records, but §6.5 had no field for them. Approved by architect (option A); no new table |
+| 22 | 2026-09-27 | DOI contradiction criteria: only preprint-vs-published or unrelated titles (not equal, no whole-word containment) block a DOI match; type/year differences never do | Resolves the deferred §20 item in Phase 3; approved |
+| 23 | 2026-09-27 | Generic/too-short titles: < 10 normalized chars, < 2 words, fixed generic list, or generic prefix → ineligible for title auto-merge | Resolves the deferred §20 item in Phase 3; approved; list in `titleEligibility.ts` |
+| 24 | 2026-09-27 | Every blocked exact-title match (generic titles included) creates a `DuplicateCandidate`; ambiguous DOI/title matches create candidates, never a merge | §8.1 rule 4 as written; approved |
+| 25 | 2026-09-27 | OpenAlex "repository where applicable" preprint rule DEFERRED to Phase 4; Phase 3 applies only type=preprint and 10.48550/ DOIs | "Where applicable" is undefined in the plan and decision #8 recorded the rule unconditionally; architect chose to defer |
+| 26 | 2026-09-27 | Canonical selection: OTHER does not outrank a known type family; within one source the oldest record wins | §7.3 defines OTHER as insufficient information; approved |
+| 27 | 2026-09-27 | DOI ownership precedence: canonical DOI owner before source-record-only DOI carriers | Phase 3 implementation decision (not frozen); approved |
+| 28 | 2026-09-27 | ~~Known limitation: secondary DOIs of stored records not searched~~ **Superseded:** all normalized DOIs are kept in `raw_metadata._normalizedDois` and searched during matching | Architect review: the limitation conflicted with §6.5; implemented without schema change |
+| 29 | 2026-09-27 | Roadmap gap recorded: §8.5 duplicate-candidate resolution has no implementation phase in §19 | Verified in Phase 3; not implemented; awaiting assignment |
+| 30 | 2026-09-27 | SUPPRESSED publications stay in matching and absorb matching source records (provenance only); no professor links are ever created for them automatically; ingest result reports `publicationStatus` | Architect review of §6.4/§14; excluding them would recreate the suppressed paper as a new publication |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

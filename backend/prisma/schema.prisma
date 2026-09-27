@@ -211,26 +211,28 @@ model Publication {
 /// One publication as reported by one source. Several records (even from the
 /// same source) may point to one canonical publication.
 model PublicationSourceRecord {
-  id              String            @id @default(uuid()) @db.Uuid
-  publicationId   String            @map("publication_id") @db.Uuid
-  source          PublicationSource
+  id                 String            @id @default(uuid()) @db.Uuid
+  publicationId      String            @map("publication_id") @db.Uuid
+  source             PublicationSource
   /// OpenAlex W-id, DBLP record key, "{orcid}:{put-code}", or UUID for MANUAL.
-  externalId      String            @map("external_id")
-  title           String
-  normalizedTitle String            @map("normalized_title")
-  doi             String?
-  year            Int?
-  venue           String?
-  typeFamily      TypeFamily        @map("type_family")
+  externalId         String            @map("external_id")
+  title              String
+  normalizedTitle    String            @map("normalized_title")
+  doi                String?
+  year               Int?
+  venue              String?
+  typeFamily         TypeFamily        @map("type_family")
+  /// Display-only author names as reported by this source (feeds canonical selection, §9).
+  authorNamesDisplay String?           @map("author_names_display")
   /// Source payload minus abstracts, references and full-text content.
-  rawMetadata     Json?             @map("raw_metadata")
-  matchMethod     MatchMethod       @map("match_method")
-  matchDetail     String?           @map("match_detail")
-  createdByUserId String?           @map("created_by_user_id") @db.Uuid
-  firstSeenAt     DateTime          @default(now()) @map("first_seen_at") @db.Timestamptz(3)
-  lastSeenAt      DateTime?         @map("last_seen_at") @db.Timestamptz(3)
-  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rawMetadata        Json?             @map("raw_metadata")
+  matchMethod        MatchMethod       @map("match_method")
+  matchDetail        String?           @map("match_detail")
+  createdByUserId    String?           @map("created_by_user_id") @db.Uuid
+  firstSeenAt        DateTime          @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt         DateTime?         @map("last_seen_at") @db.Timestamptz(3)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   // A publication cannot be deleted while source records reference it.
   publication Publication @relation(fields: [publicationId], references: [id], onDelete: Restrict)

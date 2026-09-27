@@ -83,6 +83,7 @@ async function main(): Promise<void> {
         year: shared.year,
         venue: shared.venue,
         typeFamily: shared.typeFamily,
+        authorNamesDisplay: shared.authorNamesDisplay,
         rawMetadata: { demo: true },
         matchMethod: record.matchMethod,
         matchDetail: record.detail,

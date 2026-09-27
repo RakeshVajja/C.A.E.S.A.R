@@ -222,7 +222,7 @@ Publication
   created_at, updated_at
 ```
 
-* `SUPPRESSED` replaces deletion for incorrect publications: the record is hidden and never automatically re-linked.
+* `SUPPRESSED` replaces deletion for incorrect publications: the record is hidden and never automatically re-linked. It still takes part in matching, so later source records for the same paper are absorbed into it as provenance instead of recreating it as a new publication; no professor relationship is ever created for it automatically (decision #30).
 * `is_curated = true` means canonical fields were deliberately edited by the administrator; synchronization never overwrites them.
 * Canonical fields are derived from source records by the metadata priority (Section 9).
 
@@ -242,6 +242,7 @@ PublicationSourceRecord
   year                   nullable
   venue                  nullable
   type_family
+  author_names_display   nullable (display only; feeds canonical selection — decision #21)
   raw_metadata           JSON (excluding abstracts, references and full-text content)
   match_method           how the record was attached to its Publication
   match_detail           short explanation
@@ -256,7 +257,7 @@ PublicationSourceRecord
 * Many source records (e.g. an OpenAlex work, a DBLP record and an ORCID put-code) may point to one canonical Publication. Source identifiers are never collapsed into a single field on `Publication`.
 * There is deliberately **no** uniqueness on `(publication_id, source)`: one source can contain the same publication more than once.
 * External ID formats: OpenAlex work ID (`W…`); DBLP record key (e.g. `conf/cav/KupfermanV96`); ORCID `{orcid}:{put-code}`; MANUAL generated UUID.
-* If a record reports several DOIs, the first is stored in `doi` and all are kept in `raw_metadata`; matching considers all of them.
+* If a record reports several DOIs, the first is stored in `doi` and all are kept in `raw_metadata` (the complete normalized list under the key `_normalizedDois`, next to the source payload); matching considers all of them — every DOI of the incoming record against canonical DOIs, source-record `doi` columns and the `_normalizedDois` lists of stored records (decision #28).
 
 ## 6.6 ProfessorPublication
 
@@ -406,7 +407,7 @@ Initial mapping (refined with real fixtures during Phases 3–6):
 | Source | Record is a preprint when |
 |---|---|
 | DBLP | record type `Informal`, or key begins with `journals/corr/` (DBLP CoRR records usually have **no DOI**) |
-| OpenAlex | `type = preprint`, or DOI begins with `10.48550/`, or the primary source is a repository where applicable |
+| OpenAlex | `type = preprint`, or DOI begins with `10.48550/`. The "primary source is a repository where applicable" rule is **deferred to Phase 4** (decision #25): "where applicable" is undefined and will be settled with recorded OpenAlex fixtures; until then a repository-hosted work follows the normal mapping. |
 | ORCID | `type = preprint` |
 
 ---
@@ -449,7 +450,11 @@ Matching is deterministic and explainable. Every attachment records `match_metho
 * A DOI match that shows a strong contradiction is not merged; the new record gets its own Publication (without the conflicting canonical DOI) and a `DuplicateCandidate` is created.
 * A DOI change on an existing source record never silently moves it to a different Publication; a `DuplicateCandidate` is created instead.
 * Several source records from the same source may attach to one Publication (in-source duplicates).
-* Exact contradiction criteria, the generic-title list and the minimum title length are defined and tested in Phase 3.
+* **DOI contradiction criteria (decision #22, resolved in Phase 3).** A DOI match is blocked only by: (a) preprint vs published; (b) unrelated titles — no title of the publication (canonical or source record) equals the incoming normalized title or contains it / is contained in it as a whole-word sequence. Type-family and year differences never block a DOI match. No similarity threshold is used.
+* **Generic / too-short titles (decision #23, resolved in Phase 3).** A normalized title is ineligible for title-based auto-merging when it has fewer than 10 characters, fewer than 2 words, is on the fixed generic list (editorial, preface, foreword, introduction, erratum, corrigendum, front matter, table of contents, keynote, in memoriam, …) or starts with a generic prefix (`editorial`, `guest editorial`, `preface`, `foreword`, `erratum`, `corrigendum`, `correction to`, `retraction`, `front matter`, `back matter`). The authoritative list is `backend/src/services/matching/titleEligibility.ts`.
+* **Blocked or ambiguous matches (decision #24).** Every exact-title match blocked by a veto — generic titles included — produces a `DuplicateCandidate`. When several publications qualify (by DOI or by title), nothing is merged: a new Publication is created with a candidate for each.
+* **DOI ownership precedence (decision #27, Phase 3 implementation decision).** A publication whose canonical DOI matches takes precedence over publications that only carry the DOI on a source record.
+* An existing `DuplicateCandidate` pair is never duplicated or reopened (a `DISMISSED` pair stays dismissed).
 
 ## 8.4 Not used
 
@@ -475,6 +480,8 @@ CURATED → OpenAlex → DBLP → ORCID → MANUAL
 * For each canonical field, the first available non-empty value in this order is used.
 * Canonical fields are recomputed after source-record changes unless `is_curated` is set.
 * `MANUAL` is a provenance type, **not** automatically more authoritative than API sources; it is the final fallback (so manual-only publications still have metadata).
+* `OTHER` means "no usable type information", so it does not outrank a known type family from a lower-priority source (decision #26). Within one source, the oldest record wins.
+* A DOI already owned by another publication is skipped when selecting the canonical DOI (canonical DOIs are unique).
 * `is_curated` protects deliberately human-curated canonical metadata.
 * No field-level provenance flags; source records already preserve provenance.
 * Metadata updates to an APPROVED publication do not reset its verification status.
@@ -623,7 +630,7 @@ Rules:
 * Incomplete or failed API responses never cause deletion or unlinking.
 * Reruns are idempotent.
 * Rejected relationships remain rejected.
-* Suppressed publications are not automatically re-linked.
+* Suppressed publications are not automatically re-linked: matching records are absorbed into them as provenance, but no professor relationship is created for them (decision #30).
 * DOI changes do not silently move source records.
 * Runs left `RUNNING` by a crash are marked failed at startup.
 * `node-cron` is only the scheduler (monthly); synchronization logic is independent of it. The admin can also trigger a sync manually.
@@ -722,7 +729,7 @@ Each phase ends with: what was implemented, files changed, design decisions, tes
 These are intentionally **not** decided yet and must remain marked as deferred until decided and logged:
 
 * Fuzzy matching (only after real data shows need; candidates only).
-* Exact DOI-contradiction criteria, generic-title list and minimum title length (Phase 3, test-driven).
+* OpenAlex "primary source is a repository where applicable" preprint rule (Phase 4, with recorded fixtures; decision #25).
 * PostgreSQL advisory locking (only if multiple backend instances are ever used).
 * Startup catch-up sync (optional; Phase 12).
 * Exact monthly schedule time (Phase 12).
