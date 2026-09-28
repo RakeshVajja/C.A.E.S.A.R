@@ -1,0 +1,1982 @@
+{
+  "request": "https://api.openalex.org/works?filter=openalex:W42364276|W1632042597|W3037471945|W2889619879|W2963382544|W1505349556|W4229843017|W1989783863|W2033071128&per-page=100&select=id,doi,ids,title,display_name,publication_year,type,primary_location,authorships",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "meta": {
+      "count": 9,
+      "db_response_time_ms": 19,
+      "page": 1,
+      "per_page": 100,
+      "groups_count": null,
+      "x_query": {
+        "oql": "works where openalex id is (\n    W1505349556 or W1632042597 or W1989783863 or W2033071128 or W2889619879\n    or W2963382544 or W3037471945 or W4229843017 or W42364276\n  )",
+        "oqo": {
+          "get_rows": "works",
+          "filter_rows": [
+            {
+              "join": "or",
+              "filters": [
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W1505349556"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W1632042597"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W1989783863"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W2033071128"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W2889619879"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W2963382544"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W3037471945"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W4229843017"
+                },
+                {
+                  "column_id": "ids.openalex",
+                  "value": "W42364276"
+                }
+              ]
+            }
+          ]
+        },
+        "url": "/works?filter=ids.openalex:W1505349556|W1632042597|W1989783863|W2033071128|W2889619879|W2963382544|W3037471945|W4229843017|W42364276&per_page=100"
+      },
+      "cost_usd": 0.0001
+    },
+    "results": [
+      {
+        "id": "https://openalex.org/W1989783863",
+        "doi": "https://doi.org/10.1145/800070.802186",
+        "ids": {
+          "openalex": "https://openalex.org/W1989783863",
+          "doi": "https://doi.org/10.1145/800070.802186",
+          "mag": "1989783863"
+        },
+        "title": "The complexity of relational query languages (Extended Abstract)",
+        "display_name": "The complexity of relational query languages (Extended Abstract)",
+        "publication_year": 1982,
+        "type": "conference-paper",
+        "primary_location": {
+          "id": "doi:10.1145/800070.802186",
+          "is_oa": false,
+          "landing_page_url": "https://doi.org/10.1145/800070.802186",
+          "pdf_url": null,
+          "source": null,
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Proceedings of the fourteenth annual ACM symposium on Theory of computing",
+          "raw_type": "proceedings-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-0661-5773"
+              ]
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": true,
+            "raw_author_name": "Moshe Y. Vardi",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2033071128",
+        "doi": "https://doi.org/10.1016/0022-0000(86)90026-7",
+        "ids": {
+          "openalex": "https://openalex.org/W2033071128",
+          "doi": "https://doi.org/10.1016/0022-0000(86)90026-7",
+          "mag": "2033071128"
+        },
+        "title": "Automata-theoretic techniques for modal logics of programs",
+        "display_name": "Automata-theoretic techniques for modal logics of programs",
+        "publication_year": 1986,
+        "type": "article",
+        "primary_location": {
+          "id": "doi:10.1016/0022-0000(86)90026-7",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.1016/0022-0000(86)90026-7",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S141020589",
+            "display_name": "Journal of Computer and System Sciences",
+            "issn_l": "0022-0000",
+            "issn": [
+              "0022-0000",
+              "1090-2724"
+            ],
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": true,
+            "listed_in": [
+              "cwts-core",
+              "jufo-3",
+              "norway-1"
+            ],
+            "host_organization": "https://openalex.org/P4310320990",
+            "host_organization_name": "Elsevier BV",
+            "host_organization_lineage": [
+              "https://openalex.org/P4310320990"
+            ],
+            "host_organization_lineage_names": [
+              "Elsevier BV"
+            ],
+            "type": "journal"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Journal of Computer and System Sciences",
+          "raw_type": "journal-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I1341412227",
+                "display_name": "IBM (United States)",
+                "ror": "https://ror.org/05hh8d621",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I1341412227"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Moshe Y. Vardi",
+            "raw_affiliation_strings": [
+              "IBM Research Laboratory, San Jose, California, USA",
+              "IBM Research Laboratory San Jose, California USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "IBM Research Laboratory, San Jose, California, USA",
+                "institution_ids": [
+                  "https://openalex.org/I1341412227"
+                ]
+              },
+              {
+                "raw_affiliation_string": "IBM Research Laboratory San Jose, California USA",
+                "institution_ids": [
+                  "https://openalex.org/I1341412227"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5074692660",
+              "display_name": "Pierre Wolper",
+              "orcid": "https://orcid.org/0000-0002-6729-8142"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I1283103587",
+                "display_name": "AT&T (United States)",
+                "ror": "https://ror.org/02bbd5539",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I157674565",
+                "display_name": "University of Liège",
+                "ror": "https://ror.org/00afp2z80",
+                "country_code": "BE",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I157674565"
+                ]
+              }
+            ],
+            "countries": [
+              "BE",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Pierre Wolper",
+            "raw_affiliation_strings": [
+              "AT&T Bell Laboratories, Murray Hill, New Jersey, USA",
+              "Université de Liège - ULg > Dép. d'électric., électron. et informat. (Inst.Montefiore) > Informatique (parallélisme et banques de données) >"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "AT&T Bell Laboratories, Murray Hill, New Jersey, USA",
+                "institution_ids": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Université de Liège - ULg > Dép. d'électric., électron. et informat. (Inst.Montefiore) > Informatique (parallélisme et banques de données) >",
+                "institution_ids": [
+                  "https://openalex.org/I157674565"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W42364276",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W42364276",
+          "mag": "42364276"
+        },
+        "title": "An Automata-Theoretic Approach to Automatic Program Verification (Preliminary Report)",
+        "display_name": "An Automata-Theoretic Approach to Automatic Program Verification (Preliminary Report)",
+        "publication_year": 1986,
+        "type": "article",
+        "primary_location": {
+          "id": "mag:42364276",
+          "is_oa": false,
+          "landing_page_url": "https://dblp.uni-trier.de/db/conf/lics/lics86.html#VardiW86",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4306420475",
+            "display_name": "Logic in Computer Science",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": null,
+            "host_organization_name": null,
+            "host_organization_lineage": [],
+            "host_organization_lineage_names": [],
+            "type": "conference"
+          },
+          "license": null,
+          "license_id": null,
+          "version": null,
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "Logic in Computer Science",
+          "raw_type": null
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Moshe Y. Vardi",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-0661-5773",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5074692660",
+              "display_name": "Pierre Wolper",
+              "orcid": "https://orcid.org/0000-0002-6729-8142"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Pierre Wolper",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-6729-8142",
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2963382544",
+        "doi": "https://doi.org/10.1609/aaai.v33i01.33014731",
+        "ids": {
+          "openalex": "https://openalex.org/W2963382544",
+          "doi": "https://doi.org/10.1609/aaai.v33i01.33014731",
+          "mag": "2963382544"
+        },
+        "title": "Learning to Solve NP-Complete Problems: A Graph Neural Network for Decision TSP",
+        "display_name": "Learning to Solve NP-Complete Problems: A Graph Neural Network for Decision TSP",
+        "publication_year": 2019,
+        "type": "article",
+        "primary_location": {
+          "id": "pmh:oai:ojs.aaai.org:article/4399",
+          "is_oa": true,
+          "landing_page_url": "https://ojs.aaai.org/index.php/AAAI/article/view/4399",
+          "pdf_url": "https://ojs.aaai.org/index.php/AAAI/article/download/4399/4277",
+          "source": {
+            "id": "https://openalex.org/S4306400155",
+            "display_name": "AAAI Publications (The Association for the Advancement of Artificial Intelligence (AAAI))",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "listed_in": [],
+            "host_organization": "https://openalex.org/I2801652627",
+            "host_organization_name": "Association for the Advancement of Artificial Intelligence",
+            "host_organization_lineage": [
+              "https://openalex.org/I2801652627"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "2159-5399",
+          "raw_type": "info:eu-repo/semantics/article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5031840693",
+              "display_name": "Marcelo Prates",
+              "orcid": "https://orcid.org/0000-0002-5576-7060",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-5576-7060"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Prates, Marcelo",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5112056444",
+              "display_name": "Pedro H. C. Avelar",
+              "orcid": null,
+              "observed_orcids": []
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Avelar, Pedro H. C.",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5113894972",
+              "display_name": "Henrique Lemos",
+              "orcid": null,
+              "observed_orcids": []
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Lemos, Henrique",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5002143669",
+              "display_name": "Luís C. Lamb",
+              "orcid": "https://orcid.org/0000-0003-1571-165X",
+              "observed_orcids": [
+                "https://orcid.org/0000-0003-1571-165X"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Lamb, Luis C.",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-0661-5773"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Vardi, Moshe Y.",
+            "raw_affiliation_strings": [
+              "Rice University"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Rice University",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W1632042597",
+        "doi": "https://doi.org/10.1609/aaai.v28i1.8990",
+        "ids": {
+          "openalex": "https://openalex.org/W1632042597",
+          "doi": "https://doi.org/10.1609/aaai.v28i1.8990",
+          "mag": "1632042597"
+        },
+        "title": "Distribution-Aware Sampling and Weighted Model Counting for SAT",
+        "display_name": "Distribution-Aware Sampling and Weighted Model Counting for SAT",
+        "publication_year": 2014,
+        "type": "conference-paper",
+        "primary_location": {
+          "id": "doi:10.1609/aaai.v28i1.8990",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.1609/aaai.v28i1.8990",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4210191458",
+            "display_name": "Proceedings of the AAAI Conference on Artificial Intelligence",
+            "issn_l": "2159-5399",
+            "issn": [
+              "2159-5399",
+              "2374-3468"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "listed_in": [
+              "jufo-2",
+              "norway-1"
+            ],
+            "host_organization": "https://openalex.org/P4310320058",
+            "host_organization_name": "Association for the Advancement of Artificial Intelligence",
+            "host_organization_lineage": [
+              "https://openalex.org/P4310320058"
+            ],
+            "host_organization_lineage_names": [
+              "Association for the Advancement of Artificial Intelligence"
+            ],
+            "type": "conference"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Proceedings of the AAAI Conference on Artificial Intelligence",
+          "raw_type": "journal-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5089236765",
+              "display_name": "Supratik Chakraborty",
+              "orcid": "https://orcid.org/0000-0002-7527-7675",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-7527-7675"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I162827531",
+                "display_name": "Indian Institute of Technology Bombay",
+                "ror": "https://ror.org/02qyf5152",
+                "country_code": "IN",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I162827531"
+                ]
+              }
+            ],
+            "countries": [
+              "IN"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Supratik Chakraborty",
+            "raw_affiliation_strings": [
+              "Indian Institute of Technology, Bombay",
+              "Indian Inst. of Technology, Bombay"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Indian Institute of Technology, Bombay",
+                "institution_ids": [
+                  "https://openalex.org/I162827531"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Indian Inst. of Technology, Bombay",
+                "institution_ids": [
+                  "https://openalex.org/I162827531"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5076798051",
+              "display_name": "Daniel J. Fremont",
+              "orcid": "https://orcid.org/0000-0002-9992-9965",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-9992-9965"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I95457486",
+                "display_name": "University of California, Berkeley",
+                "ror": "https://ror.org/01an7q238",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I95457486"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Daniel Fremont",
+            "raw_affiliation_strings": [
+              "University of California, Berkeley"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of California, Berkeley",
+                "institution_ids": [
+                  "https://openalex.org/I95457486"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5041528950",
+              "display_name": "Kuldeep S. Meel",
+              "orcid": "https://orcid.org/0000-0001-9423-5270",
+              "observed_orcids": [
+                "https://orcid.org/0000-0001-9423-5270"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Kuldeep Meel",
+            "raw_affiliation_strings": [
+              "Rice University",
+              "Department of Computer Science, Rice University"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Rice University",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Department of Computer Science, Rice University",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5064230639",
+              "display_name": "Sanjit A. Seshia",
+              "orcid": "https://orcid.org/0000-0001-6190-8707",
+              "observed_orcids": [
+                "https://orcid.org/0000-0001-6190-8707"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I95457486",
+                "display_name": "University of California, Berkeley",
+                "ror": "https://ror.org/01an7q238",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I95457486"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Sanjit Seshia",
+            "raw_affiliation_strings": [
+              "University of Califonia, Berkeley",
+              "University of California, Berkeley"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of Califonia, Berkeley",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "University of California, Berkeley",
+                "institution_ids": [
+                  "https://openalex.org/I95457486"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-0661-5773"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Moshe Vardi",
+            "raw_affiliation_strings": [
+              "Rice University",
+              "Department of Computer Science, Rice University"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Rice University",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Department of Computer Science, Rice University",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W1505349556",
+        "doi": "https://doi.org/10.4230/lipics.stacs.2011.615",
+        "ids": {
+          "openalex": "https://openalex.org/W1505349556",
+          "doi": "https://doi.org/10.4230/lipics.stacs.2011.615",
+          "mag": "1505349556"
+        },
+        "title": "Temporal Synthesis for Bounded Systems and Environments",
+        "display_name": "Temporal Synthesis for Bounded Systems and Environments",
+        "publication_year": 2011,
+        "type": "article",
+        "primary_location": {
+          "id": "pmh:oai:drops-oai.dagstuhl.de:3048",
+          "is_oa": true,
+          "landing_page_url": "https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.STACS.2011.615",
+          "pdf_url": "https://drops.dagstuhl.de/storage/00lipics/lipics-vol009-stacs2011/LIPIcs.STACS.2011.615/LIPIcs.STACS.2011.615.pdf",
+          "source": {
+            "id": "https://openalex.org/S4377196569",
+            "display_name": "DROPS (Schloss Dagstuhl – Leibniz Center for Informatics)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "listed_in": [],
+            "host_organization": "https://openalex.org/I2799853480",
+            "host_organization_name": "Schloss Dagstuhl – Leibniz Center for Informatics",
+            "host_organization_lineage": [
+              "https://openalex.org/I2799853480"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "cc-by-nc-nd",
+          "license_id": "https://openalex.org/licenses/cc-by-nc-nd",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "InProceedings"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5077429082",
+              "display_name": "Orna Kupferman",
+              "orcid": "https://orcid.org/0000-0003-4699-6117"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4210155092",
+                "display_name": "Czech Academy of Sciences, Institute of Computer Science",
+                "ror": "https://ror.org/0496n6574",
+                "country_code": "CZ",
+                "type": "facility",
+                "lineage": [
+                  "https://openalex.org/I202391551",
+                  "https://openalex.org/I4210155092"
+                ]
+              }
+            ],
+            "countries": [
+              "CZ"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Kupferman, Orna",
+            "raw_affiliation_strings": [
+              "Institute of Computer Science"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Institute of Computer Science",
+                "institution_ids": [
+                  "https://openalex.org/I4210155092"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5058107640",
+              "display_name": "Yoad Lustig",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Lustig, Yoad",
+            "raw_affiliation_strings": [
+              "Department of computer Science [Houston]"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Department of computer Science [Houston]",
+                "institution_ids": []
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Vardi, Moshe Y.",
+            "raw_affiliation_strings": [
+              "Department of computer Science [Houston]"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Department of computer Science [Houston]",
+                "institution_ids": []
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5043084405",
+              "display_name": "Mihalis Yannakakis",
+              "orcid": "https://orcid.org/0000-0003-2857-1860"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I57206974",
+                "display_name": "New York University",
+                "ror": "https://ror.org/0190ak572",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I57206974"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Yannakakis, Mihalis",
+            "raw_affiliation_strings": [
+              "Department of Computer Science [New York]"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Department of Computer Science [New York]",
+                "institution_ids": [
+                  "https://openalex.org/I57206974"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2889619879",
+        "doi": "https://doi.org/10.1609/aaai.v33i01.33014731",
+        "ids": {
+          "openalex": "https://openalex.org/W2889619879",
+          "doi": "https://doi.org/10.1609/aaai.v33i01.33014731",
+          "mag": "2889619879"
+        },
+        "title": "Learning to Solve NP-Complete Problems: A Graph Neural Network for Decision TSP",
+        "display_name": "Learning to Solve NP-Complete Problems: A Graph Neural Network for Decision TSP",
+        "publication_year": 2019,
+        "type": "conference-paper",
+        "primary_location": {
+          "id": "doi:10.1609/aaai.v33i01.33014731",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.1609/aaai.v33i01.33014731",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4210191458",
+            "display_name": "Proceedings of the AAAI Conference on Artificial Intelligence",
+            "issn_l": "2159-5399",
+            "issn": [
+              "2159-5399",
+              "2374-3468"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "listed_in": [
+              "jufo-2",
+              "norway-1"
+            ],
+            "host_organization": "https://openalex.org/P4310320058",
+            "host_organization_name": "Association for the Advancement of Artificial Intelligence",
+            "host_organization_lineage": [
+              "https://openalex.org/P4310320058"
+            ],
+            "host_organization_lineage_names": [
+              "Association for the Advancement of Artificial Intelligence"
+            ],
+            "type": "conference"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Proceedings of the AAAI Conference on Artificial Intelligence",
+          "raw_type": "journal-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5031840693",
+              "display_name": "Marcelo Prates",
+              "orcid": "https://orcid.org/0000-0002-5576-7060",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-5576-7060"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Marcelo Prates",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5112056444",
+              "display_name": "Pedro H. C. Avelar",
+              "orcid": null,
+              "observed_orcids": []
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Pedro H. C. Avelar",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5113894972",
+              "display_name": "Henrique Lemos",
+              "orcid": null,
+              "observed_orcids": []
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Henrique Lemos",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5002143669",
+              "display_name": "Luís C. Lamb",
+              "orcid": "https://orcid.org/0000-0003-1571-165X",
+              "observed_orcids": [
+                "https://orcid.org/0000-0003-1571-165X"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Luis C. Lamb",
+            "raw_affiliation_strings": [
+              "Federal University of Rio Grande do Sul"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Federal University of Rio Grande do Sul",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773",
+              "observed_orcids": [
+                "https://orcid.org/0000-0002-0661-5773"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Moshe Y. Vardi",
+            "raw_affiliation_strings": [
+              "Rice University",
+              "Rice Univ"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Rice University",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Rice Univ",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W4229843017",
+        "doi": "https://doi.org/10.4086/cjtcs.1999.005",
+        "ids": {
+          "openalex": "https://openalex.org/W4229843017",
+          "doi": "https://doi.org/10.4086/cjtcs.1999.005"
+        },
+        "title": "",
+        "display_name": "",
+        "publication_year": 1999,
+        "type": "article",
+        "primary_location": {
+          "id": "doi:10.4086/cjtcs.1999.005",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.4086/cjtcs.1999.005",
+          "pdf_url": "http://cjtcs.cs.uchicago.edu/articles/1999/5/cj99-05.pdf",
+          "source": {
+            "id": "https://openalex.org/S200526871",
+            "display_name": "Chicago Journal of Theoretical Computer Science",
+            "issn_l": "1073-0486",
+            "issn": [
+              "1073-0486"
+            ],
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": true,
+            "listed_in": [
+              "cwts-core",
+              "jufo-1",
+              "norway-1"
+            ],
+            "host_organization": "https://openalex.org/P4310320327",
+            "host_organization_name": "Virginia Tech University Libraries",
+            "host_organization_lineage": [
+              "https://openalex.org/P4310320327"
+            ],
+            "host_organization_lineage_names": [
+              "Virginia Tech University Libraries"
+            ],
+            "type": "journal"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Chicago Journal of Theoretical Computer Science",
+          "raw_type": "journal-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048667886",
+              "display_name": "Joan Feigenbaum",
+              "orcid": "https://orcid.org/0000-0002-3735-6022"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I1283103587",
+                "display_name": "AT&T (United States)",
+                "ror": "https://ror.org/02bbd5539",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I79576946",
+                "display_name": "University of Pennsylvania",
+                "ror": "https://ror.org/00b30xv10",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I79576946"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Joan Feigenbaum",
+            "raw_affiliation_strings": [
+              "AT&T Labs -Research Room C203 , 180 Park Avenue Florham Park , NJ 07932 USA",
+              "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+              "Computer Science Rice University Houston, TX 77251 USA",
+              "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "AT&T Labs -Research Room C203 , 180 Park Avenue Florham Park , NJ 07932 USA",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+                "institution_ids": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer Science Rice University Houston, TX 77251 USA",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA",
+                "institution_ids": [
+                  "https://openalex.org/I79576946"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5103563127",
+              "display_name": "Sampath Kannan",
+              "orcid": "https://orcid.org/0000-0002-4144-1262"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I1283103587",
+                "display_name": "AT&T (United States)",
+                "ror": "https://ror.org/02bbd5539",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I79576946",
+                "display_name": "University of Pennsylvania",
+                "ror": "https://ror.org/00b30xv10",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I79576946"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I922845939",
+                "display_name": "Philadelphia University",
+                "ror": "https://ror.org/03zzmyz63",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I922845939"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Sampath Kannan",
+            "raw_affiliation_strings": [
+              "Computer and Information Sciences University of Pennsylvania Philadelphia , PA 19104 USA",
+              "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+              "Computer Science Rice University Houston, TX 77251 USA",
+              "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Computer and Information Sciences University of Pennsylvania Philadelphia , PA 19104 USA",
+                "institution_ids": [
+                  "https://openalex.org/I79576946",
+                  "https://openalex.org/I922845939"
+                ]
+              },
+              {
+                "raw_affiliation_string": "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+                "institution_ids": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer Science Rice University Houston, TX 77251 USA",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA",
+                "institution_ids": [
+                  "https://openalex.org/I79576946"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I1283103587",
+                "display_name": "AT&T (United States)",
+                "ror": "https://ror.org/02bbd5539",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I79576946",
+                "display_name": "University of Pennsylvania",
+                "ror": "https://ror.org/00b30xv10",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I79576946"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Moshe Y. Vardi",
+            "raw_affiliation_strings": [
+              "Computer Science Rice University Houston , TX 77251 USA",
+              "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+              "Computer Science Rice University Houston, TX 77251 USA",
+              "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Computer Science Rice University Houston , TX 77251 USA",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+                "institution_ids": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer Science Rice University Houston, TX 77251 USA",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA",
+                "institution_ids": [
+                  "https://openalex.org/I79576946"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5076852218",
+              "display_name": "Mahesh Viswanathan",
+              "orcid": "https://orcid.org/0000-0001-7977-0080"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I1283103587",
+                "display_name": "AT&T (United States)",
+                "ror": "https://ror.org/02bbd5539",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I79576946",
+                "display_name": "University of Pennsylvania",
+                "ror": "https://ror.org/00b30xv10",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I79576946"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I922845939",
+                "display_name": "Philadelphia University",
+                "ror": "https://ror.org/03zzmyz63",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I922845939"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Mahesh Viswanathan",
+            "raw_affiliation_strings": [
+              "Computer and Information Sciences University of Pennsylvania Philadelphia , PA 19104 USA",
+              "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+              "Computer Science Rice University Houston, TX 77251 USA",
+              "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Computer and Information Sciences University of Pennsylvania Philadelphia , PA 19104 USA",
+                "institution_ids": [
+                  "https://openalex.org/I79576946",
+                  "https://openalex.org/I922845939"
+                ]
+              },
+              {
+                "raw_affiliation_string": "AT&T Labs -Research Room C203, 180 Park Avenue Florham Park, NJ 07932 USA",
+                "institution_ids": [
+                  "https://openalex.org/I1283103587"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer Science Rice University Houston, TX 77251 USA",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Computer and Information Sciences University of Pennsylvania Philadelphia, PA 19104 USA",
+                "institution_ids": [
+                  "https://openalex.org/I79576946"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W3037471945",
+        "doi": "https://doi.org/10.48550/arxiv.2003.00330",
+        "ids": {
+          "openalex": "https://openalex.org/W3037471945",
+          "doi": "https://doi.org/10.48550/arxiv.2003.00330",
+          "mag": "3037471945"
+        },
+        "title": "Graph Neural Networks Meet Neural-Symbolic Computing: A Survey and\\n Perspective",
+        "display_name": "Graph Neural Networks Meet Neural-Symbolic Computing: A Survey and\\n Perspective",
+        "publication_year": 2020,
+        "type": "preprint",
+        "primary_location": {
+          "id": "pmh:oai:arXiv.org:2003.00330",
+          "is_oa": true,
+          "landing_page_url": "http://arxiv.org/abs/2003.00330",
+          "pdf_url": "https://arxiv.org/pdf/2003.00330",
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5002143669",
+              "display_name": "Luís C. Lamb",
+              "orcid": "https://orcid.org/0000-0003-1571-165X"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Lamb, Luis C.",
+            "raw_affiliation_strings": [
+              "Universidade Federal do Rio Grande do Sul (Porto Alegre)"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Universidade Federal do Rio Grande do Sul (Porto Alegre)",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5060005929",
+              "display_name": "Artur d’Avila Garcez",
+              "orcid": "https://orcid.org/0000-0001-7375-9518"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I180825142",
+                "display_name": "City, University of London",
+                "ror": "https://ror.org/04489at23",
+                "country_code": "GB",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I124357947",
+                  "https://openalex.org/I180825142"
+                ]
+              }
+            ],
+            "countries": [
+              "GB"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Garcez, Artur",
+            "raw_affiliation_strings": [
+              "City, University of London, UK"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "City, University of London, UK",
+                "institution_ids": [
+                  "https://openalex.org/I180825142"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5022658803",
+              "display_name": "Marco Gori",
+              "orcid": "https://orcid.org/0000-0001-6337-5430"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I102064193",
+                "display_name": "University of Siena",
+                "ror": "https://ror.org/01tevnk56",
+                "country_code": "IT",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I102064193"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I201841394",
+                "display_name": "Université Côte d'Azur",
+                "ror": "https://ror.org/019tgvf94",
+                "country_code": "FR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201841394"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210126779",
+                "display_name": "Observatoire de la Côte d’Azur",
+                "ror": "https://ror.org/039fj2469",
+                "country_code": "FR",
+                "type": "facility",
+                "lineage": [
+                  "https://openalex.org/I1294671590",
+                  "https://openalex.org/I201841394",
+                  "https://openalex.org/I4210126779"
+                ]
+              }
+            ],
+            "countries": [
+              "FR",
+              "IT"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Gori, Marco",
+            "raw_affiliation_strings": [
+              "University of Siena, Italy",
+              "Université Côte d'Azur, 3IA, France"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of Siena, Italy",
+                "institution_ids": [
+                  "https://openalex.org/I102064193"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Université Côte d'Azur, 3IA, France",
+                "institution_ids": [
+                  "https://openalex.org/I201841394",
+                  "https://openalex.org/I4210126779"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5031840693",
+              "display_name": "Marcelo Prates",
+              "orcid": "https://orcid.org/0000-0002-5576-7060"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Prates, Marcelo",
+            "raw_affiliation_strings": [
+              "Universidade Federal do Rio Grande do Sul (Porto Alegre)"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Universidade Federal do Rio Grande do Sul (Porto Alegre)",
+                "institution_ids": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5112056444",
+              "display_name": "Pedro H. C. Avelar",
+              "orcid": null
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I102064193",
+                "display_name": "University of Siena",
+                "ror": "https://ror.org/01tevnk56",
+                "country_code": "IT",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I102064193"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I130442723",
+                "display_name": "Universidade Federal do Rio Grande do Sul",
+                "ror": "https://ror.org/041yk2d64",
+                "country_code": "BR",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130442723"
+                ]
+              }
+            ],
+            "countries": [
+              "BR",
+              "IT"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Avelar, Pedro",
+            "raw_affiliation_strings": [
+              "UFRGS, Federal University of Rio Grande do Sul, Brazil; University of Siena, Italy",
+              "University of Siena, Italy"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "UFRGS, Federal University of Rio Grande do Sul, Brazil; University of Siena, Italy",
+                "institution_ids": [
+                  "https://openalex.org/I102064193",
+                  "https://openalex.org/I130442723"
+                ]
+              },
+              {
+                "raw_affiliation_string": "University of Siena, Italy",
+                "institution_ids": [
+                  "https://openalex.org/I102064193"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5000059818",
+              "display_name": "Moshe Y. Vardi",
+              "orcid": "https://orcid.org/0000-0002-0661-5773"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I74775410",
+                "display_name": "Rice University",
+                "ror": "https://ror.org/008zs3103",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Vardi, Moshe",
+            "raw_affiliation_strings": [
+              "Rice University, Houston, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Rice University, Houston, USA",
+                "institution_ids": [
+                  "https://openalex.org/I74775410"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "group_by": []
+  }
+}

@@ -12,6 +12,6 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "tests/**/*", "prisma/**/*.ts"],
+  "include": ["src/**/*", "tests/**/*", "prisma/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

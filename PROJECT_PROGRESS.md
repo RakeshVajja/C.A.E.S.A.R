@@ -5,18 +5,60 @@
 ## Current Phase
 
 ```text
-Phase 3 — Matching & Deduplication Engine
+Phase 4 — OpenAlex Integration
 STATUS: COMPLETE (verified and approved)
 
-Next phase: Phase 4 — OpenAlex Integration (NOT STARTED)
+Next phase: Phase 5 — DBLP Integration (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–3 done)
+Implementation: IN PROGRESS (Phases 1–4 done)
 ```
+
+## Phase 4 Report
+
+**Implemented** (`backend/src`)
+
+* `integrations/http/httpClient.ts` — shared HTTP helper (§13.2): native fetch, 30 s timeout, retries with exponential backoff + jitter on 429/5xx/network/timeout honouring `Retry-After` (capped), no retry on other 4xx, per-source throttling (one request at a time, minimum interval), and §13.1 validation: HTML or non-JSON content, malformed bodies → `FetchError`.
+* `integrations/openalex/`
+  * `client.ts` — author validation via `/authors/{id}` (404 → `IDENTITY_NOT_FOUND`; a documented 301 redirect for a merged ID is detected via the returned `id` and resolved, #33 — live, OpenAlex's documented merged example currently answers 404 and fails safely); works via `filter=author.id`, cursor pagination, `per-page=100`, `select=` of 9 root fields (no abstracts/references/full text); Zod validation of every page and work; API error payloads with 200 → failure; fewer works than `meta.count` → `INCOMPLETE` (#34); page-count safety bound. Config: 200 ms minimum interval, 3 retries.
+  * `types.ts` — Zod schemas for author, works page and work.
+  * `mapper.ts` — OpenAlex work → `PublicationInput` (W-id, DOIs incl. `ids.doi`, year, venue, author names, type family via `typeFamily.ts`, payload as raw metadata).
+  * `typeFamily.ts` — repository rule settled: not adopted (#31).
+* `services/discovery/`
+  * `ingestDiscoveredRecords.ts` — source-independent write step: normalize (skip + warn on unusable records) → Phase 3 `ingestPublication` (with `seenAt`) → create-only PENDING `ProfessorPublication` (origin DISCOVERED, `discovered_via_identity_id`); existing relationships never changed; no link for SUPPRESSED publications.
+  * `openAlexDiscovery.ts` — `discoverOpenAlexIdentity(identityId)`: preconditions (identity exists, is OPENALEX, active, professor active) → complete fetch + validation → map → write. Returns counts matching the future `SyncTask` fields plus warnings.
+* Config: optional `OPENALEX_API_KEY` (#32; startup warning when absent outside tests).
+* Scripts: `npm run fixtures:openalex` (records fixtures), `npm run smoke:openalex -- <A-id>` (live, read-only check).
+
+**Fixtures** (`tests/fixtures/openalex`, recorded from the live API on 2026-09-28): author; 3 cursor pages (Jason Priem, 67 works at 25/page); 9 edge-case works (Vardi: conference typed article, AAAI DOI shared by two works, arXiv preprint with literal `\n`, repository-hosted LIPIcs paper, empty title, no source, journal article); 404 HTML author; the real 404 of OpenAlex's documented merged-author example `A5092938886`; empty-200 works for a nonexistent author; 400 error payload.
+
+**Tests** — 71 new (259 total, all passing)
+
+* `tests/integrations/httpClient.test.ts` (20): HTML-with-200, HTML labelled JSON, wrong content type, malformed JSON, 429 + Retry-After (seconds, date, cap), 5xx backoff sequence, jitter, network errors, retry exhaustion, no retry on 400, 404 pass-through, timeouts, throttling interval, one-at-a-time, recovery after failure.
+* `tests/integrations/openalex.client.test.ts` (22): ID normalization; author validation (recorded); recorded 404 → not found; nonexistent author never reaches the empty-200 works query; recorded 404 of the documented merged example → `IDENTITY_NOT_FOUND` before any works query; merged ID via a **simulated** redirect; invalid author shape; HTML on author check; API key header (and never in URLs); full recorded cursor chain (67 works, 3 calls, filter/select checked); default per-page 100; excluded fields never selected; genuine empty result; 429 mid-pagination; HTML mid-pagination; error payload with 200; recorded 400; missing meta; invalid work; INCOMPLETE; page bound.
+* `tests/integrations/openalex.mapper.test.ts` (11): every recorded work (76) maps and normalizes; edge cases above; repository hosting ≠ preprint.
+* `tests/services/openAlexDiscovery.test.ts` (16, real test DB): recorded 404 of the documented merged example writes nothing and leaves the identity unchanged; full discovery with PENDING links via identity and `last_seen_at`; never auto-APPROVED; idempotent rerun refreshing `last_seen_at`; REJECTED/APPROVED preserved; SUPPRESSED never re-linked; HTML page mid-fetch writes nothing; later failed sync leaves data and `last_seen_at` untouched; nonexistent identity writes nothing; preconditions (inactive identity/professor, wrong source, unknown id) make no API call; merged ID warning without changing the identity (**simulated** redirect); split profile (two identities, one professor) links once; co-author links without duplicate publications; manual publication absorbs the OpenAlex record and keeps its APPROVED manual link.
+* `tests/integrations/noNetwork.test.ts` (1) + `tests/setup/noNetwork.ts`: live network access is blocked in all tests.
+
+**Validation**
+
+* `typecheck` ✅, `test` 259/259 ✅, `build` ✅, `db:seed` ✅, `prisma migrate status` up to date, `migrate diff` clean; no schema changes in Phase 4 ✅.
+* Live smoke (keyless, read-only): Moshe Y. Vardi — 914 works reported and fetched over 10 pages in 15 s; 913 normalized, 1 skipped (empty title); CONFERENCE 393, JOURNAL 267, OTHER 130, PREPRINT 95, BOOK_CHAPTER 21, BOOK 7.
+
+**Dependencies:** none added or changed.
+
+**Known limitations**
+
+* Discovery is not yet triggered by any route, scheduler or `SyncRun`/`SyncTask` bookkeeping (Phases 9/12); its summary already carries the `SyncTask` counters.
+* Each record's relationship is created right after that record's ingest transaction, not inside it; if the process stops in between, the link is created by the next (idempotent) run.
+* A database error part-way through the write step leaves the records written so far (fetch failures write nothing; reruns complete the rest idempotently).
+* If OpenAlex's result set shrinks while paging, the fetch fails as `INCOMPLETE` and is retried on the next run.
+* A merged author ID is reported but not updated automatically (admin action). The redirect path is verified only with a simulated response: OpenAlex's documented merged example currently returns 404 (fails safely as `IDENTITY_NOT_FOUND`), so no real redirect could be recorded.
+* A merged profile that OpenAlex keeps as an "inert" author with no works returns a genuine empty result: discovery succeeds with 0 records and changes nothing (candidate warning for Phase 12).
 
 ## Phase 3 Report
 
@@ -49,7 +91,7 @@ Implementation: IN PROGRESS (Phases 1–3 done)
 
 * No fuzzy matching (deferred): a DOI match whose titles differ only by a typo, and an exact-title pair with a typo, both become `DuplicateCandidate`s rather than merges.
 * Titles differing only in characters outside a–z/0–9 that NFKD does not decompose (e.g. Greek letters, `ß`) normalize differently from their transliterations.
-* The OpenAlex repository preprint rule is deferred to Phase 4 (decision #25).
+* ~~The OpenAlex repository preprint rule is deferred to Phase 4 (decision #25)~~ — settled in Phase 4 (#31).
 * Type-family mappings are initial; Phases 4–6 refine them with recorded fixtures (§7.3).
 
 ## Open Documentation / Roadmap Issues
@@ -120,7 +162,7 @@ Implementation: IN PROGRESS (Phases 1–3 done)
 | 1 | Minimal Project Setup | Clean foundation: repo structure, config cleanup, env validation, Express/TypeScript consistency, health, testing foundation | **COMPLETE** (pending review) |
 | 2 | Minimal Database Foundation | Implement the 9-table model with relationships, constraints, indexes, migration and dev seed | **COMPLETE** (approved) |
 | 3 | Matching & Deduplication Engine | Normalization, type families, preprint detection, deterministic matching, vetoes, DuplicateCandidate, canonical metadata selection | **COMPLETE** (approved) |
-| 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | NOT STARTED |
+| 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | **COMPLETE** (approved) |
 | 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | NOT STARTED |
 | 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | NOT STARTED |
 | 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | NOT STARTED |
@@ -151,7 +193,7 @@ Implementation: IN PROGRESS (Phases 1–3 done)
 
 ## Deferred Decisions
 
-Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; OpenAlex repository preprint rule (Phase 4); advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
+Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
 
 ## Progress Rules
 
@@ -192,11 +234,16 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; OpenAlex 
 | 22 | 2026-09-27 | DOI contradiction criteria: only preprint-vs-published or unrelated titles (not equal, no whole-word containment) block a DOI match; type/year differences never do | Resolves the deferred §20 item in Phase 3; approved |
 | 23 | 2026-09-27 | Generic/too-short titles: < 10 normalized chars, < 2 words, fixed generic list, or generic prefix → ineligible for title auto-merge | Resolves the deferred §20 item in Phase 3; approved; list in `titleEligibility.ts` |
 | 24 | 2026-09-27 | Every blocked exact-title match (generic titles included) creates a `DuplicateCandidate`; ambiguous DOI/title matches create candidates, never a merge | §8.1 rule 4 as written; approved |
-| 25 | 2026-09-27 | OpenAlex "repository where applicable" preprint rule DEFERRED to Phase 4; Phase 3 applies only type=preprint and 10.48550/ DOIs | "Where applicable" is undefined in the plan and decision #8 recorded the rule unconditionally; architect chose to defer |
+| 25 | 2026-09-27 | ~~OpenAlex "repository where applicable" preprint rule DEFERRED to Phase 4; Phase 3 applies only type=preprint and 10.48550/ DOIs~~ **Superseded by #31** | "Where applicable" is undefined in the plan and decision #8 recorded the rule unconditionally; architect chose to defer |
 | 26 | 2026-09-27 | Canonical selection: OTHER does not outrank a known type family; within one source the oldest record wins | §7.3 defines OTHER as insufficient information; approved |
 | 27 | 2026-09-27 | DOI ownership precedence: canonical DOI owner before source-record-only DOI carriers | Phase 3 implementation decision (not frozen); approved |
 | 28 | 2026-09-27 | ~~Known limitation: secondary DOIs of stored records not searched~~ **Superseded:** all normalized DOIs are kept in `raw_metadata._normalizedDois` and searched during matching | Architect review: the limitation conflicted with §6.5; implemented without schema change |
 | 29 | 2026-09-27 | Roadmap gap recorded: §8.5 duplicate-candidate resolution has no implementation phase in §19 | Verified in Phase 3; not implemented; awaiting assignment |
 | 30 | 2026-09-27 | SUPPRESSED publications stay in matching and absorb matching source records (provenance only); no professor links are ever created for them automatically; ingest result reports `publicationStatus` | Architect review of §6.4/§14; excluding them would recreate the suppressed paper as a new publication |
+| 31 | 2026-09-28 | OpenAlex repository hosting is not a preprint signal; preprints = type `preprint` or `10.48550/` DOI (§7.4 updated) | Architect decision in Phase 4 on live data: 140 repository-hosted works of one author — 94 already typed preprint, 46 published papers/reports/books |
+| 32 | 2026-09-28 | `OPENALEX_API_KEY` optional; sent as Bearer token when set; keyless otherwise with a startup warning | Architect decision; keyless budget verified (1,000 credits/day) |
+| 33 | 2026-09-28 | Merged OpenAlex author ID: works fetched with the resolved ID; identity not changed automatically; warning reported. Detection relies on OpenAlex's documented 301 redirect; a live check on 2026-09-28 of the documented example `A5092938886` returned 404, so that merged-away ID currently fails safely as `IDENTITY_NOT_FOUND` with no writes. Redirect path covered by a simulated response only | Phase 4 implementation decision implementing §13.3; verified read-only and documented after architect review |
+| 34 | 2026-09-28 | Fewer works than `meta.count` after cursor paging → fetch failure (`INCOMPLETE`) | Phase 4 implementation decision implementing §13.1/§14 (incomplete responses are failures) |
+| 35 | 2026-09-28 | §14 `last_seen_at` wording clarified to match the implementation: set once the task's complete fetch is validated and that record is processed (per-record transactions) | Documentation clarification after Phase 4 review; no behaviour change |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

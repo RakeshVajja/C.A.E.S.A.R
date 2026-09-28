@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "fixtures:openalex": "tsx scripts/record-openalex-fixtures.ts",
+    "smoke:openalex": "tsx scripts/openalex-smoke.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

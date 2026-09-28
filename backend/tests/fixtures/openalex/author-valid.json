@@ -1,0 +1,11 @@
+{
+  "request": "https://api.openalex.org/authors/A5023888391?select=id,display_name,orcid,works_count",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "id": "https://openalex.org/A5023888391",
+    "display_name": "Jason R Priem",
+    "orcid": "https://orcid.org/0000-0001-6187-6610",
+    "works_count": 64
+  }
+}

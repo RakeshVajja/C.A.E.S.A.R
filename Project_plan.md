@@ -407,7 +407,7 @@ Initial mapping (refined with real fixtures during Phases 3–6):
 | Source | Record is a preprint when |
 |---|---|
 | DBLP | record type `Informal`, or key begins with `journals/corr/` (DBLP CoRR records usually have **no DOI**) |
-| OpenAlex | `type = preprint`, or DOI begins with `10.48550/`. The "primary source is a repository where applicable" rule is **deferred to Phase 4** (decision #25): "where applicable" is undefined and will be settled with recorded OpenAlex fixtures; until then a repository-hosted work follows the normal mapping. |
+| OpenAlex | `type = preprint`, or DOI begins with `10.48550/`. Repository hosting is **not** a preprint signal (decision #31, settled in Phase 4 with live data: of 140 repository-hosted works of one author, all 94 real preprints were already typed `preprint`; the other 46 were published papers, reports and books). |
 | ORCID | `type = preprint` |
 
 ---
@@ -587,8 +587,10 @@ A fetch failure must **never** be interpreted as "the professor has zero publica
 * Validate the author identity (`/authors/{id}`) **before** fetching works; a nonexistent ID is a failure (the works filter returns an empty 200 for nonexistent IDs). Redirects indicate merged IDs and are logged.
 * Fetch works with `filter=author.id:{id}`, **cursor pagination**, `per-page=100`.
 * Use `select=` to fetch only needed fields (no abstracts, references or full-text data).
-* Use a free API key from configuration.
+* Use a free API key from configuration when set (`OPENALEX_API_KEY`, sent as `Authorization: Bearer`); the key is optional and requests are keyless otherwise (decision #32).
 * Validate response content; retry/backoff on 429/5xx.
+* A merged author ID is resolved to the ID OpenAlex returns and works are fetched with it; the stored identity is not changed automatically (identities are admin-managed) and a warning is reported (decision #33). Detection relies on OpenAlex's **documented** 301 redirect for merged IDs. A live check on 2026-09-28 of OpenAlex's documented merged example (`A5092938886` → `A5006060960`) returned **404** instead of a redirect, so such a merged-away ID currently fails safely as `IDENTITY_NOT_FOUND` with no writes. The redirect path is covered by a simulated response, not a real recorded redirect.
+* A fetch that returns fewer works than OpenAlex's `meta.count` for the query is an incomplete fetch (failure, decision #34). The author's `works_count` is not used for this check (it can differ from the works query count).
 
 ## 13.4 DBLP
 
@@ -626,7 +628,7 @@ Rules:
 * Each task fetches its complete result set and validates it **before** writing; a failed fetch writes nothing and marks the task FAILED. Other tasks continue; the run ends as `PARTIAL_SUCCESS`.
 * Failed fetches never destroy or alter existing data.
 * Missing records are never automatically deleted or unlinked.
-* `last_seen_at` is updated only after the record's task has been fetched, validated and processed successfully.
+* `last_seen_at` is updated only after the task's complete fetch has been validated and that record has been processed successfully (records are written one transaction at a time, so records processed before a later database error keep their refreshed `last_seen_at`).
 * Incomplete or failed API responses never cause deletion or unlinking.
 * Reruns are idempotent.
 * Rejected relationships remain rejected.
@@ -729,7 +731,6 @@ Each phase ends with: what was implemented, files changed, design decisions, tes
 These are intentionally **not** decided yet and must remain marked as deferred until decided and logged:
 
 * Fuzzy matching (only after real data shows need; candidates only).
-* OpenAlex "primary source is a repository where applicable" preprint rule (Phase 4, with recorded fixtures; decision #25).
 * PostgreSQL advisory locking (only if multiple backend instances are ever used).
 * Startup catch-up sync (optional; Phase 12).
 * Exact monthly schedule time (Phase 12).

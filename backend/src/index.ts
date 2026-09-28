@@ -10,6 +10,10 @@ async function startServer(): Promise<void> {
     process.exit(1);
   }
 
+  if (!env.openAlexApiKey && env.nodeEnv !== 'test') {
+    console.warn('OPENALEX_API_KEY is not set: OpenAlex requests will use the smaller keyless budget');
+  }
+
   const server = createApp().listen(env.port, () => {
     console.log(`CSE_Research_Hub backend listening on http://localhost:${env.port} (${env.nodeEnv})`);
   });

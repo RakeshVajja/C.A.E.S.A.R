@@ -4,10 +4,9 @@ import type { TypeFamily } from '@prisma/client';
  * OpenAlex → type family (Project_plan.md §7.3, §7.4). OpenAlex's `type` alone is not
  * reliable, so the primary location's source type is used as well.
  *
- * Preprint detection applies only the unambiguous §7.4 rules (type "preprint", arXiv DOI).
- * The "primary source is a repository where applicable" rule is DEFERRED to Phase 4
- * (decision log #25): it will be settled with recorded OpenAlex fixtures. Until then a
- * repository-hosted work follows the normal mapping (e.g. article + repository → OTHER).
+ * Preprints are works typed "preprint" or carrying an arXiv DOI (§7.4). Repository hosting is
+ * not a preprint signal (decision #31, settled on live data): repository-hosted works follow the
+ * normal mapping (e.g. article + repository → OTHER; conference-paper → CONFERENCE).
  */
 export interface OpenAlexTypeInput {
   /** Work `type`, e.g. "article", "conference-paper", "preprint". */

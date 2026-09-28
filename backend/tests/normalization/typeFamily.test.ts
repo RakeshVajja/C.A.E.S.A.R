@@ -30,7 +30,7 @@ describe('openAlexTypeFamily (§7.3, §7.4)', () => {
     expect(map('book', null)).toBe('BOOK');
   });
 
-  it('does not yet apply the repository rule (deferred to Phase 4, decision #25)', () => {
+  it('does not treat repository hosting as a preprint (decision #31)', () => {
     // Real case: AAAI 2019 paper typed "article", repository-hosted, with the published AAAI DOI.
     expect(map('article', 'repository', ['10.1609/aaai.v33i01.33014731'])).toBe('OTHER');
     expect(map('report', 'repository')).toBe('OTHER');

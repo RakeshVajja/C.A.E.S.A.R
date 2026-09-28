@@ -29,6 +29,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     environment: 'node',
     globalSetup: ['tests/setup/globalSetup.ts'],
+    setupFiles: ['tests/setup/noNetwork.ts'],
     // Database test files share one database; run files one at a time.
     fileParallelism: false,
     // dotenv never overrides these, so tests cannot reach the development database.

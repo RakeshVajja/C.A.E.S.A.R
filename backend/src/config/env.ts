@@ -12,6 +12,12 @@ const envSchema = z.object({
     .string({ error: 'DATABASE_URL is required' })
     .regex(/^postgres(ql)?:\/\/.+/, 'DATABASE_URL must be a PostgreSQL connection URL'),
   CORS_ORIGIN: z.url().default('http://localhost:3000'),
+  // Optional (decision #32): sent to OpenAlex when set; requests are keyless otherwise.
+  OPENALEX_API_KEY: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : null)),
 });
 
 export interface Env {
@@ -19,6 +25,7 @@ export interface Env {
   port: number;
   databaseUrl: string;
   corsOrigin: string;
+  openAlexApiKey: string | null;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv): Env {
@@ -36,6 +43,7 @@ export function loadEnv(source: NodeJS.ProcessEnv): Env {
     port: result.data.PORT,
     databaseUrl: result.data.DATABASE_URL,
     corsOrigin: result.data.CORS_ORIGIN,
+    openAlexApiKey: result.data.OPENALEX_API_KEY,
   };
 }
 

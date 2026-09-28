@@ -15,7 +15,13 @@ describe('loadEnv', () => {
       port: 5001,
       databaseUrl: 'postgresql://localhost:5432/cse_research_hub?schema=public',
       corsOrigin: 'http://localhost:3000',
+      openAlexApiKey: null,
     });
+  });
+
+  it('reads an optional OpenAlex API key, treating an empty value as absent', () => {
+    expect(loadEnv({ ...validSource, OPENALEX_API_KEY: ' key-123 ' }).openAlexApiKey).toBe('key-123');
+    expect(loadEnv({ ...validSource, OPENALEX_API_KEY: '' }).openAlexApiKey).toBeNull();
   });
 
   it('applies defaults for optional values', () => {

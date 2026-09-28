@@ -1,0 +1,9 @@
+{
+  "request": "https://api.openalex.org/works?filter=author.id:A1&per-page=100&select=id,doi,ids,title,display_name,publication_year,type,primary_location,authorships",
+  "status": 400,
+  "contentType": "application/json",
+  "body": {
+    "error": "Invalid query parameters error.",
+    "message": "'A1' is not a valid OpenAlex ID."
+  }
+}

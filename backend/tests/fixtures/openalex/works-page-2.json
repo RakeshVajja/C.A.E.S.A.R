@@ -1,0 +1,4049 @@
+{
+  "request": "https://api.openalex.org/works?filter=author.id:A5023888391&per-page=25&cursor=IlsnLUluZmluaXR5JywgMTAyLCAnaHR0cHM6Ly9vcGVuYWxleC5vcmcvVzI5ODAxNzI1ODYnXSI%3D&select=id,doi,ids,title,display_name,publication_year,type,primary_location,authorships",
+  "status": 200,
+  "contentType": "application/json",
+  "body": {
+    "meta": {
+      "count": 67,
+      "db_response_time_ms": 19,
+      "page": null,
+      "per_page": 25,
+      "next_cursor": "IlsnLUluZmluaXR5JywgMCwgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1czMTY4OTM3NDEzJ10i",
+      "groups_count": null,
+      "x_query": {
+        "oql": "works where author is (A5023888391)",
+        "oqo": {
+          "get_rows": "works",
+          "filter_rows": [
+            {
+              "column_id": "authorships.author.id",
+              "value": "A5023888391"
+            }
+          ]
+        },
+        "url": "/works?filter=authorships.author.id:A5023888391&per_page=25&cursor=IlsnLUluZmluaXR5JywgMTAyLCAnaHR0cHM6Ly9vcGVuYWxleC5vcmcvVzI5ODAxNzI1ODYnXSI%3D"
+      },
+      "cost_usd": 0.0001
+    },
+    "results": [
+      {
+        "id": "https://openalex.org/W4245410681",
+        "doi": "https://doi.org/10.7287/peerj.preprints.3119",
+        "ids": {
+          "openalex": "https://openalex.org/W4245410681",
+          "doi": "https://doi.org/10.7287/peerj.preprints.3119"
+        },
+        "title": "The State of OA: A large-scale analysis of the prevalence and impact of Open Access articles",
+        "display_name": "The State of OA: A large-scale analysis of the prevalence and impact of Open Access articles",
+        "publication_year": 2017,
+        "type": "preprint",
+        "primary_location": {
+          "id": "doi:10.7287/peerj.preprints.3119",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.7287/peerj.preprints.3119",
+          "pdf_url": null,
+          "source": null,
+          "license": "cc-by",
+          "license_id": "https://openalex.org/licenses/cc-by",
+          "version": "acceptedVersion",
+          "is_accepted": true,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "posted-content"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210166736",
+                "display_name": "Impact Technology Development (United States)",
+                "ror": "https://ror.org/05ppvf150",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [
+              "Impactstory, Sanford, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Impactstory, Sanford, USA",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001",
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210166736",
+                "display_name": "Impact Technology Development (United States)",
+                "ror": "https://ror.org/05ppvf150",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [
+              "Impactstory, Sanford, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Impactstory, Sanford, USA",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001",
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5068542997",
+              "display_name": "Vincent Larivière",
+              "orcid": "https://orcid.org/0000-0002-2733-0689"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I159129438",
+                "display_name": "Université du Québec à Montréal",
+                "ror": "https://ror.org/002rjbv21",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I159129438",
+                  "https://openalex.org/I49663120"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I70931966",
+                "display_name": "Université de Montréal",
+                "ror": "https://ror.org/0161xgx34",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Vincent Larivière",
+            "raw_affiliation_strings": [
+              "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+              "École de bibliothéconomie et des sciences de l’information, Université de Montréal, Montréal, QC, Canada"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I159129438"
+                ]
+              },
+              {
+                "raw_affiliation_string": "École de bibliothéconomie et des sciences de l’information, Université de Montréal, Montréal, QC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5085171399",
+              "display_name": "Juan Pablo Alperín",
+              "orcid": "https://orcid.org/0000-0002-9344-7439"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I18014758",
+                "display_name": "Simon Fraser University",
+                "ror": "https://ror.org/0213rcc28",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I18014758"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210152428",
+                "display_name": "Public Knowledge",
+                "ror": "https://ror.org/04fd1ra95",
+                "country_code": "US",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4210152428"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4387153203",
+                "display_name": "Public Knowledge Project",
+                "ror": "https://ror.org/05ek4tb53",
+                "country_code": null,
+                "type": "other",
+                "lineage": [
+                  "https://openalex.org/I18014758",
+                  "https://openalex.org/I4387153203"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Juan Pablo Alperin",
+            "raw_affiliation_strings": [
+              "Canadian Institute for Studies in Publishing, Simon Fraser University, Vancouver, BC, Canada",
+              "Public Knowledge Project"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0002-9344-7439",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Canadian Institute for Studies in Publishing, Simon Fraser University, Vancouver, BC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I18014758"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Public Knowledge Project",
+                "institution_ids": [
+                  "https://openalex.org/I4210152428",
+                  "https://openalex.org/I4387153203"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5066880338",
+              "display_name": "Lisa Matthias",
+              "orcid": "https://orcid.org/0000-0002-2612-2132"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Lisa Matthias",
+            "raw_affiliation_strings": [
+              "Independent Scholar, Berlin, Germany"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0002-2612-2132",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Independent Scholar, Berlin, Germany",
+                "institution_ids": []
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5015414792",
+              "display_name": "Bree Norlander",
+              "orcid": "https://orcid.org/0000-0002-0431-4221"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I201448701",
+                "display_name": "University of Washington",
+                "ror": "https://ror.org/00cvxb145",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201448701"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I58610484",
+                "display_name": "Seattle University",
+                "ror": "https://ror.org/02jqc0m91",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Bree Norlander",
+            "raw_affiliation_strings": [
+              "FlourishOA",
+              "Information School, University of Washington, Seattle, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "FlourishOA",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "Information School, University of Washington, Seattle, USA",
+                "institution_ids": [
+                  "https://openalex.org/I201448701",
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5062989025",
+              "display_name": "Ashley Farley",
+              "orcid": "https://orcid.org/0000-0001-9310-6944"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I201448701",
+                "display_name": "University of Washington",
+                "ror": "https://ror.org/00cvxb145",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201448701"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I58610484",
+                "display_name": "Seattle University",
+                "ror": "https://ror.org/02jqc0m91",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Ashley Farley",
+            "raw_affiliation_strings": [
+              "FlourishOA",
+              "Information School, University of Washington, Seattle, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "FlourishOA",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "Information School, University of Washington, Seattle, USA",
+                "institution_ids": [
+                  "https://openalex.org/I201448701",
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5046879461",
+              "display_name": "Jevin D. West",
+              "orcid": "https://orcid.org/0000-0002-4118-0322"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I201448701",
+                "display_name": "University of Washington",
+                "ror": "https://ror.org/00cvxb145",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201448701"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I58610484",
+                "display_name": "Seattle University",
+                "ror": "https://ror.org/02jqc0m91",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Jevin West",
+            "raw_affiliation_strings": [
+              "Information School, University of Washington, Seattle, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Information School, University of Washington, Seattle, USA",
+                "institution_ids": [
+                  "https://openalex.org/I201448701",
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5014077037",
+              "display_name": "Stefanie Haustein",
+              "orcid": "https://orcid.org/0000-0003-0157-1430"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I153718931",
+                "display_name": "University of Ottawa",
+                "ror": "https://ror.org/03c4mmv16",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I153718931"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I159129438",
+                "display_name": "Université du Québec à Montréal",
+                "ror": "https://ror.org/002rjbv21",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I159129438",
+                  "https://openalex.org/I49663120"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Stefanie Haustein",
+            "raw_affiliation_strings": [
+              "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+              "School of Information Studies, University of Ottawa, Ottawa, ON, Canada"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0003-0157-1430",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I159129438"
+                ]
+              },
+              {
+                "raw_affiliation_string": "School of Information Studies, University of Ottawa, Ottawa, ON, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I153718931"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W4237240986",
+        "doi": "https://doi.org/10.7551/mitpress/9445.003.0019",
+        "ids": {
+          "openalex": "https://openalex.org/W4237240986",
+          "doi": "https://doi.org/10.7551/mitpress/9445.003.0019"
+        },
+        "title": "Altmetrics",
+        "display_name": "Altmetrics",
+        "publication_year": 2014,
+        "type": "book-chapter",
+        "primary_location": {
+          "id": "doi:10.7551/mitpress/9445.003.0019",
+          "is_oa": false,
+          "landing_page_url": "https://doi.org/10.7551/mitpress/9445.003.0019",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4306463997",
+            "display_name": "The MIT Press eBooks",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/P4310315718",
+            "host_organization_name": "The MIT Press",
+            "host_organization_lineage": [
+              "https://openalex.org/P4310315718",
+              "https://openalex.org/P4310316440"
+            ],
+            "host_organization_lineage_names": [
+              "The MIT Press",
+              "Massachusetts Institute of Technology"
+            ],
+            "type": "ebook platform"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Beyond Bibliometrics",
+          "raw_type": "book-chapter"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": true,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W4235038322",
+        "doi": "https://doi.org/10.7287/peerj.preprints.3119v1",
+        "ids": {
+          "openalex": "https://openalex.org/W4235038322",
+          "doi": "https://doi.org/10.7287/peerj.preprints.3119v1"
+        },
+        "title": "The State of OA: A large-scale analysis of the prevalence and impact of Open Access articles",
+        "display_name": "The State of OA: A large-scale analysis of the prevalence and impact of Open Access articles",
+        "publication_year": 2017,
+        "type": "preprint",
+        "primary_location": {
+          "id": "doi:10.7287/peerj.preprints.3119v1",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.7287/peerj.preprints.3119v1",
+          "pdf_url": null,
+          "source": null,
+          "license": "cc-by",
+          "license_id": "https://openalex.org/licenses/cc-by",
+          "version": "acceptedVersion",
+          "is_accepted": true,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "posted-content"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210166736",
+                "display_name": "Impact Technology Development (United States)",
+                "ror": "https://ror.org/05ppvf150",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [
+              "Impactstory, Sanford, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Impactstory, Sanford, USA",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001",
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210166736",
+                "display_name": "Impact Technology Development (United States)",
+                "ror": "https://ror.org/05ppvf150",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [
+              "Impactstory, Sanford, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Impactstory, Sanford, USA",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001",
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5068542997",
+              "display_name": "Vincent Larivière",
+              "orcid": "https://orcid.org/0000-0002-2733-0689"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I159129438",
+                "display_name": "Université du Québec à Montréal",
+                "ror": "https://ror.org/002rjbv21",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I159129438",
+                  "https://openalex.org/I49663120"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I70931966",
+                "display_name": "Université de Montréal",
+                "ror": "https://ror.org/0161xgx34",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Vincent Larivière",
+            "raw_affiliation_strings": [
+              "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+              "École de bibliothéconomie et des sciences de l’information, Université de Montréal, Montréal, QC, Canada"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I159129438"
+                ]
+              },
+              {
+                "raw_affiliation_string": "École de bibliothéconomie et des sciences de l’information, Université de Montréal, Montréal, QC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5085171399",
+              "display_name": "Juan Pablo Alperín",
+              "orcid": "https://orcid.org/0000-0002-9344-7439"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I18014758",
+                "display_name": "Simon Fraser University",
+                "ror": "https://ror.org/0213rcc28",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I18014758"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210152428",
+                "display_name": "Public Knowledge",
+                "ror": "https://ror.org/04fd1ra95",
+                "country_code": "US",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4210152428"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4387153203",
+                "display_name": "Public Knowledge Project",
+                "ror": "https://ror.org/05ek4tb53",
+                "country_code": null,
+                "type": "other",
+                "lineage": [
+                  "https://openalex.org/I18014758",
+                  "https://openalex.org/I4387153203"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Juan Pablo Alperin",
+            "raw_affiliation_strings": [
+              "Canadian Institute for Studies in Publishing, Simon Fraser University, Vancouver, BC, Canada",
+              "Public Knowledge Project"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0002-9344-7439",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Canadian Institute for Studies in Publishing, Simon Fraser University, Vancouver, BC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I18014758"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Public Knowledge Project",
+                "institution_ids": [
+                  "https://openalex.org/I4210152428",
+                  "https://openalex.org/I4387153203"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5066880338",
+              "display_name": "Lisa Matthias",
+              "orcid": "https://orcid.org/0000-0002-2612-2132"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Lisa Matthias",
+            "raw_affiliation_strings": [
+              "Independent Scholar, Berlin, Germany"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0002-2612-2132",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Independent Scholar, Berlin, Germany",
+                "institution_ids": []
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5015414792",
+              "display_name": "Bree Norlander",
+              "orcid": "https://orcid.org/0000-0002-0431-4221"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I201448701",
+                "display_name": "University of Washington",
+                "ror": "https://ror.org/00cvxb145",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201448701"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I58610484",
+                "display_name": "Seattle University",
+                "ror": "https://ror.org/02jqc0m91",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Bree Norlander",
+            "raw_affiliation_strings": [
+              "FlourishOA",
+              "Information School, University of Washington, Seattle, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "FlourishOA",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "Information School, University of Washington, Seattle, USA",
+                "institution_ids": [
+                  "https://openalex.org/I201448701",
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5062989025",
+              "display_name": "Ashley Farley",
+              "orcid": "https://orcid.org/0000-0001-9310-6944"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I201448701",
+                "display_name": "University of Washington",
+                "ror": "https://ror.org/00cvxb145",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201448701"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I58610484",
+                "display_name": "Seattle University",
+                "ror": "https://ror.org/02jqc0m91",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Ashley Farley",
+            "raw_affiliation_strings": [
+              "FlourishOA",
+              "Information School, University of Washington, Seattle, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "FlourishOA",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "Information School, University of Washington, Seattle, USA",
+                "institution_ids": [
+                  "https://openalex.org/I201448701",
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5046879461",
+              "display_name": "Jevin D. West",
+              "orcid": "https://orcid.org/0000-0002-4118-0322"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I201448701",
+                "display_name": "University of Washington",
+                "ror": "https://ror.org/00cvxb145",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I201448701"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I58610484",
+                "display_name": "Seattle University",
+                "ror": "https://ror.org/02jqc0m91",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Jevin West",
+            "raw_affiliation_strings": [
+              "Information School, University of Washington, Seattle, USA"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Information School, University of Washington, Seattle, USA",
+                "institution_ids": [
+                  "https://openalex.org/I201448701",
+                  "https://openalex.org/I58610484"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5014077037",
+              "display_name": "Stefanie Haustein",
+              "orcid": "https://orcid.org/0000-0003-0157-1430"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I153718931",
+                "display_name": "University of Ottawa",
+                "ror": "https://ror.org/03c4mmv16",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I153718931"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I159129438",
+                "display_name": "Université du Québec à Montréal",
+                "ror": "https://ror.org/002rjbv21",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I159129438",
+                  "https://openalex.org/I49663120"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Stefanie Haustein",
+            "raw_affiliation_strings": [
+              "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+              "School of Information Studies, University of Ottawa, Ottawa, ON, Canada"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0003-0157-1430",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Observatoire des Sciences et des Technologies (OST), Centre Interuniversitaire de Recherche sur la Science et la Technologie (CIRST),, Université du Québec à Montréal, Montréal, QC, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I159129438"
+                ]
+              },
+              {
+                "raw_affiliation_string": "School of Information Studies, University of Ottawa, Ottawa, ON, Canada",
+                "institution_ids": [
+                  "https://openalex.org/I153718931"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W854896339",
+        "doi": "https://doi.org/10.48550/arxiv.1507.01328",
+        "ids": {
+          "openalex": "https://openalex.org/W854896339",
+          "doi": "https://doi.org/10.48550/arxiv.1507.01328",
+          "mag": "854896339"
+        },
+        "title": "Altmetrics (Chapter from Beyond Bibliometrics: Harnessing Multidimensional Indicators of Scholarly Impact)",
+        "display_name": "Altmetrics (Chapter from Beyond Bibliometrics: Harnessing Multidimensional Indicators of Scholarly Impact)",
+        "publication_year": 2015,
+        "type": "preprint",
+        "primary_location": {
+          "id": "pmh:oai:arXiv.org:1507.01328",
+          "is_oa": true,
+          "landing_page_url": "http://arxiv.org/abs/1507.01328",
+          "pdf_url": "https://arxiv.org/pdf/1507.01328",
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": true,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W87230806",
+        "doi": "https://doi.org/10.6084/m9.figshare.104629.v1",
+        "ids": {
+          "openalex": "https://openalex.org/W87230806",
+          "doi": "https://doi.org/10.6084/m9.figshare.104629.v1",
+          "mag": "87230806"
+        },
+        "title": "Prevalence and use of Twitter among scholars",
+        "display_name": "Prevalence and use of Twitter among scholars",
+        "publication_year": 2012,
+        "type": "other",
+        "primary_location": {
+          "id": "doi:10.6084/m9.figshare.104629.v1",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.6084/m9.figshare.104629.v1",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4377196282",
+            "display_name": "Figshare",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I4210132348",
+            "host_organization_name": "Figshare (United Kingdom)",
+            "host_organization_lineage": [
+              "https://openalex.org/I4210132348"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "cc-by",
+          "license_id": "https://openalex.org/licenses/cc-by",
+          "version": null,
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "Image"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5063165341",
+              "display_name": "Costello Kaitlin",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Costello, Kaitlin",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5045849417",
+              "display_name": "Tyler Dzuba",
+              "orcid": "https://orcid.org/0000-0002-3936-8238"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Dzuba, Tyler",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2290499851",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W2290499851",
+          "mag": "2290499851"
+        },
+        "title": "As scholars undertake a great migration to online publishing, altmetrics stands to provide an academic measurement of twitter and other online activity",
+        "display_name": "As scholars undertake a great migration to online publishing, altmetrics stands to provide an academic measurement of twitter and other online activity",
+        "publication_year": 2011,
+        "type": "other",
+        "primary_location": {
+          "id": "pmh:oai:eprints.lse.ac.uk:51855",
+          "is_oa": true,
+          "landing_page_url": "http://eprints.lse.ac.uk/51855/1/blogs.lse.ac.uk-As_scholars_undertake_a_great_migration_to_online_publishing_altmetrics_stands_to_provide_an_academic.pdf",
+          "pdf_url": "http://eprints.lse.ac.uk/51855/1/blogs.lse.ac.uk-As_scholars_undertake_a_great_migration_to_online_publishing_altmetrics_stands_to_provide_an_academic.pdf",
+          "source": {
+            "id": "https://openalex.org/S4306401593",
+            "display_name": "London School of Economics and Political Science Research Online (London School of Economics and Political Science)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I909854389",
+            "host_organization_name": "London School of Economics and Political Science",
+            "host_organization_lineage": [
+              "https://openalex.org/I909854389"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "acceptedVersion",
+          "is_accepted": true,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "Online resource"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": true,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W104609242",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W104609242",
+          "mag": "104609242"
+        },
+        "title": "The launch of ImpactStory: using altmetrics to tell data-driven stories",
+        "display_name": "The launch of ImpactStory: using altmetrics to tell data-driven stories",
+        "publication_year": 2012,
+        "type": "other",
+        "primary_location": {
+          "id": "pmh:oai:researchonline.lse.ac.uk:52137",
+          "is_oa": false,
+          "landing_page_url": "https://researchonline.lse.ac.uk/id/eprint/52137/1/blogs.lse.ac.uk-The_launch_of_ImpactStory_using_altmetrics_to_tell_datadriven_stories.pdf",
+          "pdf_url": "https://researchonline.lse.ac.uk/id/eprint/52137/1/blogs.lse.ac.uk-The_launch_of_ImpactStory_using_altmetrics_to_tell_datadriven_stories.pdf",
+          "source": {
+            "id": "https://openalex.org/S4306401593",
+            "display_name": "London School of Economics and Political Science Research Online (London School of Economics and Political Science)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I909854389",
+            "host_organization_name": "London School of Economics and Political Science",
+            "host_organization_lineage": [
+              "https://openalex.org/I909854389"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "acceptedVersion",
+          "is_accepted": true,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "Online resource"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2949915600",
+        "doi": "https://doi.org/10.48550/arxiv.1305.3328",
+        "ids": {
+          "openalex": "https://openalex.org/W2949915600",
+          "doi": "https://doi.org/10.48550/arxiv.1305.3328",
+          "mag": "2949915600"
+        },
+        "title": "Riding the crest of the altmetrics wave: How librarians can help prepare faculty for the next generation of research impact metrics",
+        "display_name": "Riding the crest of the altmetrics wave: How librarians can help prepare faculty for the next generation of research impact metrics",
+        "publication_year": 2013,
+        "type": "preprint",
+        "primary_location": {
+          "id": "pmh:oai:arXiv.org:1305.3328",
+          "is_oa": true,
+          "landing_page_url": "http://arxiv.org/abs/1305.3328",
+          "pdf_url": "https://arxiv.org/pdf/1305.3328",
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5089455644",
+              "display_name": "Scott Lapinski",
+              "orcid": "https://orcid.org/0000-0002-5835-9222"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I136199984",
+                "display_name": "Harvard University",
+                "ror": "https://ror.org/03vek6s52",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I136199984"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Lapinski, Scott",
+            "raw_affiliation_strings": [
+              "Scott Lapinski is digital resources and services librarian at the Countway Library, Harvard Medical School, e-mail: P_Lapinski@hms.harvard.edu"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Scott Lapinski is digital resources and services librarian at the Countway Library, Harvard Medical School, e-mail: P_Lapinski@hms.harvard.edu",
+                "institution_ids": [
+                  "https://openalex.org/I136199984"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210161256",
+                "display_name": "Impact",
+                "ror": "https://ror.org/05d9dsr70",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4210161256"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I6002401",
+                "display_name": "National Evolutionary Synthesis Center",
+                "ror": "https://ror.org/001ykb961",
+                "country_code": "US",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I6002401"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [
+              "Heather Piwowar is a cofounder of ImpactStory and a postdoc at the National Evolutionary Synthesis through Duke University, e-mail heather@impactstory.org, and"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Heather Piwowar is a cofounder of ImpactStory and a postdoc at the National Evolutionary Synthesis through Duke University, e-mail heather@impactstory.org, and",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001",
+                  "https://openalex.org/I4210161256",
+                  "https://openalex.org/I6002401"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I114027177",
+                "display_name": "University of North Carolina at Chapel Hill",
+                "ror": "https://ror.org/0130frc33",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I114027177"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210161256",
+                "display_name": "Impact",
+                "ror": "https://ror.org/05d9dsr70",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4210161256"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4210166736",
+                "display_name": "Impact Technology Development (United States)",
+                "ror": "https://ror.org/05ppvf150",
+                "country_code": "US",
+                "type": "company",
+                "lineage": [
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [
+              "Jason Priem is a cofounder of ImpactStory and PhD student at the School of Information and Library Science, UNC-Chapel Hill, e-mail jason@impactstory.org"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Jason Priem is a cofounder of ImpactStory and PhD student at the School of Information and Library Science, UNC-Chapel Hill, e-mail jason@impactstory.org",
+                "institution_ids": [
+                  "https://openalex.org/I114027177",
+                  "https://openalex.org/I4200000001",
+                  "https://openalex.org/I4210161256",
+                  "https://openalex.org/I4210166736"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W4393631545",
+        "doi": "https://doi.org/10.5281/zenodo.837902",
+        "ids": {
+          "openalex": "https://openalex.org/W4393631545",
+          "doi": "https://doi.org/10.5281/zenodo.837902"
+        },
+        "title": "Data From: The State Of Oa: A Large-Scale Analysis Of The Prevalence And Impact Of Open Access Articles",
+        "display_name": "Data From: The State Of Oa: A Large-Scale Analysis Of The Prevalence And Impact Of Open Access Articles",
+        "publication_year": 2017,
+        "type": "dataset",
+        "primary_location": {
+          "id": "pmh:oai:zenodo.org:837902",
+          "is_oa": true,
+          "landing_page_url": "https://zenodo.org/record/837902",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4306400562",
+            "display_name": "Zenodo (CERN European Organization for Nuclear Research)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I67311998",
+            "host_organization_name": "European Organization for Nuclear Research",
+            "host_organization_lineage": [
+              "https://openalex.org/I67311998"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "other-oa",
+          "license_id": "https://openalex.org/licenses/other-oa",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "dataset"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5068542997",
+              "display_name": "Vincent Larivière",
+              "orcid": "https://orcid.org/0000-0002-2733-0689"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Larivière, Vincent",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5085171399",
+              "display_name": "Juan Pablo Alperín",
+              "orcid": "https://orcid.org/0000-0002-9344-7439"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Alperin, Juan Pablo",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5066880338",
+              "display_name": "Lisa Matthias",
+              "orcid": "https://orcid.org/0000-0002-2612-2132"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Matthias, Lisa",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5015414792",
+              "display_name": "Bree Norlander",
+              "orcid": "https://orcid.org/0000-0002-0431-4221"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Norlander, Bree",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5062989025",
+              "display_name": "Ashley Farley",
+              "orcid": "https://orcid.org/0000-0001-9310-6944"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Farley, Ashley",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5046879461",
+              "display_name": "Jevin D. West",
+              "orcid": "https://orcid.org/0000-0002-4118-0322"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "West, Jevin",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5014077037",
+              "display_name": "Stefanie Haustein",
+              "orcid": "https://orcid.org/0000-0003-0157-1430"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Haustein, Stefanie",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W3084303366",
+        "doi": "https://doi.org/10.48550/arxiv.2009.04281",
+        "ids": {
+          "openalex": "https://openalex.org/W3084303366",
+          "doi": "https://doi.org/10.48550/arxiv.2009.04281",
+          "mag": "3084303366"
+        },
+        "title": "How much does an interlibrary loan request cost? A review of the literature",
+        "display_name": "How much does an interlibrary loan request cost? A review of the literature",
+        "publication_year": 2020,
+        "type": "preprint",
+        "primary_location": {
+          "id": "pmh:oai:arXiv.org:2009.04281",
+          "is_oa": true,
+          "landing_page_url": "http://arxiv.org/abs/2009.04281",
+          "pdf_url": "https://arxiv.org/pdf/2009.04281",
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5046272185",
+              "display_name": "Marc‐André Simard",
+              "orcid": "https://orcid.org/0000-0003-3795-0053"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I70931966",
+                "display_name": "Université de Montréal",
+                "ror": "https://ror.org/0161xgx34",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Simard, Marc-Andre",
+            "raw_affiliation_strings": [
+              "Universitè de Montreal"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Universitè de Montreal",
+                "institution_ids": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W4391560706",
+        "doi": "https://doi.org/10.59350/89wpz-hpz32",
+        "ids": {
+          "openalex": "https://openalex.org/W4391560706",
+          "doi": "https://doi.org/10.59350/89wpz-hpz32"
+        },
+        "title": "Introducing the Leiden Ranking Open Edition",
+        "display_name": "Introducing the Leiden Ranking Open Edition",
+        "publication_year": 2024,
+        "type": "other",
+        "primary_location": {
+          "id": "doi:10.59350/89wpz-hpz32",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.59350/89wpz-hpz32",
+          "pdf_url": null,
+          "source": null,
+          "license": "public-domain",
+          "license_id": "https://openalex.org/licenses/public-domain",
+          "version": "acceptedVersion",
+          "is_accepted": true,
+          "is_published": false,
+          "raw_source_name": "Front Matter",
+          "raw_type": "posted-content"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5027467000",
+              "display_name": "Ludo Waltman",
+              "orcid": "https://orcid.org/0000-0001-8249-1752"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I121797337",
+                "display_name": "Leiden University",
+                "ror": "https://ror.org/027bh9e22",
+                "country_code": "NL",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I121797337"
+                ]
+              }
+            ],
+            "countries": [
+              "NL"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Ludo Waltman",
+            "raw_affiliation_strings": [
+              "Leiden University"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0001-8249-1752",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Leiden University",
+                "institution_ids": [
+                  "https://openalex.org/I121797337"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5079208483",
+              "display_name": "Nees Jan van Eck",
+              "orcid": "https://orcid.org/0000-0001-8448-4521"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I121797337",
+                "display_name": "Leiden University",
+                "ror": "https://ror.org/027bh9e22",
+                "country_code": "NL",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I121797337"
+                ]
+              }
+            ],
+            "countries": [
+              "NL"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Nees Jan van Eck",
+            "raw_affiliation_strings": [
+              "Leiden University, Centre for Science and Technology Studies",
+              "Leiden University"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0001-8448-4521",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Leiden University, Centre for Science and Technology Studies",
+                "institution_ids": [
+                  "https://openalex.org/I121797337"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Leiden University",
+                "institution_ids": [
+                  "https://openalex.org/I121797337"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5060713442",
+              "display_name": "Martijn S. Visser",
+              "orcid": "https://orcid.org/0000-0001-5987-2389"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Martijn Visser",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5093869293",
+              "display_name": "Mark Neijssel",
+              "orcid": "https://orcid.org/0000-0001-6252-8503"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I121797337",
+                "display_name": "Leiden University",
+                "ror": "https://ror.org/027bh9e22",
+                "country_code": "NL",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I121797337"
+                ]
+              }
+            ],
+            "countries": [
+              "NL"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Mark Neijssel",
+            "raw_affiliation_strings": [
+              "Leiden University, CWTS"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0001-6252-8503",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Leiden University, CWTS",
+                "institution_ids": [
+                  "https://openalex.org/I121797337"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5013301732",
+              "display_name": "Lucy Maud Montgomery",
+              "orcid": "https://orcid.org/0000-0001-6551-8140"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Lucy Montgomery",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5048552040",
+              "display_name": "Cameron Neylon",
+              "orcid": "https://orcid.org/0000-0002-0068-716X"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I205640436",
+                "display_name": "Curtin University",
+                "ror": "https://ror.org/02n415q13",
+                "country_code": "AU",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I205640436"
+                ]
+              }
+            ],
+            "countries": [
+              "AU"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Cameron Neylon",
+            "raw_affiliation_strings": [
+              "Curtin University"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0002-0068-716X",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Curtin University",
+                "institution_ids": [
+                  "https://openalex.org/I205640436"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5030014883",
+              "display_name": "Bianca M. R. Kramer",
+              "orcid": "https://orcid.org/0000-0002-5965-6560"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Bianca Kramer",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5086928770",
+              "display_name": "Kyle Demes",
+              "orcid": "https://orcid.org/0000-0003-2780-0393"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Kyle Demes",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W3084168212",
+        "doi": "https://doi.org/10.48550/arxiv.2009.04287",
+        "ids": {
+          "openalex": "https://openalex.org/W3084168212",
+          "doi": "https://doi.org/10.48550/arxiv.2009.04287",
+          "mag": "3084168212"
+        },
+        "title": "The aftermath of Big Deal cancellations and their impact on interlibrary loans",
+        "display_name": "The aftermath of Big Deal cancellations and their impact on interlibrary loans",
+        "publication_year": 2020,
+        "type": "preprint",
+        "primary_location": {
+          "id": "pmh:oai:arXiv.org:2009.04287",
+          "is_oa": true,
+          "landing_page_url": "http://arxiv.org/abs/2009.04287",
+          "pdf_url": "https://arxiv.org/pdf/2009.04287",
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5046272185",
+              "display_name": "Marc‐André Simard",
+              "orcid": "https://orcid.org/0000-0003-3795-0053"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I70931966",
+                "display_name": "Université de Montréal",
+                "ror": "https://ror.org/0161xgx34",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Simard, Marc-Andre",
+            "raw_affiliation_strings": [
+              "Universitè de Montreal"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Universitè de Montreal",
+                "institution_ids": [
+                  "https://openalex.org/I70931966"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2398849157",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W2398849157",
+          "mag": "2398849157"
+        },
+        "title": "Riding the crest of the",
+        "display_name": "Riding the crest of the",
+        "publication_year": 2013,
+        "type": "preprint",
+        "primary_location": {
+          "id": "mag:2398849157",
+          "is_oa": true,
+          "landing_page_url": "https://arxiv.org/pdf/1305.3328",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": null,
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "arXiv (Cornell University)",
+          "raw_type": null
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5089455644",
+              "display_name": "Scott Lapinski",
+              "orcid": "https://orcid.org/0000-0002-5835-9222"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Scott Lapinski",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-5835-9222",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W3206844309",
+        "doi": "https://doi.org/10.5281/zenodo.3474007",
+        "ids": {
+          "openalex": "https://openalex.org/W3206844309",
+          "doi": "https://doi.org/10.5281/zenodo.3474007",
+          "mag": "3206844309"
+        },
+        "title": "Data From: The Future of OA: A large-scale analysis projecting Open Access publication and readership",
+        "display_name": "Data From: The Future of OA: A large-scale analysis projecting Open Access publication and readership",
+        "publication_year": 2019,
+        "type": "dataset",
+        "primary_location": {
+          "id": "pmh:oai:figshare.com:article/9943175",
+          "is_oa": false,
+          "landing_page_url": "https://figshare.com/articles/Data_From_The_Future_of_OA_A_large-scale_analysis_projecting_Open_Access_publication_and_readership/9943175",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4377196282",
+            "display_name": "Figshare",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I4210132348",
+            "host_organization_name": "Figshare (United Kingdom)",
+            "host_organization_lineage": [
+              "https://openalex.org/I4210132348"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "Dataset"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [
+              "Our Research"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Our Research",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [
+              "Our Research"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Our Research",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5057272882",
+              "display_name": "Richard Orr",
+              "orcid": "https://orcid.org/0000-0002-5503-9370"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Orr, Richard",
+            "raw_affiliation_strings": [
+              "Our Research"
+            ],
+            "raw_orcid": "https://orcid.org/0000-0002-5503-9370",
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Our Research",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W4287670050",
+        "doi": "https://doi.org/10.48550/arxiv.2009.04287",
+        "ids": {
+          "openalex": "https://openalex.org/W4287670050",
+          "doi": "https://doi.org/10.48550/arxiv.2009.04287"
+        },
+        "title": "The aftermath of Big Deal cancellations and their impact on interlibrary\\n loans",
+        "display_name": "The aftermath of Big Deal cancellations and their impact on interlibrary\\n loans",
+        "publication_year": 2020,
+        "type": "preprint",
+        "primary_location": {
+          "id": "pmh:oai:arXiv.org:2009.04287",
+          "is_oa": true,
+          "landing_page_url": "http://arxiv.org/abs/2009.04287",
+          "pdf_url": "https://arxiv.org/pdf/2009.04287",
+          "source": {
+            "id": "https://openalex.org/S4306400194",
+            "display_name": "arXiv (Cornell University)",
+            "issn_l": "2331-8422",
+            "issn": [
+              "2331-8422"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I205783295",
+            "host_organization_name": "Cornell University",
+            "host_organization_lineage": [
+              "https://openalex.org/I205783295"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5046272185",
+              "display_name": "Marc‐André Simard",
+              "orcid": "https://orcid.org/0000-0003-3795-0053"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Simard, Marc-Andre",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W1584777982",
+        "doi": "https://doi.org/10.7916/d8cr62ws",
+        "ids": {
+          "openalex": "https://openalex.org/W1584777982",
+          "doi": "https://doi.org/10.7916/d8cr62ws",
+          "mag": "1584777982"
+        },
+        "title": "Measuring Scholarly Impact: The Influence of 'Altmetrics'",
+        "display_name": "Measuring Scholarly Impact: The Influence of 'Altmetrics'",
+        "publication_year": 2012,
+        "type": "article",
+        "primary_location": {
+          "id": "mag:1584777982",
+          "is_oa": false,
+          "landing_page_url": "https://academiccommons.columbia.edu/doi/10.7916/D8CR62WS",
+          "pdf_url": null,
+          "source": null,
+          "license": null,
+          "license_id": null,
+          "version": null,
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": null
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5091019754",
+              "display_name": "Kristi Holmes",
+              "orcid": "https://orcid.org/0000-0001-8420-5254"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Kristi Holmes",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-8420-5254",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5062858343",
+              "display_name": "Caitlin Aptowicz Trasande",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Caitlin Aptowicz Trasande",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5111475173",
+              "display_name": "Andrew E. Gelman",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Andrew E. Gelman",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2154768595",
+        "doi": "https://doi.org/10.1002/meet.2011.14504801327",
+        "ids": {
+          "openalex": "https://openalex.org/W2154768595",
+          "doi": "https://doi.org/10.1002/meet.2011.14504801327",
+          "mag": "2154768595"
+        },
+        "title": "Shaken and stirred: ASIS&T 2011 attendee reactions to shaking it up: Embracing new methods for publishing, finding, discussing, and measuring our research output",
+        "display_name": "Shaken and stirred: ASIS&T 2011 attendee reactions to shaking it up: Embracing new methods for publishing, finding, discussing, and measuring our research output",
+        "publication_year": 2011,
+        "type": "article",
+        "primary_location": {
+          "id": "doi:10.1002/meet.2011.14504801327",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.1002/meet.2011.14504801327",
+          "pdf_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/meet.2011.14504801327",
+          "source": {
+            "id": "https://openalex.org/S4306523999",
+            "display_name": "Proceedings of the American Society for Information Science and Technology",
+            "issn_l": "0044-7870",
+            "issn": [
+              "0044-7870",
+              "1550-8390",
+              "1936-1734"
+            ],
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": true,
+            "listed_in": [
+              "cwts-core"
+            ],
+            "host_organization": null,
+            "host_organization_name": null,
+            "host_organization_lineage": [],
+            "host_organization_lineage_names": [],
+            "type": "journal"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "Proceedings of the American Society for Information Science and Technology",
+          "raw_type": "journal-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5080819927",
+              "display_name": "Alex Garnett",
+              "orcid": "https://orcid.org/0000-0002-0079-6622"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I212119943",
+                "display_name": "University of Victoria",
+                "ror": "https://ror.org/04s5mat29",
+                "country_code": "CA",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I212119943"
+                ]
+              }
+            ],
+            "countries": [
+              "CA"
+            ],
+            "is_corresponding": true,
+            "raw_author_name": "Alex Garnett",
+            "raw_affiliation_strings": [
+              "University of Victoria, Electronic Textual Cultures Lab"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of Victoria, Electronic Textual Cultures Lab",
+                "institution_ids": [
+                  "https://openalex.org/I212119943"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I6002401",
+                "display_name": "National Evolutionary Synthesis Center",
+                "ror": "https://ror.org/001ykb961",
+                "country_code": "US",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I6002401"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": true,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [
+              "DataONE and Dryad, National Evolutionary Synthesis Center"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "DataONE and Dryad, National Evolutionary Synthesis Center",
+                "institution_ids": [
+                  "https://openalex.org/I6002401"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5014156820",
+              "display_name": "Kim Holmberg",
+              "orcid": "https://orcid.org/0000-0002-4185-9298"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I130217899",
+                "display_name": "Åbo Akademi University",
+                "ror": "https://ror.org/029pk6x14",
+                "country_code": "FI",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I130217899"
+                ]
+              }
+            ],
+            "countries": [
+              "FI"
+            ],
+            "is_corresponding": true,
+            "raw_author_name": "Kim Holmberg",
+            "raw_affiliation_strings": [
+              "Åbo Akademi Universityåbo, Finland"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Åbo Akademi Universityåbo, Finland",
+                "institution_ids": [
+                  "https://openalex.org/I130217899"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I114027177",
+                "display_name": "University of North Carolina at Chapel Hill",
+                "ror": "https://ror.org/0130frc33",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I114027177"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": true,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [
+              "University of North Carolina at Chapel Hill School of Library and Information Science"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of North Carolina at Chapel Hill School of Library and Information Science",
+                "institution_ids": [
+                  "https://openalex.org/I114027177"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5068602755",
+              "display_name": "Christina K. Pikas",
+              "orcid": "https://orcid.org/0000-0002-4455-8036"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I66946132",
+                "display_name": "University of Maryland, College Park",
+                "ror": "https://ror.org/047s2c258",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I66946132"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": true,
+            "raw_author_name": "Christina K. Pikas",
+            "raw_affiliation_strings": [
+              "University of Maryland, College of Information Studies"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of Maryland, College of Information Studies",
+                "institution_ids": [
+                  "https://openalex.org/I66946132"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5085874183",
+              "display_name": "Nicholas Weber",
+              "orcid": "https://orcid.org/0000-0002-6008-3763"
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I157725225",
+                "display_name": "University of Illinois Urbana-Champaign",
+                "ror": "https://ror.org/047426m28",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I157725225"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": true,
+            "raw_author_name": "Nicholas Weber",
+            "raw_affiliation_strings": [
+              "University of Illinois, U-C Graduate School of Library & Information Science"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "University of Illinois, U-C Graduate School of Library & Information Science",
+                "institution_ids": [
+                  "https://openalex.org/I157725225"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2223579979",
+        "doi": "https://doi.org/10.5281/zenodo.20683",
+        "ids": {
+          "openalex": "https://openalex.org/W2223579979",
+          "doi": "https://doi.org/10.5281/zenodo.20683",
+          "mag": "2223579979"
+        },
+        "title": "Open Access: 3 Koans",
+        "display_name": "Open Access: 3 Koans",
+        "publication_year": 2015,
+        "type": "other",
+        "primary_location": {
+          "id": "pmh:oai:zenodo.org:20683",
+          "is_oa": true,
+          "landing_page_url": "https://zenodo.org/record/20683",
+          "pdf_url": "https://zenodo.org/record/20683",
+          "source": {
+            "id": "https://openalex.org/S4306400562",
+            "display_name": "Zenodo (CERN European Organization for Nuclear Research)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I67311998",
+            "host_organization_name": "European Organization for Nuclear Research",
+            "host_organization_lineage": [
+              "https://openalex.org/I67311998"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "cc-by",
+          "license_id": "https://openalex.org/licenses/cc-by",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "info:eu-repo/semantics/other"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": true,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2227647665",
+        "doi": "https://doi.org/10.6084/m9.figshare.1461749.v1",
+        "ids": {
+          "openalex": "https://openalex.org/W2227647665",
+          "doi": "https://doi.org/10.6084/m9.figshare.1461749.v1",
+          "mag": "2227647665"
+        },
+        "title": "Foreward to Meaningful Metrics: A 21st Century Librarian's Guide to Bibliometrics, Altmetrics, and Research Impact",
+        "display_name": "Foreward to Meaningful Metrics: A 21st Century Librarian's Guide to Bibliometrics, Altmetrics, and Research Impact",
+        "publication_year": 2015,
+        "type": "article",
+        "primary_location": {
+          "id": "pmh:oai:figshare.com:article/1461749",
+          "is_oa": true,
+          "landing_page_url": "https://figshare.com/articles/journal_contribution/Foreward_to_Meaningful_Metrics_A_21st_Century_Librarian_s_Guide_to_Bibliometrics_Altmetrics_and_Research_Impact/1461749",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4377196282",
+            "display_name": "Figshare",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I4210132348",
+            "host_organization_name": "Figshare (United Kingdom)",
+            "host_organization_lineage": [
+              "https://openalex.org/I4210132348"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "cc-by",
+          "license_id": "https://openalex.org/licenses/cc-by",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "Text"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5046260450",
+              "display_name": "Impactstory Team",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Impactstory Team",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2287991258",
+        "doi": "https://doi.org/10.6084/m9.figshare.729080.v1",
+        "ids": {
+          "openalex": "https://openalex.org/W2287991258",
+          "doi": "https://doi.org/10.6084/m9.figshare.729080.v1",
+          "mag": "2287991258"
+        },
+        "title": "ImpactStory: Open carrots for Open science",
+        "display_name": "ImpactStory: Open carrots for Open science",
+        "publication_year": 2013,
+        "type": "dataset",
+        "primary_location": {
+          "id": "pmh:oai:figshare.com:article/729080",
+          "is_oa": true,
+          "landing_page_url": "https://figshare.com/articles/ImpactStory_Open_carrots_for_Open_science/729080",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4377196282",
+            "display_name": "Figshare",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I4210132348",
+            "host_organization_name": "Figshare (United Kingdom)",
+            "host_organization_lineage": [
+              "https://openalex.org/I4210132348"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "cc-by",
+          "license_id": "https://openalex.org/licenses/cc-by",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "",
+          "raw_type": "Dataset"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5046260450",
+              "display_name": "Impactstory Team",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Impactstory Team",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Piwowar, Heather",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Priem, Jason",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2613086963",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W2613086963",
+          "mag": "2613086963"
+        },
+        "title": "Announcing Unpaywall: unlocking #openaccess versions of paywalled research articles as you browse",
+        "display_name": "Announcing Unpaywall: unlocking #openaccess versions of paywalled research articles as you browse",
+        "publication_year": 2017,
+        "type": "other",
+        "primary_location": {
+          "id": "pmh:oai:eprints.lse.ac.uk:72804",
+          "is_oa": true,
+          "landing_page_url": "http://eprints.lse.ac.uk/72804/1/announcing-unpaywall-unlocking-openaccess.pdf",
+          "pdf_url": "http://eprints.lse.ac.uk/72804/1/announcing-unpaywall-unlocking-openaccess.pdf",
+          "source": {
+            "id": "https://openalex.org/S4306401593",
+            "display_name": "London School of Economics and Political Science Research Online (London School of Economics and Political Science)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I909854389",
+            "host_organization_name": "London School of Economics and Political Science",
+            "host_organization_lineage": [
+              "https://openalex.org/I909854389"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "other-oa",
+          "license_id": "https://openalex.org/licenses/other-oa",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "Online resource"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W2789184385",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W2789184385",
+          "mag": "2789184385"
+        },
+        "title": "Innovation Fair Abstracts, SPARC 2012 Open Access Meeting",
+        "display_name": "Innovation Fair Abstracts, SPARC 2012 Open Access Meeting",
+        "publication_year": 2012,
+        "type": "article",
+        "primary_location": {
+          "id": "pmh:oai:doaj.org/article:47caf2aa21834368ad088b7ee72d1120",
+          "is_oa": true,
+          "landing_page_url": "https://doaj.org/article/47caf2aa21834368ad088b7ee72d1120",
+          "pdf_url": null,
+          "source": {
+            "id": "https://openalex.org/S4306401280",
+            "display_name": "DOAJ (DOAJ: Directory of Open Access Journals)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "listed_in": [],
+            "host_organization": null,
+            "host_organization_name": null,
+            "host_organization_lineage": [],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "cc-by-sa",
+          "license_id": "https://openalex.org/licenses/cc-by-sa",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": "Journal of Librarianship and Scholarly Communication, Vol 1, Iss 1, p eP1042 (2012)",
+          "raw_type": "article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5112714421",
+              "display_name": "Marianne A. Buehler",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Marianne A. Buehler",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5067426492",
+              "display_name": "Leslie Alan Carr",
+              "orcid": "https://orcid.org/0000-0002-2113-9680"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Leslie Carr",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-2113-9680",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5041105870",
+              "display_name": "Stephanie Davis‐Kahl",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Stephanie Davis‐Kahl",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5086596276",
+              "display_name": "Mel DeSart",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Mel DeSart",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5087862850",
+              "display_name": "Ann Devenish",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Ann Devenish",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5062303557",
+              "display_name": "Lori Michelle Ellingford",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Lori Michelle Ellingford",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5017307896",
+              "display_name": "Sarah K. Brem",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Sarah K. Brem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5066529924",
+              "display_name": "Isaac Gilman",
+              "orcid": "https://orcid.org/0000-0001-6850-3016"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Isaac Gilman",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6850-3016",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5056217517",
+              "display_name": "Marlee Givens",
+              "orcid": "https://orcid.org/0000-0002-7716-7066"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Marlee Givens",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-7716-7066",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5074903395",
+              "display_name": "Robert J. Hilliker",
+              "orcid": "https://orcid.org/0000-0002-1729-0222"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Robert J. Hilliker",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-1729-0222",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5091019754",
+              "display_name": "Kristi Holmes",
+              "orcid": "https://orcid.org/0000-0001-8420-5254"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Kristi Holmes",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-8420-5254",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5041327668",
+              "display_name": "Rhonda J. Marker",
+              "orcid": "https://orcid.org/0000-0002-7635-816X"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Rhonda J. Marker",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5022160562",
+              "display_name": "Stacey M. Meeker",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Stacey Meeker",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5042104406",
+              "display_name": "Jenny K. Oleen",
+              "orcid": "https://orcid.org/0000-0002-8659-4553"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jenny K. Oleen",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-8659-4553",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5017945078",
+              "display_name": "Jennifer Phillips",
+              "orcid": "https://orcid.org/0000-0002-4861-0292"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jennifer Phillips",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-4861-0292",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5078054863",
+              "display_name": "Trish Rose-Sandler",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Trish Rose-Sandler",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5110090294",
+              "display_name": "Elizabeth Smart",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Elizabeth Smart",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5086258377",
+              "display_name": "Greg Tananbaum",
+              "orcid": "https://orcid.org/0000-0001-8701-615X"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Greg Tananbaum",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5080488866",
+              "display_name": "Donald Taylor",
+              "orcid": "https://orcid.org/0000-0003-3056-7123"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Donald Taylor",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-3056-7123",
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W28360414",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W28360414",
+          "mag": "28360414"
+        },
+        "title": "Scholars are quickly moving toward a universe of web-native communication",
+        "display_name": "Scholars are quickly moving toward a universe of web-native communication",
+        "publication_year": 2012,
+        "type": "other",
+        "primary_location": {
+          "id": "pmh:oai:researchonline.lse.ac.uk:52012",
+          "is_oa": false,
+          "landing_page_url": "https://researchonline.lse.ac.uk/id/eprint/52012/1/blogs.lse.ac.uk-Scholars_are_quickly_moving_toward_a_universe_of_webnative_communication.pdf",
+          "pdf_url": "https://researchonline.lse.ac.uk/id/eprint/52012/1/blogs.lse.ac.uk-Scholars_are_quickly_moving_toward_a_universe_of_webnative_communication.pdf",
+          "source": {
+            "id": "https://openalex.org/S4306400050",
+            "display_name": "London School of Economics and Political Science Theses Online (London School of Economics and Political Science)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I909854389",
+            "host_organization_name": "London School of Economics and Political Science",
+            "host_organization_lineage": [
+              "https://openalex.org/I909854389"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": null,
+          "license_id": null,
+          "version": "acceptedVersion",
+          "is_accepted": true,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "Online resource"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5001893735",
+              "display_name": "Judit Bar‐Ilan",
+              "orcid": "https://orcid.org/0000-0002-8796-5248"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Judit Bar‐Ilan",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0002-8796-5248",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5014077037",
+              "display_name": "Stefanie Haustein",
+              "orcid": "https://orcid.org/0000-0003-0157-1430"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Stefanie Haustein",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-0157-1430",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5051954808",
+              "display_name": "Isabella Peters",
+              "orcid": "https://orcid.org/0000-0001-5840-0806"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Isabella Peters",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-5840-0806",
+            "affiliations": []
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5055957807",
+              "display_name": "Hadas Shema",
+              "orcid": "https://orcid.org/0000-0003-0536-1772"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Hadas Shema",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-0536-1772",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5007913994",
+              "display_name": "Jens Terliesner",
+              "orcid": null
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jens Terliesner",
+            "raw_affiliation_strings": [],
+            "raw_orcid": null,
+            "affiliations": []
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W3041578807",
+        "doi": "https://doi.org/10.5860/crln.81.7.341",
+        "ids": {
+          "openalex": "https://openalex.org/W3041578807",
+          "doi": "https://doi.org/10.5860/crln.81.7.341",
+          "mag": "3041578807"
+        },
+        "title": "Negotiating big deals: ACRL/SPARC Forum at the 2020 ALA Midwinter Meeting",
+        "display_name": "Negotiating big deals: ACRL/SPARC Forum at the 2020 ALA Midwinter Meeting",
+        "publication_year": 2020,
+        "type": "article",
+        "primary_location": {
+          "id": "doi:10.5860/crln.81.7.341",
+          "is_oa": true,
+          "landing_page_url": "https://doi.org/10.5860/crln.81.7.341",
+          "pdf_url": "https://crln.acrl.org/index.php/crlnews/article/download/24537/32381",
+          "source": {
+            "id": "https://openalex.org/S62523962",
+            "display_name": "College & Research Libraries News",
+            "issn_l": "0099-0086",
+            "issn": [
+              "0099-0086",
+              "2150-6698"
+            ],
+            "is_oa": true,
+            "is_in_doaj": false,
+            "is_core": true,
+            "listed_in": [
+              "cwts-core",
+              "jufo-1",
+              "norway-1"
+            ],
+            "host_organization": "https://openalex.org/P4310316146",
+            "host_organization_name": "Association of College and Research Libraries",
+            "host_organization_lineage": [
+              "https://openalex.org/P4310316146",
+              "https://openalex.org/P4310315903"
+            ],
+            "host_organization_lineage_names": [
+              "Association of College and Research Libraries",
+              "American Library Association"
+            ],
+            "type": "journal"
+          },
+          "license": "other-oa",
+          "license_id": "https://openalex.org/licenses/other-oa",
+          "version": "publishedVersion",
+          "is_accepted": true,
+          "is_published": true,
+          "raw_source_name": "College &amp; Research Libraries News",
+          "raw_type": "journal-article"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5055917014",
+              "display_name": "Gale S. Etschmaier",
+              "orcid": null,
+              "observed_orcids": []
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I103163165",
+                "display_name": "Florida State University",
+                "ror": "https://ror.org/05g3dte14",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I103163165"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I145311948",
+                "display_name": "Johns Hopkins University",
+                "ror": "https://ror.org/00za53h95",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I145311948"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Gale S. Etschmaier",
+            "raw_affiliation_strings": [
+              "Gale S. Etschmaier is dean of university libraries at Florida State University, email:  getschmaier@fsu.edu",
+              "Communication at Johns Hopkins University,",
+              "Florida State University,",
+              "Johns Hopkins University"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Gale S. Etschmaier is dean of university libraries at Florida State University, email:  getschmaier@fsu.edu",
+                "institution_ids": []
+              },
+              {
+                "raw_affiliation_string": "Communication at Johns Hopkins University,",
+                "institution_ids": [
+                  "https://openalex.org/I145311948"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Florida State University,",
+                "institution_ids": [
+                  "https://openalex.org/I103163165"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Johns Hopkins University",
+                "institution_ids": [
+                  "https://openalex.org/I145311948"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "middle",
+            "author": {
+              "id": "https://openalex.org/A5049881381",
+              "display_name": "Robin N Sinn",
+              "orcid": "https://orcid.org/0000-0001-7609-9594",
+              "observed_orcids": [
+                "https://orcid.org/0000-0001-7609-9594"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I103163165",
+                "display_name": "Florida State University",
+                "ror": "https://ror.org/05g3dte14",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I103163165"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I145311948",
+                "display_name": "Johns Hopkins University",
+                "ror": "https://ror.org/00za53h95",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I145311948"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I2799853436",
+                "display_name": "Johns Hopkins Medicine",
+                "ror": "https://ror.org/037zgn354",
+                "country_code": "US",
+                "type": "healthcare",
+                "lineage": [
+                  "https://openalex.org/I2799853436"
+                ]
+              }
+            ],
+            "countries": [
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Robin N. Sinn",
+            "raw_affiliation_strings": [
+              "Robin N. Sinn is coordinator of the Office of Scholarly Communication at Johns Hopkins University, email:  rsinn@jhu.edu",
+              "Communication at Johns Hopkins University,",
+              "Florida State University,",
+              "Johns Hopkins University"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Robin N. Sinn is coordinator of the Office of Scholarly Communication at Johns Hopkins University, email:  rsinn@jhu.edu",
+                "institution_ids": [
+                  "https://openalex.org/I145311948",
+                  "https://openalex.org/I2799853436"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Communication at Johns Hopkins University,",
+                "institution_ids": [
+                  "https://openalex.org/I145311948"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Florida State University,",
+                "institution_ids": [
+                  "https://openalex.org/I103163165"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Johns Hopkins University",
+                "institution_ids": [
+                  "https://openalex.org/I145311948"
+                ]
+              }
+            ]
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610",
+              "observed_orcids": [
+                "https://orcid.org/0000-0001-6187-6610"
+              ]
+            },
+            "institutions": [
+              {
+                "id": "https://openalex.org/I103163165",
+                "display_name": "Florida State University",
+                "ror": "https://ror.org/05g3dte14",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I103163165"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I145311948",
+                "display_name": "Johns Hopkins University",
+                "ror": "https://ror.org/00za53h95",
+                "country_code": "US",
+                "type": "education",
+                "lineage": [
+                  "https://openalex.org/I145311948"
+                ]
+              },
+              {
+                "id": "https://openalex.org/I4200000001",
+                "display_name": "OpenAlex",
+                "ror": "https://ror.org/02nr0ka47",
+                "country_code": "CA",
+                "type": "nonprofit",
+                "lineage": [
+                  "https://openalex.org/I4200000001"
+                ]
+              }
+            ],
+            "countries": [
+              "CA",
+              "US"
+            ],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [
+              "Jason Priem is cofounder of OurResearch, email:  jason@ourresearch.org",
+              "Communication at Johns Hopkins University,",
+              "Florida State University,",
+              "Johns Hopkins University"
+            ],
+            "raw_orcid": null,
+            "affiliations": [
+              {
+                "raw_affiliation_string": "Jason Priem is cofounder of OurResearch, email:  jason@ourresearch.org",
+                "institution_ids": [
+                  "https://openalex.org/I4200000001"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Communication at Johns Hopkins University,",
+                "institution_ids": [
+                  "https://openalex.org/I145311948"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Florida State University,",
+                "institution_ids": [
+                  "https://openalex.org/I103163165"
+                ]
+              },
+              {
+                "raw_affiliation_string": "Johns Hopkins University",
+                "institution_ids": [
+                  "https://openalex.org/I145311948"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "https://openalex.org/W3168937413",
+        "doi": null,
+        "ids": {
+          "openalex": "https://openalex.org/W3168937413",
+          "mag": "3168937413"
+        },
+        "title": "Unpaywall: a beautiful way to help everyone Get The Research",
+        "display_name": "Unpaywall: a beautiful way to help everyone Get The Research",
+        "publication_year": 2018,
+        "type": "other",
+        "primary_location": {
+          "id": "pmh:oai:eprints.lse.ac.uk:109292",
+          "is_oa": true,
+          "landing_page_url": "http://eprints.lse.ac.uk/109292/1/impactofsocialsciences_2018_10_28_unpaywall_a_beautiful_way_to_help.pdf",
+          "pdf_url": "http://eprints.lse.ac.uk/109292/1/impactofsocialsciences_2018_10_28_unpaywall_a_beautiful_way_to_help.pdf",
+          "source": {
+            "id": "https://openalex.org/S4306401593",
+            "display_name": "London School of Economics and Political Science Research Online (London School of Economics and Political Science)",
+            "issn_l": null,
+            "issn": null,
+            "is_oa": false,
+            "is_in_doaj": false,
+            "is_core": false,
+            "host_organization": "https://openalex.org/I909854389",
+            "host_organization_name": "London School of Economics and Political Science",
+            "host_organization_lineage": [
+              "https://openalex.org/I909854389"
+            ],
+            "host_organization_lineage_names": [],
+            "type": "repository"
+          },
+          "license": "other-oa",
+          "license_id": "https://openalex.org/licenses/other-oa",
+          "version": "submittedVersion",
+          "is_accepted": false,
+          "is_published": false,
+          "raw_source_name": null,
+          "raw_type": "Online resource"
+        },
+        "authorships": [
+          {
+            "author_position": "first",
+            "author": {
+              "id": "https://openalex.org/A5048491430",
+              "display_name": "Heather Piwowar",
+              "orcid": "https://orcid.org/0000-0003-1613-5981"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Heather Piwowar",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0003-1613-5981",
+            "affiliations": []
+          },
+          {
+            "author_position": "last",
+            "author": {
+              "id": "https://openalex.org/A5023888391",
+              "display_name": "Jason R Priem",
+              "orcid": "https://orcid.org/0000-0001-6187-6610"
+            },
+            "institutions": [],
+            "countries": [],
+            "is_corresponding": false,
+            "raw_author_name": "Jason Priem",
+            "raw_affiliation_strings": [],
+            "raw_orcid": "https://orcid.org/0000-0001-6187-6610",
+            "affiliations": []
+          }
+        ]
+      }
+    ],
+    "group_by": []
+  }
+}
