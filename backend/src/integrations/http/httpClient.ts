@@ -17,6 +17,8 @@ export type FetchErrorKind =
   | 'MALFORMED_BODY'
   | 'INVALID_RESPONSE'
   | 'IDENTITY_NOT_FOUND'
+  /** The identity exists but must not be used (e.g. a DBLP disambiguation page). */
+  | 'IDENTITY_INVALID'
   | 'INCOMPLETE';
 
 /** Any failure to obtain a complete, valid response. Never to be read as "no publications". */
@@ -220,8 +222,8 @@ function looksLikeHtml(text: string): boolean {
 function describeErrorBody(text: string): string {
   if (looksLikeHtml(text)) return ' (HTML page)';
   try {
-    const parsed = JSON.parse(text) as { message?: unknown; error?: unknown };
-    const message = parsed.message ?? parsed.error;
+    const parsed = JSON.parse(text) as { message?: unknown; error?: unknown; exception?: unknown };
+    const message = parsed.message ?? parsed.error ?? parsed.exception;
     return typeof message === 'string' ? `: ${message}` : '';
   } catch {
     return '';

@@ -57,5 +57,7 @@ Backend tests (Vitest + Supertest) never call external APIs: live network access
 |---|---|
 | `npm run smoke:openalex -- <author ID>` | Read-only live check: fetch, map and normalize one OpenAlex author's works (no database writes) |
 | `npm run fixtures:openalex` | Re-record the OpenAlex test fixtures from the live API |
+| `npm run smoke:dblp -- <PID>` | Read-only live check: validate a DBLP PID and fetch, map and normalize its authored records via sparql.dblp.org |
+| `npm run fixtures:dblp` | Re-record the DBLP test fixtures from sparql.dblp.org |
 
 `OPENALEX_API_KEY` in `backend/.env` is optional; without it OpenAlex requests use the smaller keyless budget.

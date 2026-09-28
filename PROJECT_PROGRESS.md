@@ -5,18 +5,57 @@
 ## Current Phase
 
 ```text
-Phase 4 — OpenAlex Integration
+Phase 5 — DBLP Integration
 STATUS: COMPLETE (verified and approved)
 
-Next phase: Phase 5 — DBLP Integration (NOT STARTED)
+Next phase: Phase 6 — ORCID Integration (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–4 done)
+Implementation: IN PROGRESS (Phases 1–5 done)
 ```
+
+## Phase 5 Report
+
+**Implemented** (`backend/src`)
+
+* `integrations/dblp/`
+  * `client.ts` — sparql.dblp.org only (§13.4). Per identity, three throttled (1.5 s, one at a time), validated SPARQL requests: identity (`dblp:Person` required; missing → `IDENTITY_NOT_FOUND`; disambiguation page / non-person → `IDENTITY_INVALID`, #37), authored records (`dblp:authoredBy` only — editor-only `editedBy` records are never selected), and author signatures (#38). PID normalization with injection-safe validation; `Accept: application/sparql-results+json`; project `User-Agent` (no contact details); 120 s timeout; completeness: `meta.result-size-total` required and must equal the rows delivered, author signatures must refer only to fetched records and every record must have one (#38, #41); DOIs sorted/de-duplicated because dblp's concatenation order is not stable.
+  * `types.ts` — Zod schema for SPARQL 1.1 JSON results.
+  * `mapper.ts` — dblp record → `PublicationInput`: record key as `external_id`, title, year, all DOIs, venue, ordered author names, record type from the dblp class (bibtexType fallback, #36), raw metadata.
+  * `typeFamily.ts` — preprint rule replaced (#40): `Informal` + `journals/corr/`, or an arXiv DOI → PREPRINT; `Informal` elsewhere → OTHER; `journals/corr/` alone no longer counts. Takes the record's DOIs as input.
+* `services/discovery/`
+  * `dblpDiscovery.ts` — `discoverDblpIdentity(identityId)`: preconditions → complete fetch + validation → map → shared write step (`ingestDiscoveredRecords`, unchanged).
+  * `discoveryIdentity.ts` — shared precondition check (identity exists, right source, active, professor active) now used by OpenAlex and DBLP discovery; OpenAlex behaviour unchanged.
+* `integrations/http/httpClient.ts` — additive: `IDENTITY_INVALID` error kind; error messages also read an `exception` field (dblp's error format).
+* Scripts: `npm run fixtures:dblp`, `npm run smoke:dblp -- <PID>` (live, read-only).
+
+**Recorded fixtures** (`tests/fixtures/dblp`, live on 2026-09-28, compact JSON, ~1.0 MB): identity of a person (`v/MosheYVardi`), a disambiguation page (`00/10049`), a missing PID; Vardi's 830 authored records and 2,396 author signatures; the real bot-protection page `dblp.org/pid/…xml` serves with HTTP 200; a real SPARQL 400 error.
+
+**Tests** — 61 new (320 total, all passing); `tests/normalization/typeFamily.test.ts` DBLP block rewritten for #40 (3 → 6 tests)
+
+* `tests/integrations/dblp.client.test.ts` (30): missing `meta` → invalid; more rows than reported → invalid; truncated author signatures → INCOMPLETE; author rows for an unknown record → invalid; record without author rows → INCOMPLETE; PID normalization and injection rejection; queries use `authoredBy` only, `AuthorSignature` only, the SPARQL endpoint only; throttle interval; person accepted; disambiguation → `IDENTITY_INVALID` with no records query; missing → `IDENTITY_NOT_FOUND`; non-person; all 830 records with ordered authors from exactly 3 requests; no Editorship records; multi-DOI sorting; author ordering independent of row order; 1.5 s spacing; real bot-protection HTML with 200; real SPARQL 400 without retry; authors query failing after records; 429/5xx retries; INCOMPLETE; invalid structure; missing variable; row without record URI; bad author ordinal.
+* `tests/integrations/dblp.mapper.test.ts` (13): record type from class not bibtexType; CoRR `Informal` → PREPRINT; the 11 published EPTCS/LMCS papers under `journals/corr/` → CONFERENCE/JOURNAL; the 6 Dagstuhl `Informal` items → OTHER; exactly the 97 CoRR preprints are PREPRINT; journal/chapter/book/data; multi-DOI; uppercase DOIs; trailing period; raw metadata; all 830 records map and normalize (CONFERENCE 437, JOURNAL 277, PREPRINT 97, BOOK_CHAPTER 8, BOOK 3, OTHER 8).
+* `tests/services/dblpDiscovery.test.ts` (15, real test DB): LMCS paper under `journals/corr/` merges by DOI with another source's journal record (no preprint split; only the genuine conference-version candidate remains); Dagstuhl → OTHER, 97 PREPRINT in the database; 830 records with PENDING links via identity and `last_seen_at`; editor-only records never ingested; CoRR preprint kept apart from its published version (candidate); idempotent rerun; REJECTED preserved; nothing written for the real bot-protection page, the real SPARQL error, a failing authors query, a later failed sync, a disambiguation PID, a missing PID; non-DBLP/inactive identities refused without API calls; **cross-source with recorded OpenAlex data for the same professor**: 7 real papers merge into one canonical publication each (5 by DOI incl. DBLP uppercase DOIs and an OpenAlex repository-hosted work, 1 by exact title + year without DOI, 1 preprint pair), OpenAlex metadata outranks DBLP, one relationship per publication.
+
+**Validation**
+
+* `typecheck` ✅, `test` 320/320 ✅, `build` ✅, `prisma migrate status` up to date, `migrate diff` clean, 9 models; no schema changes; Phase 3 code untouched ✅.
+* Live smoke (read-only): `v/MosheYVardi` — 830 records fetched and normalized in 3.6 s (699 with DOI, all with authors); `https://dblp.org/pid/00/10049.html` rejected as `IDENTITY_INVALID`.
+
+**Dependencies:** none added or changed.
+
+**Known limitations**
+
+* sparql.dblp.org rate limits are undocumented; the client spaces requests 1.5 s apart and retries 429/5xx. If dblp puts bot protection in front of SPARQL too, DBLP fetches fail as `CONTENT_TYPE` (no writes); other sources are unaffected.
+* dblp PID merges/retirements are not handled specially: a PID that no longer exists fails safely as `IDENTITY_NOT_FOUND`.
+* ~~`Informal` records include Dagstuhl seminar items classified PREPRINT~~ — resolved by #40 (now OTHER).
+* `Withdrawn` dblp records are ingested as OTHER (no special handling, by decision).
+* Author signatures and records come from two separate queries; if dblp data changes between them, the cross-check fails the fetch (retried on the next run).
+* Same write semantics as OpenAlex: nothing written on fetch/validation failure; records written one transaction at a time; discovery not yet triggered by routes or sync (Phases 9/12).
 
 ## Phase 4 Report
 
@@ -163,7 +202,7 @@ Implementation: IN PROGRESS (Phases 1–4 done)
 | 2 | Minimal Database Foundation | Implement the 9-table model with relationships, constraints, indexes, migration and dev seed | **COMPLETE** (approved) |
 | 3 | Matching & Deduplication Engine | Normalization, type families, preprint detection, deterministic matching, vetoes, DuplicateCandidate, canonical metadata selection | **COMPLETE** (approved) |
 | 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | **COMPLETE** (approved) |
-| 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | NOT STARTED |
+| 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | **COMPLETE** (approved) |
 | 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | NOT STARTED |
 | 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | NOT STARTED |
 | 8 | Authentication | Roles, JWT in HTTP-only cookie, hashing, temporary password, forced change, route protection | NOT STARTED |
@@ -217,7 +256,7 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 5 | 2026-09-25 | Metadata priority CURATED → OpenAlex → DBLP → ORCID → MANUAL | Architecture review; MANUAL as final fallback |
 | 6 | 2026-09-25 | Deterministic matching rules and vetoes frozen; fuzzy matching deferred | Architecture review; live data (DOI conflicts common among same-title records) |
 | 7 | 2026-09-25 | Type families combine OpenAlex `type` with source/venue type; unknown/OTHER never auto-merges by title | Live evidence: OpenAlex labels conference papers `article` |
-| 8 | 2026-09-25 | Preprints kept separate; per-source detection (DBLP Informal/CoRR, OpenAlex preprint/10.48550/repository — repository part deferred by #25, ORCID preprint) | Live evidence: DBLP CoRR records lack DOIs and share titles/years with published versions |
+| 8 | 2026-09-25 | Preprints kept separate; per-source detection (DBLP Informal/CoRR — DBLP rule superseded by #40, OpenAlex preprint/10.48550/repository — repository part deferred by #25, ORCID preprint) | Live evidence: DBLP CoRR records lack DOIs and share titles/years with published versions |
 | 9 | 2026-09-25 | Rule 3 does not auto-merge when a year is missing (becomes a DuplicateCandidate) | Clarification under "insufficient information → candidate"; confirmed at the pre-Phase-1 consistency gate |
 | 10 | 2026-09-25 | HTTP 200 is not success; response validation is mandatory | Live evidence: DBLP bot-protection HTML with 200; OpenAlex empty 200 for nonexistent IDs |
 | 11 | 2026-09-25 | DBLP accessed via SPARQL endpoint only | Live evidence: pid XML, search API and mirrors return bot-protection pages |
@@ -245,5 +284,11 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 33 | 2026-09-28 | Merged OpenAlex author ID: works fetched with the resolved ID; identity not changed automatically; warning reported. Detection relies on OpenAlex's documented 301 redirect; a live check on 2026-09-28 of the documented example `A5092938886` returned 404, so that merged-away ID currently fails safely as `IDENTITY_NOT_FOUND` with no writes. Redirect path covered by a simulated response only | Phase 4 implementation decision implementing §13.3; verified read-only and documented after architect review |
 | 34 | 2026-09-28 | Fewer works than `meta.count` after cursor paging → fetch failure (`INCOMPLETE`) | Phase 4 implementation decision implementing §13.1/§14 (incomplete responses are failures) |
 | 35 | 2026-09-28 | §14 `last_seen_at` wording clarified to match the implementation: set once the task's complete fetch is validated and that record is processed (per-record transactions) | Documentation clarification after Phase 4 review; no behaviour change |
+| 36 | 2026-09-28 | DBLP record type = the record's dblp class (`rdf:type`); `bibtexType` only as fallback | Phase 5 implementation decision within §7.3; recorded evidence: CoRR preprints are class `Informal` but bibtex `Article` |
+| 37 | 2026-09-28 | A DBLP PID must be a `dblp:Person`; disambiguation pages (`AmbiguousCreator`) and other non-person creators fail as `IDENTITY_INVALID` (no writes) | Phase 5 implementation of §13.1 (invalid identity is a failure); recorded evidence: `00/10049` has 49 records of several people |
+| 38 | 2026-09-28 | DBLP fetch = 3 validated SPARQL queries (identity, records, author signatures); fewer rows than `meta.result-size-total` → `INCOMPLETE` | Phase 5 implementation decision; single joined query measured at 31 s vs 1.5 s + 2.8 s split |
+| 39 | 2026-09-28 | Shared discovery precondition check (`discoveryIdentity.ts`) used by OpenAlex and DBLP | Phase 5 refactor to avoid duplicating Phase 4 logic; OpenAlex behaviour and tests unchanged |
+| 40 | 2026-09-28 | DBLP preprint rule replaced: PREPRINT = class `Informal` AND key under `journals/corr/`, or DOI `10.48550/`; `Informal` elsewhere → OTHER; `journals/corr/` alone not a signal; other class mappings unchanged (§7.3, §7.4 updated) | Architect decision after Phase 5 audit of recorded data: all 97 real CoRR preprints are Informal+CoRR; 11 published EPTCS/LMCS papers under journals/corr/ (Inproceedings/Article) were being split from their published records; 6 Dagstuhl Informal items are not preprints. Supersedes the DBLP part of #8 |
+| 41 | 2026-09-28 | DBLP completeness hardening: `meta.result-size-total` required; delivered rows must equal it; author signatures must refer only to fetched records and every record must have one | Architect decision after Phase 5 audit (the check could previously be skipped silently and authors were not cross-checked) |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

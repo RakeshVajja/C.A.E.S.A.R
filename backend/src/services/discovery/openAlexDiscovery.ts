@@ -3,7 +3,10 @@ import { prisma as defaultClient } from '../../config/database';
 import { env } from '../../config/env';
 import { OpenAlexClient } from '../../integrations/openalex/client';
 import { mapOpenAlexWork } from '../../integrations/openalex/mapper';
+import { loadActiveIdentity } from './discoveryIdentity';
 import { DiscoverySummary, ingestDiscoveredRecords } from './ingestDiscoveredRecords';
+
+export { DiscoveryPreconditionError } from './discoveryIdentity';
 
 /**
  * Discovery for one OpenAlex identity (Project_plan.md §13.3, §14):
@@ -11,13 +14,6 @@ import { DiscoverySummary, ingestDiscoveredRecords } from './ingestDiscoveredRec
  * Nothing is written unless the complete fetch succeeded; any FetchError propagates to the
  * caller (the Phase 12 SyncTask records it as FAILED) and existing data stays untouched.
  */
-
-export class DiscoveryPreconditionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'DiscoveryPreconditionError';
-  }
-}
 
 export interface OpenAlexDiscoverySummary extends DiscoverySummary {
   identityId: string;
@@ -35,19 +31,8 @@ export async function discoverOpenAlexIdentity(
   const openAlex = options.openAlex ?? new OpenAlexClient({ apiKey: env.openAlexApiKey });
   const now = options.now ?? (() => new Date());
 
-  const identity = await client.externalIdentity.findUnique({
-    where: { id: identityId },
-    include: { professor: { select: { isActive: true } } },
-  });
-  if (!identity) throw new DiscoveryPreconditionError(`External identity ${identityId} not found`);
-  if (identity.source !== 'OPENALEX') {
-    throw new DiscoveryPreconditionError(`Identity ${identityId} is a ${identity.source} identity, not OPENALEX`);
-  }
   // Identities of inactive professors, and inactive identities, are not synchronized (§6.10, §14).
-  if (!identity.isActive) throw new DiscoveryPreconditionError(`Identity ${identityId} is inactive`);
-  if (!identity.professor.isActive) {
-    throw new DiscoveryPreconditionError(`The professor of identity ${identityId} is inactive`);
-  }
+  const identity = await loadActiveIdentity(client, identityId, 'OPENALEX');
 
   // 1. Fetch and validate everything first (throws FetchError; nothing written yet).
   const fetched = await openAlex.fetchAuthorWorks(identity.externalId);

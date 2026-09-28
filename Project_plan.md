@@ -390,14 +390,14 @@ OpenAlex's `type` field alone is **not** reliable (conference papers appear as `
 | Source | Inputs |
 |---|---|
 | OpenAlex | `type` **and** `primary_location.source.type` |
-| DBLP | `bibtexType` / record type and record key |
+| DBLP | record type = the record's dblp class (`rdf:type`, e.g. `Inproceedings`, `Informal`), with `bibtexType` only as a fallback, plus the record key. `bibtexType` alone is not reliable: CoRR preprints are class `Informal` but bibtex `Article` (decision #36). |
 | ORCID | `type` |
 | MANUAL | required professor selection |
 
 Initial mapping (refined with real fixtures during Phases 3–6):
 
 * **OpenAlex:** preprint rules (7.4) → `PREPRINT`; `conference-paper` or source type `conference` → `CONFERENCE`; `article` with source type `journal` → `JOURNAL`; `book-chapter` → `BOOK_CHAPTER`; `book` → `BOOK`; anything else or insufficient information → `OTHER`.
-* **DBLP:** `Informal` / `journals/corr/` → `PREPRINT`; `Inproceedings` → `CONFERENCE`; `Article` → `JOURNAL`; `Incollection` → `BOOK_CHAPTER`; `Book` → `BOOK`; others → `OTHER`.
+* **DBLP (decision #40):** class `Informal` **and** key under `journals/corr/`, or a DOI beginning with `10.48550/` → `PREPRINT`; `Informal` outside `journals/corr/` → `OTHER`; `Inproceedings` → `CONFERENCE`; `Article` → `JOURNAL`; `Incollection` → `BOOK_CHAPTER`; `Book` → `BOOK`; others (`Data`, `Reference`, `Withdrawn`, …) → `OTHER`. Neither `journals/corr/` alone nor `Informal` alone is a preprint signal.
 * **ORCID:** `preprint` → `PREPRINT`; `conference-paper` → `CONFERENCE`; `journal-article` → `JOURNAL`; `book-chapter` → `BOOK_CHAPTER`; `book` → `BOOK`; others → `OTHER`.
 
 `OTHER` is never treated as a *known* type family for automatic title-based matching.
@@ -406,7 +406,7 @@ Initial mapping (refined with real fixtures during Phases 3–6):
 
 | Source | Record is a preprint when |
 |---|---|
-| DBLP | record type `Informal`, or key begins with `journals/corr/` (DBLP CoRR records usually have **no DOI**) |
+| DBLP | record class `Informal` **and** key beginning with `journals/corr/` (CoRR; usually **no DOI**), or a DOI beginning with `10.48550/`. `journals/corr/` alone is not enough (published EPTCS/LMCS papers are filed there as `Inproceedings`/`Article`), and `Informal` alone is not enough (Dagstuhl seminar items are `Informal` outside CoRR → `OTHER`). Decision #40, from the Phase 5 audit of recorded data. |
 | OpenAlex | `type = preprint`, or DOI begins with `10.48550/`. Repository hosting is **not** a preprint signal (decision #31, settled in Phase 4 with live data: of 140 repository-hosted works of one author, all 94 real preprints were already typed `preprint`; the other 46 were published papers, reports and books). |
 | ORCID | `type = preprint` |
 
@@ -599,6 +599,9 @@ A fetch failure must **never** be interpreted as "the professor has zero publica
 * Retrieve publications **authored** by the professor's PID (editor-only records are excluded).
 * Record key → `external_id`; map title, year, DOI(s), venue and record type.
 * Throttle conservatively (one request at a time, 1–2 s apart); handle 429 and other failures.
+* The PID must identify a `dblp:Person`: a PID with no triples is `IDENTITY_NOT_FOUND`; a disambiguation page (`dblp:AmbiguousCreator`, whose records belong to several people) or any other non-person creator is `IDENTITY_INVALID` — both are fetch failures with no writes (decision #37).
+* Three validated SPARQL requests per identity: identity check, authored records (one row per record), and author signatures (display names in `signatureOrdinal` order). Records and authors are queried separately because a single joined query is ~20× slower (decision #38).
+* Completeness (decisions #38, #41): `meta.result-size-total` is required on every dblp result; the delivered rows must equal it (fewer → `INCOMPLETE`, more → invalid). The author-signature result must refer only to records in the records result, and every record must have at least one author signature (otherwise the fetch is incomplete).
 * Implementation stays isolated behind the DBLP source client so the access method can change without affecting the rest of the system.
 
 ## 13.5 ORCID

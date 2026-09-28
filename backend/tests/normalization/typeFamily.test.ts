@@ -47,28 +47,44 @@ describe('openAlexTypeFamily (§7.3, §7.4)', () => {
   });
 });
 
-describe('dblpTypeFamily (§7.3, §7.4)', () => {
-  it('detects preprints by Informal type or CoRR key', () => {
-    expect(dblpTypeFamily({ recordType: 'Informal', key: 'journals/corr/ChakrabortyMV13' })).toBe('PREPRINT');
-    expect(dblpTypeFamily({ recordType: 'Article', key: 'journals/corr/abs-2003-00330' })).toBe('PREPRINT');
+describe('dblpTypeFamily (§7.3, §7.4; decision #40)', () => {
+  const map = (recordType: string | null, key: string, dois: string[] = []) => dblpTypeFamily({ recordType, key, dois });
+
+  it('classifies Informal records under journals/corr/ (CoRR) as PREPRINT', () => {
+    expect(map('Informal', 'journals/corr/ChakrabortyMV13')).toBe('PREPRINT');
+    expect(map('Informal', 'journals/corr/abs-2003-00330', ['10.48550/arxiv.2003.00330'])).toBe('PREPRINT');
   });
 
-  it('maps record types', () => {
-    expect(dblpTypeFamily({ recordType: 'Inproceedings', key: 'conf/cav/KupfermanV96' })).toBe('CONFERENCE');
-    expect(dblpTypeFamily({ recordType: 'Article', key: 'journals/iandc/KupfermanVW01' })).toBe('JOURNAL');
-    expect(dblpTypeFamily({ recordType: 'Incollection', key: 'books/x/Y01' })).toBe('BOOK_CHAPTER');
-    expect(dblpTypeFamily({ recordType: 'Book', key: 'books/x/Y02' })).toBe('BOOK');
-    expect(dblpTypeFamily({ recordType: 'Data', key: 'data/x/Y' })).toBe('OTHER');
-    expect(dblpTypeFamily({ recordType: null, key: 'phd/x/Y' })).toBe('OTHER');
+  it('classifies any record with an arXiv DOI as PREPRINT', () => {
+    expect(map('Article', 'journals/x/Y', ['10.48550/arxiv.1306.5726'])).toBe('PREPRINT');
+  });
+
+  it('does not treat journals/corr/ alone as a preprint signal (published EPTCS/LMCS papers)', () => {
+    // Real records: EPTCS proceedings (Inproceedings) and LMCS articles filed under journals/corr/.
+    expect(map('Inproceedings', 'journals/corr/abs-2005-09125', ['10.4204/eptcs.326.12'])).toBe('CONFERENCE');
+    expect(map('Article', 'journals/corr/TsaiFVT14', ['10.2168/lmcs-10(4:13)2014'])).toBe('JOURNAL');
+  });
+
+  it('does not treat Informal alone as a preprint signal (Dagstuhl seminar items → OTHER)', () => {
+    expect(map('Informal', 'conf/dagstuhl/KautzTV05')).toBe('OTHER');
+    expect(map('Informal', 'journals/dagstuhl-reports/MehlhornVH12', ['10.4230/dagrep.2.11.20'])).toBe('OTHER');
+  });
+
+  it('keeps the class mappings', () => {
+    expect(map('Inproceedings', 'conf/cav/KupfermanV96')).toBe('CONFERENCE');
+    expect(map('Article', 'journals/iandc/KupfermanVW01')).toBe('JOURNAL');
+    expect(map('Incollection', 'books/x/Y01')).toBe('BOOK_CHAPTER');
+    expect(map('Book', 'books/x/Y02')).toBe('BOOK');
+    for (const other of ['Data', 'Reference', 'Withdrawn', 'Editorship']) {
+      expect(map(other, 'x/y/Z'), other).toBe('OTHER');
+    }
+    expect(map(null, 'phd/x/Y')).toBe('OTHER');
   });
 
   it('accepts schema and bibtex URIs', () => {
-    expect(dblpTypeFamily({ recordType: 'https://dblp.org/rdf/schema#Inproceedings', key: 'conf/a/B' })).toBe(
-      'CONFERENCE',
-    );
-    expect(dblpTypeFamily({ recordType: 'http://purl.org/net/nknouf/ns/bibtex#Article', key: 'journals/a/B' })).toBe(
-      'JOURNAL',
-    );
+    expect(map('https://dblp.org/rdf/schema#Inproceedings', 'conf/a/B')).toBe('CONFERENCE');
+    expect(map('http://purl.org/net/nknouf/ns/bibtex#Article', 'journals/a/B')).toBe('JOURNAL');
+    expect(map('https://dblp.org/rdf/schema#Informal', 'journals/corr/X')).toBe('PREPRINT');
   });
 });
 
