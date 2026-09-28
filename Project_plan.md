@@ -612,6 +612,10 @@ A fetch failure must **never** be interpreted as "the professor has zero publica
 * Use only external identifiers with relationship `self` (e.g. ignore `part-of` ISSNs).
 * Handle missing years and in-source duplicates (several put-codes for the same work).
 * Anonymous public access is sufficient; public-API registration is optional.
+* Verified against the live API in Phase 6: `/works` returns the complete list of work summaries in one response (no paging — e.g. 1,351 summaries, equal to the counts in `/record`), so completeness rests on full structural validation; a truncated body fails JSON parsing (decision #45).
+* Identity validation happens on the works request itself, before any work is processed (decision #42): the iD's ISO 7064 checksum (no request is sent for an invalid iD); 404 (error 9016) → `IDENTITY_NOT_FOUND`; 409 (deactivated, error 9044 — verified live; locked records are documented as 409) → `IDENTITY_INVALID`; the response `path` and every work-summary `path` must name the requested iD.
+* A deprecated (merged) iD — documented as a 301 to the primary record — fails safely as `IDENTITY_INVALID` naming the primary iD; redirects are not followed and nothing is written (decision #43).
+* Title = `title.title.value` only; the subtitle stays in `raw_metadata` (decision #44). Author names are not available in work summaries. A put-code listed twice is ingested once.
 
 ---
 

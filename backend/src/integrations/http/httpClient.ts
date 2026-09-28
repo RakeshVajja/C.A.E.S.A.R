@@ -60,13 +60,20 @@ export interface JsonResponse {
   /** Final URL after redirects. */
   url: string;
   redirected: boolean;
+  /** The Location header (set on redirect responses returned with followRedirects: false). */
+  location: string | null;
   body: unknown;
 }
 
 export interface JsonRequestOptions {
   headers?: Record<string, string>;
-  /** Statuses returned to the caller instead of raising (e.g. 404 for identity checks). */
+  /**
+   * Statuses returned to the caller instead of raising (e.g. 404 for identity checks). Their body
+   * is returned parsed when it is JSON, otherwise null.
+   */
   passThroughStatuses?: readonly number[];
+  /** Follow redirects (default). With false, a 3xx is returned or raised like any other status. */
+  followRedirects?: boolean;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -123,7 +130,7 @@ export class SourceHttpClient {
       response = await this.fetchImpl(url, {
         headers: { Accept: 'application/json', ...options.headers },
         signal: controller.signal,
-        redirect: 'follow',
+        redirect: options.followRedirects === false ? 'manual' : 'follow',
       });
     } catch (error) {
       clearTimeout(timer);
@@ -166,8 +173,12 @@ export class SourceHttpClient {
         error: new FetchError('HTTP_STATUS', `${name}: HTTP ${status}${describeErrorBody(text)}`, { url, status }),
       };
     }
+    const location = response.headers.get('location');
     if (options.passThroughStatuses?.includes(status)) {
-      return { kind: 'done', response: { status, url: response.url || url, redirected: response.redirected, body: null } };
+      return {
+        kind: 'done',
+        response: { status, url: response.url || url, redirected: response.redirected, location, body: parseJsonOrNull(text) },
+      };
     }
 
     // HTTP 2xx: the content must really be JSON.
@@ -189,7 +200,7 @@ export class SourceHttpClient {
       return { kind: 'fail', error: new FetchError('MALFORMED_BODY', `${name}: response body is not valid JSON`, { url, status }) };
     }
 
-    return { kind: 'done', response: { status, url: response.url || url, redirected: response.redirected, body } };
+    return { kind: 'done', response: { status, url: response.url || url, redirected: response.redirected, location, body } };
   }
 
   private async throttle(): Promise<void> {
@@ -215,6 +226,15 @@ export function parseRetryAfter(value: string | null, now: number): number | und
   return Number.isNaN(date) ? undefined : Math.max(0, date - now);
 }
 
+function parseJsonOrNull(text: string): unknown {
+  if (looksLikeHtml(text)) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 function looksLikeHtml(text: string): boolean {
   return /^\s*(<!doctype html|<html[\s>])/i.test(text);
 }
@@ -222,8 +242,13 @@ function looksLikeHtml(text: string): boolean {
 function describeErrorBody(text: string): string {
   if (looksLikeHtml(text)) return ' (HTML page)';
   try {
-    const parsed = JSON.parse(text) as { message?: unknown; error?: unknown; exception?: unknown };
-    const message = parsed.message ?? parsed.error ?? parsed.exception;
+    const parsed = JSON.parse(text) as {
+      message?: unknown;
+      error?: unknown;
+      exception?: unknown;
+      'developer-message'?: unknown;
+    };
+    const message = parsed.message ?? parsed.error ?? parsed.exception ?? parsed['developer-message'];
     return typeof message === 'string' ? `: ${message}` : '';
   } catch {
     return '';

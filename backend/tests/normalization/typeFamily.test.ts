@@ -99,6 +99,11 @@ describe('orcidTypeFamily (§7.3, §7.4)', () => {
     ['data-set', 'OTHER'],
     ['report', 'OTHER'],
     ['other', 'OTHER'],
+    ['conference-abstract', 'OTHER'],
+    ['conference-poster', 'OTHER'],
+    ['edited-book', 'OTHER'],
+    ['working-paper', 'OTHER'],
+    ['dissertation-thesis', 'OTHER'],
     [null, 'OTHER'],
   ])('maps %j to %s', (type, family) => {
     expect(orcidTypeFamily(type)).toBe(family);

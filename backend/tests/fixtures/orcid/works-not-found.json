@@ -1,0 +1,1 @@
+{"request":"https://pub.orcid.org/v3.0/0000-0001-2345-6789/works","status":404,"contentType":"application/json;charset=UTF-8","body":{"response-code":404,"developer-message":"404 Not Found: The resource was not found.","user-message":"The resource was not found.","error-code":9016,"more-info":"https://members.orcid.org/api/resources/troubleshooting"}}

@@ -137,6 +137,29 @@ describe('SourceHttpClient — retries (§13.2)', () => {
     });
   });
 
+  it('returns a JSON body for pass-through statuses (e.g. ORCID 409 details)', async () => {
+    const conflict = json({ 'response-code': 409, 'error-code': 9044 }, 409);
+    const { http } = client([conflict]);
+    await expect(http.getJson('https://example.test/a', { passThroughStatuses: [409] })).resolves.toMatchObject({
+      status: 409,
+      body: { 'error-code': 9044 },
+    });
+  });
+
+  it('can leave redirects unfollowed and exposes the Location header', async () => {
+    const moved = new Response('', { status: 301, headers: { location: 'https://orcid.org/0000-0002-1825-0097' } });
+    const { http, fetchImpl } = client([moved]);
+    const response = await http.getJson('https://example.test/a', { followRedirects: false, passThroughStatuses: [301] });
+    expect(response).toMatchObject({ status: 301, location: 'https://orcid.org/0000-0002-1825-0097' });
+    expect(((fetchImpl.mock.calls[0] as unknown[])[1] as RequestInit).redirect).toBe('manual');
+  });
+
+  it('follows redirects by default', async () => {
+    const { http, fetchImpl } = client([json({})]);
+    await http.getJson('https://example.test/a');
+    expect(((fetchImpl.mock.calls[0] as unknown[])[1] as RequestInit).redirect).toBe('follow');
+  });
+
   it('times out slow requests and reports TIMEOUT', async () => {
     const fetchImpl = vi.fn(
       (_url: unknown, init?: RequestInit) =>

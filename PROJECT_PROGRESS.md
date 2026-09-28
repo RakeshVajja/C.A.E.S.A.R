@@ -5,18 +5,62 @@
 ## Current Phase
 
 ```text
-Phase 5 — DBLP Integration
+Phase 6 — ORCID Integration
 STATUS: COMPLETE (verified and approved)
 
-Next phase: Phase 6 — ORCID Integration (NOT STARTED)
+Next phase: Phase 7 — Core Pipeline Testing & Audit (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–5 done)
+Implementation: IN PROGRESS (Phases 1–6 done)
 ```
+
+## Phase 6 Report
+
+**Implemented** (`backend/src`)
+
+* `integrations/orcid/`
+  * `client.ts` — ORCID Public API v3.0, anonymous, one request per identity (`/v3.0/{orcid}/works`, `Accept: application/json`). Identity validated before any work is processed (#42): ISO 7064 MOD 11-2 checksum (no request for an invalid iD), 404 → `IDENTITY_NOT_FOUND`, 409 (deactivated/locked) → `IDENTITY_INVALID` with ORCID's error code, deprecated 301 → `IDENTITY_INVALID` naming the primary iD without following the redirect (#43); response `path` and every summary `path` must name the requested iD; ORCID error payloads with 200 → invalid; put-codes listed twice kept once (reported). 200 ms interval, 60 s timeout, retries on 429/5xx (ORCID's burst limit answers 503).
+  * `types.ts` — Zod schema for the works response and work summaries.
+  * `mapper.ts` — work summary → `PublicationInput`: `external_id = {orcid}:{put-code}`, title only (#44), DOIs with relationship `self` only (part-of/version-of ignored), year from `publication-date` or unknown, venue from `journal-title`, no author names, the summary as raw metadata.
+  * `typeFamily.ts` — mapping unchanged (plan §7.3); confirmed against real records (comment only).
+* `services/discovery/orcidDiscovery.ts` — `discoverOrcidIdentity(identityId)`: shared preconditions → complete fetch + validation → map → shared write step (unchanged).
+* `integrations/http/httpClient.ts` — additive (#46): `followRedirects: false` option, `location` on responses, parsed JSON body for pass-through statuses, ORCID `developer-message` in error messages. OpenAlex/DBLP behaviour unchanged.
+* Scripts: `npm run fixtures:orcid`, `npm run smoke:orcid -- <iD>` (live, read-only).
+
+**ORCID behaviour verified live (2026-09-28, read-only)**
+
+* No paging: 1,351 summaries for a large record in one 2.8 MB response, equal to `/record`'s counts.
+* Nonexistent iD → 404 JSON (error 9016); deactivated record → 409 JSON (error 9044) on `/works`, `/person` and `/record`; deprecated → documented 301 (no real example found).
+* In 1,474 summaries from 4 records: types journal-article, preprint, other, data-set, conference-paper, book-chapter, report, book; relationships doi/self, wosuid/self, eid/self, issn/part-of, doi/part-of (book chapters pointing at a parent DOI), pmid/self; 304 groups with several summaries (all but 4 share a DOI); 2 without a year; 6 with a null title; 7 with a subtitle (6 on ORCID's test record, where it holds a journal name); no arXiv DOIs.
+
+**Recorded fixtures** (`tests/fixtures/orcid`, compact JSON, ~170 KB): Piwowar (100 summaries, 73 groups, duplicates, data-sets, part-of ISSNs), Vardi (8 self-entered works: 3 without title, 1 without year; also in the DBLP/OpenAlex fixtures), Josiah Carberry (ORCID's test record: subtitles, duplicates), a real 404 and a real deactivated 409.
+
+**Tests** — 50 new (370 total, all passing)
+
+* `tests/integrations/orcid.client.test.ts` (19): checksum (incl. X), iD normalization, no request for an invalid iD; full recorded list from one JSON request; redirects not followed; duplicate put-code kept once; genuine empty result; real 404 → not found; real 409 (9044) → invalid; deprecated 301 (simulated) → invalid, not followed; HTML, XML, malformed JSON, ORCID error payload, missing groups, empty group, response for another record, summary of another record; 503/429 retries.
+* `tests/integrations/orcid.mapper.test.ts` (10): external ID format; self DOIs only; part-of/version-of ignored but kept raw; missing year; null titles rejected; title only / subtitle raw; venue; no author names; recorded types → families; every recorded summary normalizes.
+* `tests/services/orcidDiscovery.test.ts` (13, real test DB): 100 summaries → 100 source records, PENDING links once per publication; in-ORCID duplicates merge into one publication; titleless skipped with warnings and a no-year record kept; genuine empty result writes nothing; idempotent rerun, `last_seen_at` refreshed, REJECTED kept; nothing written for the real 404, the real 409, a deprecated 301, HTML with 200, malformed JSON, or a later failed fetch; wrong-source/inactive refused without API calls; **cross-source with recorded DBLP data (Vardi)**: ORCID "Module Checking" (2001, no DOI) merges by title + year + type with the 2001 journal version, not the 1996 conference version; "Endmarkers can make a difference" merges with DBLP; the no-year "On decomposition of relational databases" becomes a candidate with the FOCS 1982 paper; one relationship per publication.
+* `tests/integrations/httpClient.test.ts` (+3): pass-through JSON body, unfollowed redirect with Location, redirects followed by default.
+* `tests/normalization/typeFamily.test.ts` (+5): further ORCID types → OTHER.
+
+**Validation**
+
+* `typecheck` ✅, `test` 370/370 ✅, `build` ✅, `prisma migrate status` up to date, `migrate diff` clean, 9 models / 9 tables; no schema changes; Phase 3 matching/normalization and Phase 4/5 integration code unchanged; Phase 3/4/5 suites 294/294 ✅.
+* Live smoke (read-only): Ioannidis 1,351/1,351 normalized in 1.2 s; Vardi 5 normalized, 3 skipped (no title), 1 without year; deactivated, nonexistent and bad-checksum iDs rejected.
+
+**Dependencies:** none added or changed.
+
+**Known limitations**
+
+* The deprecated-iD path is verified only with a simulated 301 (no real deprecated iD could be found); either way it fails safely.
+* ORCID summaries carry no author names, so ORCID-only publications have no author list.
+* ORCID preprints are recognised by `type = preprint` only (plan §7.4); unlike OpenAlex/DBLP, an ORCID record with an arXiv DOI but another type is not treated as a preprint. No such record appeared in the sampled data; if one occurs, a DOI match with a preprint record is blocked as preprint-vs-published and becomes a candidate (safe).
+* A genuine subtitle used only on ORCID can prevent an exact-title match for records without DOIs (1 of 1,474 sampled summaries).
+* Same write semantics as the other sources; discovery not yet triggered by routes or sync (Phases 9/12).
 
 ## Phase 5 Report
 
@@ -203,7 +247,7 @@ Implementation: IN PROGRESS (Phases 1–5 done)
 | 3 | Matching & Deduplication Engine | Normalization, type families, preprint detection, deterministic matching, vetoes, DuplicateCandidate, canonical metadata selection | **COMPLETE** (approved) |
 | 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | **COMPLETE** (approved) |
 | 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | **COMPLETE** (approved) |
-| 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | NOT STARTED |
+| 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | **COMPLETE** (approved) |
 | 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | NOT STARTED |
 | 8 | Authentication | Roles, JWT in HTTP-only cookie, hashing, temporary password, forced change, route protection | NOT STARTED |
 | 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | NOT STARTED |
@@ -290,5 +334,10 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 39 | 2026-09-28 | Shared discovery precondition check (`discoveryIdentity.ts`) used by OpenAlex and DBLP | Phase 5 refactor to avoid duplicating Phase 4 logic; OpenAlex behaviour and tests unchanged |
 | 40 | 2026-09-28 | DBLP preprint rule replaced: PREPRINT = class `Informal` AND key under `journals/corr/`, or DOI `10.48550/`; `Informal` elsewhere → OTHER; `journals/corr/` alone not a signal; other class mappings unchanged (§7.3, §7.4 updated) | Architect decision after Phase 5 audit of recorded data: all 97 real CoRR preprints are Informal+CoRR; 11 published EPTCS/LMCS papers under journals/corr/ (Inproceedings/Article) were being split from their published records; 6 Dagstuhl Informal items are not preprints. Supersedes the DBLP part of #8 |
 | 41 | 2026-09-28 | DBLP completeness hardening: `meta.result-size-total` required; delivered rows must equal it; author signatures must refer only to fetched records and every record must have one | Architect decision after Phase 5 audit (the check could previously be skipped silently and authors were not cross-checked) |
+| 42 | 2026-09-28 | ORCID identity validated on the works request itself: checksum (no request if invalid), 404 → not found, 409 → invalid, response and summary paths must name the iD | Phase 6 implementation decision; verified live that invalid identities never yield an empty 200 (404/409); approved by architect |
+| 43 | 2026-09-28 | Deprecated ORCID iD (documented 301) fails safely as `IDENTITY_INVALID` naming the primary iD; redirects not followed; nothing written | Architect decision in Phase 6 (redirect target documented as an orcid.org profile URL; no real example to verify) |
+| 44 | 2026-09-28 | ORCID title = `title.title.value` only; subtitle kept in raw_metadata | Architect decision in Phase 6; 1 of 1,474 real summaries uses a genuine subtitle, 6 misuse it for a journal name |
+| 45 | 2026-09-28 | ORCID completeness: `/works` has no paging and no reported total; completeness = full structural validation, put-codes listed twice kept once | Phase 6 implementation decision; verified live (1,351 summaries in one response, equal to `/record`); approved by architect |
+| 46 | 2026-09-28 | Shared HTTP helper: optional `followRedirects: false`, `location` on responses, JSON body for pass-through statuses | Phase 6, additive; OpenAlex/DBLP behaviour and tests unchanged; approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).
