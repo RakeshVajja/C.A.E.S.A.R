@@ -63,3 +63,17 @@ Backend tests (Vitest + Supertest) never call external APIs: live network access
 | `npm run fixtures:orcid` | Re-record the ORCID test fixtures from the public API |
 
 `OPENALEX_API_KEY` in `backend/.env` is optional; without it OpenAlex requests use the smaller keyless budget.
+
+## Discovery demo (development database)
+
+`backend/scripts/demo-discovery.ts` runs the real discovery pipeline for a professor's identities against the development database and explains the result: source records per source, canonical publications, cross-source matches (DOI vs exact title + year) and duplicate candidates. It calls the existing services unchanged and only reads the database for the report.
+
+```bash
+cd backend
+npm run demo -- --add "Moshe Y. Vardi" --openalex A5000059818 --dblp v/MosheYVardi --orcid 0000-0002-0661-5773
+npm run demo -- --professor "Moshe Y. Vardi"            # live discovery for all identities, then the report
+npm run demo -- --professor "Moshe Y. Vardi" --report   # report only, no API calls
+npm run demo -- --list                                  # professors and identity ids
+```
+
+Options: `--identity <id>` (one identity), `--limit <n>` (examples shown, default 10), `--all` (every publication). Live runs call the public APIs and write to the development database; automated tests never run the demo.

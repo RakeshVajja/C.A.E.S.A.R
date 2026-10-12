@@ -18,7 +18,8 @@
     "fixtures:dblp": "tsx scripts/record-dblp-fixtures.ts",
     "smoke:dblp": "tsx scripts/dblp-smoke.ts",
     "fixtures:orcid": "tsx scripts/record-orcid-fixtures.ts",
-    "smoke:orcid": "tsx scripts/orcid-smoke.ts"
+    "smoke:orcid": "tsx scripts/orcid-smoke.ts",
+    "demo": "tsx scripts/demo-discovery.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
