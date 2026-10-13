@@ -18,6 +18,25 @@ Architecture:   FROZEN
 Implementation: IN PROGRESS (Phases 1–6 done)
 ```
 
+## Tooling: Backend ESLint (between Phases 6 and 7; not part of Phase 7)
+
+**Implemented**
+
+* `backend/eslint.config.mjs`: mirrors the TypeScript rules the frontend gets from `eslint-config-next/typescript` (typescript-eslint `recommended`; `no-unused-vars` and `no-unused-expressions` as warnings), without React/Next rules. The frontend config is unchanged.
+* Backend-only, type-aware `@typescript-eslint/no-floating-promises` (error), using the existing `tsconfig.json` (src, tests, prisma, scripts).
+* `eslint` and `typescript-eslint` added as backend dev dependencies; backend `npm run lint`; README lists it.
+* Lint fixes, behaviour preserved: `index.ts` handles a `startServer()` rejection explicitly (log, exit 1); the `server.close()` callback is no longer async, so a failed database disconnect is logged and exits 1 instead of an unhandled rejection; `errorHandler.ts` keeps the unused `next` (Express identifies error handlers by arity) with a one-line disable.
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 370/370 ✅. Frontend: `lint` ✅.
+
+**Known limitations / open items**
+
+* `no-misused-promises` is not enabled; the shutdown fix is not lint-enforced and was not exercised by a live signal.
+* Shutdown can still stall if `disconnectDatabase()` never settles or `server.close()` waits on keep-alive connections (pre-existing; a timeout would be a behaviour change).
+* `npm audit` (backend) reports 3 advisories, not addressed: `proxy-addr` 2.0.7 via Express (critical, GHSA-jqcg-44mw-7w3h; only relevant with a subnet `trust proxy` setting, which is not used; fixed in 2.0.8); `source-map-js` 1.2.1 via Vitest (high, GHSA-68fv-2mgg-jv7q; dev only; fixed in 1.2.2); `deepmerge-ts` via the Prisma 6 CLI (high, GHSA-ggr8-5vv4-36mx; already accepted in Phase 1; no Prisma 6 fix). Awaiting the architect's decision.
+
 ## Phase 6 Report
 
 **Implemented** (`backend/src`)
@@ -339,5 +358,6 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 44 | 2026-09-28 | ORCID title = `title.title.value` only; subtitle kept in raw_metadata | Architect decision in Phase 6; 1 of 1,474 real summaries uses a genuine subtitle, 6 misuse it for a journal name |
 | 45 | 2026-09-28 | ORCID completeness: `/works` has no paging and no reported total; completeness = full structural validation, put-codes listed twice kept once | Phase 6 implementation decision; verified live (1,351 summaries in one response, equal to `/record`); approved by architect |
 | 46 | 2026-09-28 | Shared HTTP helper: optional `followRedirects: false`, `location` on responses, JSON body for pass-through statuses | Phase 6, additive; OpenAlex/DBLP behaviour and tests unchanged; approved by architect |
+| 47 | 2026-10-13 | Backend ESLint mirrors the frontend's applicable TypeScript rules (no shared root config) plus type-aware `no-floating-promises` | Frontend config is only `eslint-config-next` presets with no custom rules; a root config would need a root `package.json` for plugin resolution. Kept separate from Phase 7; approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).
