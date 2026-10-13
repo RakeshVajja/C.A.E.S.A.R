@@ -73,3 +73,16 @@ describe('normalizeDois', () => {
     ).toEqual(['10.1000/b', '10.1000/a']);
   });
 });
+
+describe('U+0000 in DOIs (decision #52)', () => {
+  it('treats a DOI containing U+0000 as absent, wherever the character is', () => {
+    expect(normalizeDoi('10.1234/ab\u0000c')).toBeNull();
+    expect(normalizeDoi('10.1234/abc\u0000')).toBeNull();
+    expect(normalizeDoi('https://doi.org/\u000010.1234/abc')).toBeNull();
+    expect(normalizeDois(['10.1234/abc\u0000', '10.1234/abc'])).toEqual(['10.1234/abc']);
+  });
+
+  it('leaves DOIs without U+0000 unchanged', () => {
+    expect(normalizeDoi('https://doi.org/10.1234/ABC')).toBe('10.1234/abc');
+  });
+});

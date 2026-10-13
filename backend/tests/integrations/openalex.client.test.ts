@@ -231,6 +231,17 @@ describe('works fetch: response validation (§13.1)', () => {
     expect(error.message).toContain('reported 67 works');
   });
 
+  it('counts distinct works: a work repeated across pages cannot hide a missing one (D4, Phase 7)', async () => {
+    // Same number of results as recorded, but page 3 repeats a page-1 work in place of one of its own.
+    const repeated = structuredClone(pages[2]);
+    const results = (repeated.body as { results: unknown[] }).results;
+    results[0] = (pages[0].body as { results: unknown[] }).results[0];
+    const { client } = openAlex([authorValid, pages[0], pages[1], repeated]);
+    const error = await fetchError(client.fetchAuthorWorks(AUTHOR));
+    expect(error.kind).toBe('INCOMPLETE');
+    expect(error.message).toContain('reported 67 works for A5023888391 but paging returned 66 distinct works (1 repeated)');
+  });
+
   it('stops at the page limit instead of looping forever', async () => {
     const replay = replayFetch([authorValid, pages[0]]);
     const client = new OpenAlexClient({ perPage: 25, maxPages: 1, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });

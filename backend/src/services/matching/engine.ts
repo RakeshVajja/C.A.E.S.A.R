@@ -178,7 +178,10 @@ async function decide(tx: Tx, record: NormalizedPublication): Promise<Decision> 
     const reason = `DOI(s) ${record.dois.join(', ')} match ${doiOwners.length} different publications`;
     return {
       kind: 'new',
-      possibleDuplicates: doiOwners.map((publicationId) => ({ publicationId, reason })),
+      possibleDuplicates: [
+        ...doiOwners.map((publicationId) => ({ publicationId, reason })),
+        ...(await exactTitleCandidates(tx, record, doiOwners)),
+      ],
       detail: `No automatic match: ${reason}`,
     };
   }
@@ -191,7 +194,10 @@ async function decide(tx: Tx, record: NormalizedPublication): Promise<Decision> 
     }
     return {
       kind: 'new',
-      possibleDuplicates: [{ publicationId: owner.id, reason: `DOI match blocked: ${evaluation.reason}` }],
+      possibleDuplicates: [
+        { publicationId: owner.id, reason: `DOI match blocked: ${evaluation.reason}` },
+        ...(await exactTitleCandidates(tx, record, doiOwners)),
+      ],
       detail: `No automatic match: DOI match blocked (${evaluation.reason})`,
     };
   }
@@ -231,6 +237,29 @@ async function decide(tx: Tx, record: NormalizedPublication): Promise<Decision> 
     };
   }
   return { kind: 'new', possibleDuplicates: [], detail: 'No matching publication' };
+}
+
+/**
+ * When the DOI path ends without a match, rule 3 is not applied (a blocked DOI match never merges,
+ * §8.3), but exact-title publications are still possible duplicates (decision #24): each becomes a
+ * candidate, with the rule-3 vetoes as reason when one applies.
+ */
+async function exactTitleCandidates(
+  tx: Tx,
+  record: NormalizedPublication,
+  doiOwners: readonly string[],
+): Promise<PossibleDuplicate[]> {
+  const ids = (await findTitleMatches(tx, record.normalizedTitle)).filter((id) => !doiOwners.includes(id));
+  return (await loadSnapshots(tx, ids)).map((snapshot) => {
+    const evaluation = evaluateTitleMatch(record, snapshot);
+    return {
+      publicationId: snapshot.id,
+      reason:
+        evaluation.kind === 'merge'
+          ? 'Exact title match not merged: DOI match blocked'
+          : `Exact title match blocked: ${evaluation.reasons.join('; ')}`,
+    };
+  });
 }
 
 /**

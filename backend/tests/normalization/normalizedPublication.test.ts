@@ -101,3 +101,61 @@ describe('stripExcludedContent', () => {
     expect(stripExcludedContent({ a: undefined, b: Number.NaN, c: () => 1 })).toEqual({ b: null, c: null });
   });
 });
+
+describe('U+0000 (decision #52)', () => {
+  const base = { source: 'DBLP' as const, externalId: 'conf/x/A', title: 'Model Checking Programs', typeFamily: 'CONFERENCE' as const };
+
+  it('replaces U+0000 with U+FFFD in title, venue and author names; the normalized title is unchanged', () => {
+    const record = buildNormalizedPublication({
+      ...base,
+      title: 'Model\u0000Checking Programs',
+      venue: 'CAV\u0000',
+      authorNamesDisplay: 'A. Author,\u0000B. Author',
+    });
+    expect(record.title).toBe('Model�Checking Programs');
+    expect(record.venue).toBe('CAV�');
+    expect(record.authorNamesDisplay).toBe('A. Author,�B. Author');
+    expect(record.normalizedTitle).toBe(buildNormalizedPublication(base).normalizedTitle);
+    expect(JSON.stringify(record)).not.toContain('\\u0000');
+  });
+
+  it('rejects an external ID containing U+0000 without altering it, and the message is safe to store', () => {
+    let error: unknown;
+    try {
+      buildNormalizedPublication({ ...base, externalId: 'conf/x/\u0000A' });
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(NormalizationError);
+    expect((error as Error).message).toBe('Record DBLP:conf/x/�A has an external ID containing U+0000');
+  });
+
+  it('replaces U+0000 in nested raw-metadata values and keys, still strips excluded content', () => {
+    expect(
+      stripExcludedContent({
+        'k\u0000': { inner: ['ok', 'x\u0000y', { 'deep\u0000': 'v\u0000' }] },
+        abstract: 'never stored \u0000',
+        plain: 'unchanged',
+      }),
+    ).toEqual({ plain: 'unchanged', 'k�': { inner: ['ok', 'x�y', { 'deep�': 'v�' }] } });
+  });
+
+  it('never silently overwrites a value when replaced keys collide (deterministic suffixes)', () => {
+    const raw = {
+      'a\u0000': 1,
+      'a�': 2, // an original key already named like the replacement
+      'a�#2': 3, // and one already named like the first suffix
+      'b\u0000�': 4,
+      'b�\u0000': 5, // two keys with U+0000 that collide with each other
+    };
+    const expected = { 'a�': 2, 'a�#2': 3, 'a�#3': 1, 'b��': 4, 'b��#2': 5 };
+    expect(stripExcludedContent(raw)).toEqual(expected);
+    expect(stripExcludedContent(raw)).toEqual(stripExcludedContent(structuredClone(raw)));
+    expect(Object.values(stripExcludedContent(raw) as object).sort()).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('returns a payload without U+0000 exactly as before, key order included', () => {
+    const raw = { z: 1, a: { y: 'text', b: [1, 'x'] }, m: null };
+    expect(JSON.stringify(stripExcludedContent(raw))).toBe(JSON.stringify(raw));
+  });
+});

@@ -243,7 +243,7 @@ PublicationSourceRecord
   venue                  nullable
   type_family
   author_names_display   nullable (display only; feeds canonical selection — decision #21)
-  raw_metadata           JSON (excluding abstracts, references and full-text content)
+  raw_metadata           JSON (excluding abstracts, references and full-text content; U+0000 replaced with U+FFFD — §7)
   match_method           how the record was attached to its Publication
   match_detail           short explanation
   created_by_user_id     nullable (MANUAL records)
@@ -357,6 +357,8 @@ NormalizedPublication
   rawMetadata
 ```
 
+**U+0000 (decision #52).** PostgreSQL cannot store U+0000 in text or JSON, so before storage it is replaced with U+FFFD in every text field and in `raw_metadata` (string values and keys, at any depth). Normalized titles are unaffected (title normalization already treats control characters as separators). If replacing it in keys makes two `raw_metadata` keys identical, keys without U+0000 keep their names and the replaced key gets the first free suffix `#2`, `#3`, … — no value is overwritten. A record whose external ID contains U+0000 is skipped with a warning (the external ID is never altered). Warnings and fetch error messages that quote source values have U+0000 replaced the same way.
+
 ## 7.1 DOI normalization
 
 1. Trim whitespace.
@@ -364,7 +366,7 @@ NormalizedPublication
 3. URL-decode.
 4. Lowercase (DOIs are case-insensitive; DBLP returns uppercase DOIs).
 5. Remove trailing punctuation (`. , ; )`).
-6. Must match `^10\.\d{4,9}/\S+$`; otherwise the DOI is treated as absent (the raw value stays in `raw_metadata`).
+6. Must match `^10\.\d{4,9}/\S+$` and must not contain U+0000 (decision #52); otherwise the DOI is treated as absent (the raw value stays in `raw_metadata`).
 
 One shared implementation is used by all mappers, manual entry and admin edits.
 

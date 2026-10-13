@@ -141,6 +141,17 @@ describe('response validation (§13.1): HTTP 200 is not success', () => {
     expect((await fetchError(client.fetchWorks(PIWOWAR))).message).toContain('not under');
   });
 
+  it('quotes a source path containing U+0000 safely in the error message (decision #52)', async () => {
+    const foreign = structuredClone(piwowar);
+    const summary = (foreign.body as { group: Array<{ 'work-summary': Array<{ path: string }> }> }).group[0]['work-summary'][0];
+    summary.path = `/${PIWOWAR}/work/\u00001`;
+    const { client } = orcid([foreign]);
+    const error = await fetchError(client.fetchWorks(PIWOWAR));
+    expect(error.kind).toBe('INVALID_RESPONSE');
+    expect(error.message).toContain(`"/${PIWOWAR}/work/\uFFFD1"`);
+    expect(error.message).not.toContain('\u0000');
+  });
+
   it('retries 503 (ORCID burst limit) and 429', async () => {
     let calls = 0;
     const { client } = orcid([], {

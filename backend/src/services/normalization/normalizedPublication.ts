@@ -1,5 +1,6 @@
 import type { PublicationSource, TypeFamily } from '@prisma/client';
 import { normalizeDois } from './doi';
+import { NUL, replaceNul } from './nul';
 import { JsonValue, stripExcludedContent } from './rawMetadata';
 import { normalizeTitle } from './title';
 
@@ -35,7 +36,7 @@ export interface PublicationInput {
 
 export class NormalizationError extends Error {
   constructor(message: string) {
-    super(message);
+    super(replaceNul(message)); // messages may quote source values and end up in warnings (#52)
     this.name = 'NormalizationError';
   }
 }
@@ -45,17 +46,22 @@ const MAX_YEAR = 2100;
 
 function cleanText(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
-  const cleaned = value.replace(/\\[nrt]/g, ' ').replace(/\s+/g, ' ').trim();
+  const cleaned = replaceNul(value).replace(/\\[nrt]/g, ' ').replace(/\s+/g, ' ').trim();
   return cleaned.length > 0 ? cleaned : null;
 }
 
 /**
  * Builds a NormalizedPublication. Throws NormalizationError for records that cannot be
  * matched safely (no usable title or external ID); callers skip such records with a warning.
+ * U+0000 in text and raw metadata becomes U+FFFD; an external ID containing it is never altered
+ * (it is the provenance key), so such a record is rejected (decision #52).
  */
 export function buildNormalizedPublication(input: PublicationInput): NormalizedPublication {
   const externalId = input.externalId?.trim();
   if (!externalId) throw new NormalizationError('Record has no external ID');
+  if (externalId.includes(NUL)) {
+    throw new NormalizationError(`Record ${input.source}:${externalId} has an external ID containing U+0000`);
+  }
 
   const title = cleanText(input.title);
   const normalizedTitle = normalizeTitle(title);

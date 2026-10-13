@@ -2,7 +2,7 @@
  * DOI normalization (Project_plan.md §7.1). The single shared implementation used by
  * every source mapper, manual entry and admin edit.
  *
- * Returns the normalized DOI, or null when the value is not a valid DOI
+ * Returns the normalized DOI, or null when the value is not a valid DOI or contains U+0000
  * (the raw value then only survives in raw_metadata).
  */
 const DOI_PREFIXES = /^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)/i;
@@ -10,7 +10,8 @@ const TRAILING_PUNCTUATION = /[.,;)]+$/;
 const VALID_DOI = /^10\.\d{4,9}\/\S+$/;
 
 export function normalizeDoi(value: string | null | undefined): string | null {
-  if (typeof value !== 'string') return null;
+  // A value containing U+0000 is not a usable DOI (decision #52); cleaning it could invent a match.
+  if (typeof value !== 'string' || value.includes('\u0000')) return null;
 
   // 1. Trim.  2. Remove known prefixes.
   let doi = value.trim().replace(DOI_PREFIXES, '');

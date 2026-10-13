@@ -1,3 +1,5 @@
+import { replaceNul } from '../../services/normalization/nul';
+
 /**
  * Shared HTTP helper for external sources (Project_plan.md §13.1, §13.2).
  *
@@ -28,7 +30,7 @@ export class FetchError extends Error {
     message: string,
     public readonly details: { url?: string; status?: number } = {},
   ) {
-    super(message);
+    super(replaceNul(message)); // messages may quote source values and will be persisted (#52)
     this.name = 'FetchError';
   }
 }

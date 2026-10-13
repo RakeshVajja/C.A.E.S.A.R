@@ -6,6 +6,7 @@ import {
   NormalizationError,
   PublicationInput,
 } from '../normalization/normalizedPublication';
+import { replaceNul } from '../normalization/nul';
 
 /**
  * Source-independent write step for records discovered through one external identity
@@ -60,7 +61,7 @@ export async function ingestDiscoveredRecords(
     } catch (error) {
       if (!(error instanceof NormalizationError)) throw error;
       summary.recordsSkipped++;
-      summary.warnings.push(`Skipped ${input.source}:${input.externalId || '(no id)'}: ${error.message}`);
+      summary.warnings.push(`Skipped ${input.source}:${replaceNul(input.externalId || '(no id)')}: ${error.message}`);
       continue;
     }
 

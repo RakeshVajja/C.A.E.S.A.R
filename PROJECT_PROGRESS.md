@@ -5,18 +5,66 @@
 ## Current Phase
 
 ```text
-Phase 6 — ORCID Integration
+Phase 7 — Core Pipeline Testing & Audit
 STATUS: COMPLETE (verified and approved)
 
-Next phase: Phase 7 — Core Pipeline Testing & Audit (NOT STARTED)
+Next phase: Phase 8 — Authentication (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–6 done)
+Implementation: IN PROGRESS (Phases 1–7 done)
 ```
+
+## Phase 7 Report
+
+Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.md` (every §7–§14 and §18 requirement mapped to implementation and tests; read-only checks on the development database), then remediation of the approved findings only.
+
+**Audit result**
+
+* PASS: normalization, rules 1–4 and vetoes, DOI contradictions and precedence (#22–#28), canonical priority (#26), SUPPRESSED absorption (#30), PENDING-only links and status preservation, response validation and identity checks for all three sources, fetch-then-write, idempotent per-source reruns, schema constraints. Development data: no publication without provenance, no ACTIVE publication without a link, every DOI shared by two publications has a candidate.
+* BUG B1 (fixed): when a DOI match was blocked (or the DOIs pointed to several publications), `decide()` returned before rule 3, so publications with the identical normalized title got neither a merge nor a candidate (§8.1 rule 4, §8.3 #24, §12.3). Development data: 5 of 19 DOI-blocked records had such an uncandidated publication, e.g. OpenAlex `W3112766335` (typed preprint, ACM conference DOI) vs DBLP CoRR `journals/corr/abs-2008-05102`.
+* Coverage gaps (closed): no three-source end-to-end test (C1); no test of a database failure part-way through a run (C2); concurrent unique-key retry untested (C3); preprint vs OTHER on a DOI match untested (C4).
+
+**Implemented** (`backend/src`)
+
+* `services/matching/engine.ts` — B1 fix (#48): when the DOI path ends without a match, every other publication with the exact normalized title becomes a `DuplicateCandidate` (reason: the rule-3 vetoes, or "Exact title match not merged: DOI match blocked"). The record still gets its own publication; no merge behaviour, rule or criterion changed.
+* `integrations/openalex/client.ts` — completeness counts distinct work IDs (#51), so a work repeated across pages cannot hide a missing one; such a fetch is `INCOMPLETE` and writes nothing.
+* U+0000 handling (#52; found while testing C2: PostgreSQL rejects U+0000 in text and JSON, so one such record failed on every run and stopped the identity's discovery):
+  * `services/normalization/nul.ts` (new) — `replaceNul`: U+0000 → U+FFFD.
+  * `normalizedPublication.ts` — title, venue and author names replaced (normalized titles unchanged); an external ID containing U+0000 is rejected (`NormalizationError`, record skipped with a warning; never altered); error messages replaced.
+  * `rawMetadata.ts` — string values and keys at any depth replaced; on a key collision, keys without U+0000 keep their names and the replaced key gets the first free `#2`, `#3`, … suffix (no value overwritten; deterministic).
+  * `doi.ts` — a DOI containing U+0000 is invalid (treated as absent; the raw value stays in raw metadata).
+  * `ingestDiscoveredRecords.ts` (skip warning) and `integrations/http/httpClient.ts` (`FetchError` messages) — quoted source values replaced, so they are safe to persist in Phase 12.
+  * Input without U+0000 is processed exactly as before: no stored data, rule or matching behaviour changes.
+
+**Tests** — 23 new (393 total, all passing)
+
+* `tests/matching/engine.test.ts` (+3): B1 regression for a blocked DOI match (modelled on the real W3112766335 case; written first and failing before the fix) and for DOIs matching several publications; preprint vs OTHER on a shared DOI stays split with a candidate (#49).
+* `tests/integrations/openalex.client.test.ts` (+1), `tests/services/openAlexDiscovery.test.ts` (+1): a repeated work in place of a missing one → `INCOMPLETE`, nothing written.
+* `tests/services/pipeline.test.ts` (4, new, real test DB):
+  * C1: one professor with OpenAlex, DBLP and ORCID identities through all three discovery services (recorded Vardi data; the OpenAlex work bodies are recorded, only the author/page envelope is synthetic); cross-source merges OpenAlex↔DBLP and DBLP↔ORCID; one PENDING link per publication recorded against the first discovering identity; after one REJECTED and one APPROVED decision, reruns in the same and in reverse order leave publications, source records, links, candidates and statuses identical and refresh `last_seen_at` only.
+  * C2 (real rollback, no mocks): a temporary trigger, created only in the `*_test` database and always dropped (also when an assertion fails — tested), makes PostgreSQL reject the second of three records — the first record and its link stay committed, the failing record's already-inserted Publication is rolled back, the error reaches the caller, and a rerun completes without duplicating the first record.
+  * C2 (stubbed link insert): the relationship insert after a committed record fails → the record stays, unlinked; the rerun creates the missing link.
+  * C3: a concurrent ingest of the same record commits during the first attempt → the attempt's Publication insert is rolled back by the database, the retry updates the committed record (one publication, one source record).
+  * U+0000 (#52): a batch whose middle record has U+0000 in its title, DOI, venue and nested raw values/keys (incl. a key collision) is stored completely, later records are processed, and a rerun changes nothing; title matching is identical to the clean title; a record with U+0000 in its external ID is skipped with a sanitized warning on every run while the others are processed; a recorded ORCID response with U+0000 injected goes through `discoverOrcidIdentity` with the same outcome as the clean response and reruns cleanly.
+* U+0000 unit tests (#52): `doi.test` (+2), `normalizedPublication.test` (+5: text fields, external ID rejection and message, nested raw values/keys, key collisions without overwriting, payloads without U+0000 unchanged incl. key order), `httpClient.test` (+1), `orcid.client.test` (+1: a source path with U+0000 quoted safely). The 11 U+0000 tests that exercise the fix fail without it.
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 393/393 ✅. Frontend: `lint` ✅. No live API calls in tests; development data only read; no test trigger left in the test database.
+
+**Dependencies / schema:** none added or changed. `Project_plan.md`: U+0000 rule added to §7, §7.1 step 6 and the §6.5 `raw_metadata` description (#52, approved); nothing else changed.
+
+**Known limitations / open items**
+
+* B1 is not applied retroactively: development data ingested before the fix keeps its 5 missing candidates until it is re-ingested or reset.
+* LaTeX in OpenAlex titles (e.g. `B\"uchi`, `$$ \mathcal{K} $$`; 7 development records) is not handled by §7.2 normalization; affected DOI matches are blocked as "unrelated titles" and become candidates (safe). Deferred (#50).
+* ~~U+0000 in a source string blocks discovery~~ — resolved (#52). Only U+0000 is handled; other control characters are stored as before (PostgreSQL accepts them).
+* Identity external IDs entered by the admin are validated in Phase 9, not by this rule.
+* Matching results remain order-dependent where the plan allows it (e.g. which identity a link is attributed to, which record becomes canonical); reruns are idempotent in any order (C1).
 
 ## Tooling: Backend ESLint (between Phases 6 and 7; not part of Phase 7)
 
@@ -267,7 +315,7 @@ Implementation: IN PROGRESS (Phases 1–6 done)
 | 4 | OpenAlex Integration | Identity validation, cursor pagination, response validation, mapping into the pipeline | **COMPLETE** (approved) |
 | 5 | DBLP Integration | SPARQL client, mapping, response validation, throttling, failure handling | **COMPLETE** (approved) |
 | 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | **COMPLETE** (approved) |
-| 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | NOT STARTED |
+| 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | **COMPLETE** (approved) |
 | 8 | Authentication | Roles, JWT in HTTP-only cookie, hashing, temporary password, forced change, route protection | NOT STARTED |
 | 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | NOT STARTED |
 | 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | NOT STARTED |
@@ -359,5 +407,10 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 45 | 2026-09-28 | ORCID completeness: `/works` has no paging and no reported total; completeness = full structural validation, put-codes listed twice kept once | Phase 6 implementation decision; verified live (1,351 summaries in one response, equal to `/record`); approved by architect |
 | 46 | 2026-09-28 | Shared HTTP helper: optional `followRedirects: false`, `location` on responses, JSON body for pass-through statuses | Phase 6, additive; OpenAlex/DBLP behaviour and tests unchanged; approved by architect |
 | 47 | 2026-10-13 | Backend ESLint mirrors the frontend's applicable TypeScript rules (no shared root config) plus type-aware `no-floating-promises` | Frontend config is only `eslint-config-next` presets with no custom rules; a root config would need a root `package.json` for plugin resolution. Kept separate from Phase 7; approved by architect |
+| 48 | 2026-10-13 | When the DOI path ends without a match (blocked or several DOI owners), every other publication with the exact normalized title becomes a DuplicateCandidate; the record still gets its own publication (no new merge behaviour) | Phase 7 audit finding B1 (5 of 19 DOI-blocked development records lacked such candidates; §8.3 #24, §12.3); option (a) approved by architect |
+| 49 | 2026-10-13 | Preprint vs OTHER on a shared DOI stays a preprint-vs-published contradiction (split + candidate); regression test added; plan unchanged | Phase 7 audit (C4/S1); no occurrence in development data or fixtures; approved by architect |
+| 50 | 2026-10-13 | LaTeX in titles is not normalized (§7.2 unchanged); kept as a known limitation | Phase 7 audit (S2); affected matches become candidates (safe); deferred by architect |
+| 51 | 2026-10-13 | OpenAlex completeness counts distinct work IDs against `meta.count` (refines #34) | Phase 7 audit (H1); stricter in the safe direction; approved by architect |
+| 52 | 2026-10-13 | U+0000 → U+FFFD in every stored text field and in raw_metadata values and keys (key collisions get a deterministic `#n` suffix, never overwrite); a DOI containing U+0000 is absent; a record whose external ID contains U+0000 is skipped with a warning; warnings and fetch error messages quoting source values are sanitized the same way (§6.5, §7, §7.1 amended) | Found in Phase 7: PostgreSQL rejects U+0000 in text and JSON, so one such record failed on every run and stopped the identity's discovery; normalized titles and matching unchanged; approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

@@ -135,10 +135,13 @@ export class OpenAlexClient {
     }
 
     // Cursor paging must deliver everything OpenAlex reported; anything less is an incomplete fetch.
-    if (works.length < reportedCount) {
+    // Distinct work IDs are counted, so a work repeated across pages cannot hide a missing one.
+    const distinct = new Set(works.map((work) => work.id)).size;
+    if (distinct < reportedCount) {
       throw new FetchError(
         'INCOMPLETE',
-        `OpenAlex reported ${reportedCount} works for ${authorId} but paging returned ${works.length}`,
+        `OpenAlex reported ${reportedCount} works for ${authorId} but paging returned ${distinct} distinct works` +
+          (distinct < works.length ? ` (${works.length - distinct} repeated)` : ''),
       );
     }
     return { works, reportedCount };

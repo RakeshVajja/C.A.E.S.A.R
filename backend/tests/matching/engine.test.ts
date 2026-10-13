@@ -396,6 +396,103 @@ describe('rule 2 — DOI', () => {
       expect(await candidateBetween(both.publicationId, x.publicationId)).not.toBeNull();
       expect(await candidateBetween(both.publicationId, y.publicationId)).not.toBeNull();
     });
+
+    // Phase 7 audit finding B1, modelled on real dev data: OpenAlex W3112766335 is typed preprint but
+    // carries the ACM conference DOI; the DBLP CoRR preprint with the same title and year was neither
+    // merged nor flagged. A blocked DOI match still never merges, but exact-title matches get candidates.
+    it('records candidates for exact-title publications when the DOI match is blocked (no merge)', async () => {
+      const title = 'On Uniformly Sampling Traces of a Transition System';
+      const corr = await ingest({
+        source: 'DBLP',
+        externalId: 'journals/corr/abs-2008-05102',
+        title: `${title}.`,
+        year: 2020,
+        typeFamily: 'PREPRINT',
+      });
+      const conference = await ingest({
+        source: 'DBLP',
+        externalId: 'conf/iccad/MeelSV20',
+        title: `${title}.`,
+        dois: ['10.1145/3400302.3415707'],
+        year: 2020,
+        typeFamily: 'CONFERENCE',
+      });
+      const openAlexPreprint = await ingest({
+        source: 'OPENALEX',
+        externalId: 'W3112766335',
+        title,
+        dois: ['https://doi.org/10.1145/3400302.3415707'],
+        year: 2020,
+        typeFamily: 'PREPRINT',
+      });
+
+      // Unchanged: the blocked DOI match gets its own publication and is not merged by title either.
+      expect(openAlexPreprint).toMatchObject({ outcome: 'NEW_PUBLICATION', candidatesCreated: 2 });
+      expect(openAlexPreprint.publicationId).not.toBe(corr.publicationId);
+      expect(openAlexPreprint.publicationId).not.toBe(conference.publicationId);
+
+      expect((await candidateBetween(openAlexPreprint.publicationId, conference.publicationId))?.reason).toContain(
+        'DOI match blocked: same DOI but preprint vs published',
+      );
+      expect((await candidateBetween(openAlexPreprint.publicationId, corr.publicationId))?.reason).toBe(
+        'Exact title match not merged: DOI match blocked',
+      );
+    });
+
+    it('records candidates for exact-title publications when DOIs point to several publications', async () => {
+      const x = await ingest({ ...cp13OpenAlex, externalId: 'W1', dois: ['10.1000/a'], title: 'Paper A about things' });
+      const y = await ingest({ ...cp13OpenAlex, externalId: 'W2', dois: ['10.1000/b'], title: 'Paper B about things' });
+      const journal = await ingest({
+        source: 'ORCID',
+        externalId: '0000-0002-0661-5773:1',
+        title: 'Paper A about things',
+        year: 2014,
+        typeFamily: 'JOURNAL',
+      });
+      const both = await ingest({
+        source: 'DBLP',
+        externalId: 'journals/x/Both',
+        title: 'Paper A about things',
+        dois: ['10.1000/a', '10.1000/b'],
+        year: 2013,
+        typeFamily: 'CONFERENCE',
+      });
+
+      expect(both).toMatchObject({ outcome: 'NEW_PUBLICATION', candidatesCreated: 3 });
+      expect(await candidateBetween(both.publicationId, x.publicationId)).not.toBeNull();
+      expect(await candidateBetween(both.publicationId, y.publicationId)).not.toBeNull();
+      expect((await candidateBetween(both.publicationId, journal.publicationId))?.reason).toBe(
+        'Exact title match blocked: incompatible type families (CONFERENCE vs JOURNAL)',
+      );
+    });
+  });
+
+  describe('preprint vs OTHER on a DOI match (decision D2, Phase 7)', () => {
+    it('treats OTHER as published: a preprint sharing the DOI is split off with a candidate, not merged', async () => {
+      const arxiv = '10.48550/arxiv.1306.5726';
+      const other = await ingest({
+        source: 'ORCID',
+        externalId: '0000-0002-0661-5773:2',
+        title: 'Distribution-Aware Sampling and Weighted Model Counting for SAT',
+        dois: [arxiv],
+        year: 2013,
+        typeFamily: 'OTHER',
+      });
+      const preprint = await ingest({
+        source: 'OPENALEX',
+        externalId: 'W2',
+        title: 'Distribution-Aware Sampling and Weighted Model Counting for SAT',
+        dois: [`https://doi.org/${arxiv}`],
+        year: 2013,
+        typeFamily: 'PREPRINT',
+      });
+
+      expect(preprint).toMatchObject({ outcome: 'NEW_PUBLICATION', candidatesCreated: 1 });
+      expect(preprint.publicationId).not.toBe(other.publicationId);
+      expect((await candidateBetween(other.publicationId, preprint.publicationId))?.reason).toBe(
+        'DOI match blocked: same DOI but preprint vs published (PREPRINT vs OTHER)',
+      );
+    });
   });
 });
 

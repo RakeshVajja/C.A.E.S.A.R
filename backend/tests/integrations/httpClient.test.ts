@@ -228,3 +228,10 @@ describe('parseRetryAfter', () => {
     expect(parseRetryAfter('soon', 0)).toBeUndefined();
   });
 });
+
+describe('FetchError messages (decision #52)', () => {
+  it('replaces U+0000 quoted from a source, so the message is safe to store', () => {
+    const error = new FetchError('INVALID_RESPONSE', 'record conf/x/\u0000A is not in the result');
+    expect(error.message).toBe('record conf/x/�A is not in the result');
+  });
+});

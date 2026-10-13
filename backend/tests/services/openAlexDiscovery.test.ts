@@ -151,6 +151,18 @@ describe('discoverOpenAlexIdentity — failures never write (§13.1, §14)', () 
     expect(await counts()).toEqual({ publications: 0, sourceRecords: 0, links: 0, candidates: 0 });
   });
 
+  it('writes nothing when a repeated work hides a missing one (distinct-ID completeness, D4)', async () => {
+    const { identity } = await identityFor();
+    const repeated = structuredClone(pages[2]);
+    (repeated.body as { results: unknown[] }).results[0] = (pages[0].body as { results: unknown[] }).results[0];
+    const error = await discoverOpenAlexIdentity(identity.id, {
+      openAlex: openAlex({ [pages[2].request]: repeated }).client,
+    }).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ kind: 'INCOMPLETE' });
+    expect(await counts()).toEqual({ publications: 0, sourceRecords: 0, links: 0, candidates: 0 });
+  });
+
   it('leaves earlier data untouched when a later sync fails', async () => {
     const { identity } = await identityFor();
     await discoverOpenAlexIdentity(identity.id, { openAlex: openAlex().client, now: at('2026-09-01T00:00:00Z') });
