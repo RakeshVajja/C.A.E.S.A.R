@@ -626,6 +626,7 @@ A fetch failure must **never** be interpreted as "the professor has zero publica
 * Identity validation happens on the works request itself, before any work is processed (decision #42): the iD's ISO 7064 checksum (no request is sent for an invalid iD); 404 (error 9016) → `IDENTITY_NOT_FOUND`; 409 (deactivated, error 9044 — verified live; locked records are documented as 409) → `IDENTITY_INVALID`; the response `path` and every work-summary `path` must name the requested iD.
 * A deprecated (merged) iD — documented as a 301 to the primary record — fails safely as `IDENTITY_INVALID` naming the primary iD; redirects are not followed and nothing is written (decision #43).
 * Title = `title.title.value` only; the subtitle stays in `raw_metadata` (decision #44). Author names are not available in work summaries. A put-code listed twice is ingested once.
+* For the administrator's identity preview only, the record holder's public display name is read from `/v3.0/{orcid}/person` (anonymous, same identity checks); a name that is not public is shown as absent (decision #69). Synchronization still uses `/works` only.
 
 ---
 
@@ -662,7 +663,7 @@ Rules:
 ## 15.1 Roles
 
 * **ADMIN** (single administrator): manages professors, identities, publications (edit, curate, suppress), duplicate candidates, synchronization and analytics.
-* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, edits permitted own information.
+* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, edits permitted own information. Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email, activation status and external identities are administrator-managed (decision #67).
 
 ## 15.2 Authentication
 

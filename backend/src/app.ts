@@ -9,6 +9,7 @@ import { createAuthRouter } from './routes/auth';
 import { healthRouter } from './routes/health';
 import { createAdminRouter, createMeRouter } from './routes/protected';
 import { createSmtpMailer, Mailer } from './services/email/mailer';
+import { createPreviewClients, IdentityClients } from './services/identities/identities';
 
 export interface AppOptions {
   /** Defaults to SMTP from the environment (null when unconfigured); tests inject a fake. */
@@ -17,6 +18,8 @@ export interface AppOptions {
   rateLimits?: Partial<AuthRateLimits>;
   /** Express "trust proxy"; defaults to TRUST_PROXY. */
   trustProxy?: boolean | number | string;
+  /** Source clients for identity previews; defaults to live clients with short timeouts. Tests inject replays. */
+  identityClients?: IdentityClients;
 }
 
 export function createApp(options: AppOptions = {}): Express {
@@ -42,7 +45,7 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
   app.use('/api/me', createMeRouter());
-  app.use('/api/admin', createAdminRouter());
+  app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now }));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

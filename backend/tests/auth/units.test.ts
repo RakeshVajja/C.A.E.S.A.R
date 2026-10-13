@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { env } from '../../src/config/env';
 import { RateLimiter } from '../../src/middleware/rateLimit';
 import { generateRecoveryCode, recoveryCodeHash } from '../../src/services/auth/passwordRecovery';
-import { hashPassword, passwordHashCost, passwordPolicyProblem, verifyPassword } from '../../src/services/auth/password';
+import { generateTemporaryPassword, hashPassword, passwordHashCost, passwordPolicyProblem, verifyPassword } from '../../src/services/auth/password';
 import {
   passwordFingerprint,
+  signIdentityPreviewToken,
+  verifyIdentityPreviewToken,
   recoveryCodeBinding,
   signResetToken,
   signSessionToken,
@@ -144,6 +146,36 @@ describe('recovery codes', () => {
     expect(first).not.toBe(hash);
     expect(recoveryCodeBinding(hash, new Date('2026-10-13T10:01:01.000Z'))).not.toBe(first);
     expect(recoveryCodeBinding(hash, new Date('2026-10-13T10:00:00.000Z'))).toBe(first);
+  });
+});
+
+describe('temporary passwords (decision #66)', () => {
+  it('are 4 groups of 5 unambiguous characters from the secure generator and satisfy the policy', () => {
+    const values = Array.from({ length: 100 }, generateTemporaryPassword);
+    for (const value of values) {
+      expect(value).toMatch(/^[A-HJ-NP-Z2-9]{5}(-[A-HJ-NP-Z2-9]{5}){3}$/);
+      expect(passwordPolicyProblem(value)).toBeNull();
+    }
+    expect(new Set(values).size).toBe(100);
+  });
+});
+
+describe('identity preview tokens (decision #68)', () => {
+  const claims = { professorId: '00000000-0000-4000-8000-000000000001', source: 'DBLP' as const, externalId: 'v/MosheYVardi' };
+
+  it('round-trip the professor, source, normalized identifier and preview time; expire after 15 minutes', () => {
+    const at = new Date('2026-10-14T10:00:00.000Z');
+    const token = signIdentityPreviewToken(claims, at);
+    expect(verifyIdentityPreviewToken(token, new Date(at.getTime() + 14 * 60_000))).toEqual({ ...claims, previewedAt: at });
+    expect(verifyIdentityPreviewToken(token, new Date(at.getTime() + 15 * 60_000 + 1_000))).toBeNull();
+  });
+
+  it('are not interchangeable with session or reset tokens', () => {
+    const token = signIdentityPreviewToken(claims);
+    expect(verifySessionToken(token)).toBeNull();
+    expect(verifyResetToken(token)).toBeNull();
+    expect(verifyIdentityPreviewToken(signSessionToken(claims.professorId, 'h'))).toBeNull();
+    expect(verifyIdentityPreviewToken(jwt.sign({ pid: claims.professorId, src: 'DBLP', xid: 'x' }, 'another-secret-that-is-long-enough-123', { algorithm: 'HS256', audience: 'identity-preview', issuer: 'cse-research-hub', expiresIn: 60 }))).toBeNull();
   });
 });
 

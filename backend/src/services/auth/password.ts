@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { env } from '../../config/env';
 import { HttpError } from '../../utils/httpError';
 
@@ -84,4 +85,19 @@ export async function verifyAgainstDummy(password: string): Promise<false> {
   dummyHash ??= bcrypt.hash('dummy-password-for-equal-timing', HASH_ROUNDS);
   await bcrypt.compare(password, await dummyHash);
   return false;
+}
+
+// No 0/O, 1/I: easy to read aloud and copy. 32 symbols × 20 characters ≈ 100 bits.
+const TEMPORARY_PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/**
+ * A temporary password for a new professor account (Project_plan.md §15.2, decision #66):
+ * four hyphen-separated groups of five characters from a CSPRNG. It satisfies the password policy;
+ * the professor must change it at first login.
+ */
+export function generateTemporaryPassword(): string {
+  const groups = Array.from({ length: 4 }, () =>
+    Array.from({ length: 5 }, () => TEMPORARY_PASSWORD_ALPHABET[randomInt(TEMPORARY_PASSWORD_ALPHABET.length)]).join(''),
+  );
+  return groups.join('-');
 }

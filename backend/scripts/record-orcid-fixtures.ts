@@ -1,6 +1,7 @@
 /**
  * Records real ORCID Public API v3.0 responses as test fixtures (tests/fixtures/orcid).
- * Run manually when fixtures need refreshing: `npm run fixtures:orcid`.
+ * Run manually when fixtures need refreshing: `npm run fixtures:orcid` (all), or
+ * `npm run fixtures:orcid -- works` / `npm run fixtures:orcid -- person` for one kind.
  * Automated tests never call the live API; they replay these files.
  * Anonymous access only; redirects are not followed (as in the client).
  */
@@ -23,10 +24,25 @@ const RECORDS: Record<string, string> = {
   'works-deactivated': '0000-0002-0155-3227',
 };
 
+// `/person` sections for the administrator's identity preview (Phase 9).
+const PERSON_RECORDS: Record<string, string> = {
+  // ORCID's public test record: a public credit name.
+  'person-carberry': '0000-0002-1825-0097',
+  // Moshe Y. Vardi (as in works-vardi).
+  'person-vardi': '0000-0002-0661-5773',
+  // Nonexistent iD (404).
+  'person-not-found': '0000-0001-2345-6789',
+};
+
 async function main(): Promise<void> {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  for (const [name, orcid] of Object.entries(RECORDS)) {
-    const url = `${ORCID_API_BASE_URL}/${orcid}/works`;
+  const only = process.argv[2];
+  const jobs = [
+    ...(only === 'person' ? [] : Object.entries(RECORDS).map(([name, orcid]) => [name, orcid, 'works'] as const)),
+    ...(only === 'works' ? [] : Object.entries(PERSON_RECORDS).map(([name, orcid]) => [name, orcid, 'person'] as const)),
+  ];
+  for (const [name, orcid, section] of jobs) {
+    const url = `${ORCID_API_BASE_URL}/${orcid}/${section}`;
     const response = await fetch(url, { headers: { Accept: 'application/json' }, redirect: 'manual' });
     const contentType = response.headers.get('content-type') ?? '';
     const text = await response.text();

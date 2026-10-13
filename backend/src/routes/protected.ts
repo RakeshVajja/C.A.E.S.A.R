@@ -1,20 +1,43 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/auth';
+import { IdentityClients } from '../services/identities/identities';
+import { getOwnProfile, updateOwnName } from '../services/professors/professors';
+import { HttpError } from '../utils/httpError';
+import { parseBody } from '../utils/validation';
+import { createAdminProfessorsRouter } from './adminProfessors';
 
 /**
- * Route groups for later phases (Project_plan.md §15.3). Protection is mounted now so every
- * future endpoint inherits it; no feature endpoints exist yet (unknown paths end in 404 after
- * the checks). /api/me endpoints derive the professor from req.auth, never from the URL.
+ * Protected route groups (Project_plan.md §15.3). Every endpoint inherits the checks mounted here.
+ * /api/me endpoints derive the professor from the session (req.auth), never from the URL or body.
  */
+
+const ownProfileBody = z.strictObject({ name: z.string().trim().min(1).max(200) });
 
 export function createMeRouter(): Router {
   const router = Router();
   router.use(requireAuth, requirePasswordChanged);
+
+  // A professor's own profile: readable, and only the name is editable (decision #67).
+  const professorOnly = (role: string) => {
+    if (role !== 'PROFESSOR') throw new HttpError(403, 'FORBIDDEN', 'Only professors have a profile');
+  };
+  router.get('/profile', async (req, res) => {
+    professorOnly(req.auth!.user.role);
+    res.json({ profile: await getOwnProfile(req.auth!.user.id) });
+  });
+  router.patch('/profile', async (req, res) => {
+    professorOnly(req.auth!.user.role);
+    const body = parseBody(ownProfileBody, req.body);
+    res.json({ profile: await updateOwnName(req.auth!.user.id, body.name) });
+  });
+
   return router;
 }
 
-export function createAdminRouter(): Router {
+export function createAdminRouter(deps: { identityClients: IdentityClients; now: () => Date }): Router {
   const router = Router();
   router.use(requireAuth, requireRole('ADMIN'), requirePasswordChanged);
+  router.use('/professors', createAdminProfessorsRouter(deps));
   return router;
 }

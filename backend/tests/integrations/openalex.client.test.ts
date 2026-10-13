@@ -61,6 +61,8 @@ describe('identity validation (§13.3)', () => {
       authorId: AUTHOR,
       merged: false,
       displayName: 'Jason R Priem',
+      orcid: 'https://orcid.org/0000-0001-6187-6610',
+      worksCount: 64,
     });
   });
 

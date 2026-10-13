@@ -59,6 +59,10 @@ Passwords: 10 characters minimum, 72 bytes (UTF-8) maximum, different from the c
 
 Recovery codes expire after 10 minutes; at most one code per minute and 5 per hour are sent, and 5 verification attempts are allowed per hour-long recovery window in total (a new code does not reset them). State-changing requests must send JSON, and browsers may only send them from `CORS_ORIGIN`.
 
+### Professor management (admin)
+
+`/api/admin/professors` lists, creates (with a login account and a one-time temporary password the admin hands over), edits and activates/deactivates professors (never deletes them). `POST /api/admin/professors/:id/account` adds an account to a professor without one. External identities are previewed first — `POST …/:id/identities/preview` with `{ source: "OPENALEX" | "DBLP" | "ORCID", externalId }` checks the identity with the source and writes nothing — then saved with the returned `previewToken` (`POST …/:id/identities`, valid 15 minutes). Deactivating or deleting an identity removes the PENDING publication links it discovered; approved and rejected ones stay. Professors can read their own profile and change their name at `/api/me/profile`.
+
 ### Admin account (command line only)
 
 There is no HTTP endpoint for creating the administrator or resetting its password. On the backend host:

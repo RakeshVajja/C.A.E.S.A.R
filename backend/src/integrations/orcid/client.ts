@@ -1,5 +1,5 @@
 import { FetchError, HttpDependencies, SourceHttpClient, SourceHttpConfig } from '../http/httpClient';
-import { OrcidWorkSummary, OrcidWorksSchema } from './types';
+import { OrcidPersonSchema, OrcidWorkSummary, OrcidWorksSchema } from './types';
 
 /**
  * ORCID client (Project_plan.md §13.5): Public API v3.0, anonymous access, one request per identity.
@@ -72,39 +72,7 @@ export class OrcidClient {
   /** Validates the iD and fetches every work summary of the record. */
   async fetchWorks(externalId: string): Promise<OrcidFetchResult> {
     const orcid = normalizeOrcidId(externalId);
-    const url = `${this.baseUrl}/${orcid}/works`;
-    const response = await this.http.getJson(url, {
-      headers: { Accept: 'application/json' },
-      followRedirects: false,
-      passThroughStatuses: [301, 302, 303, 307, 308, 404, 409],
-    });
-
-    if (response.status >= 300 && response.status < 400) {
-      const primary = /(\d{4}-\d{4}-\d{4}-\d{3}[\dX])/.exec(response.location ?? '')?.[1];
-      throw new FetchError(
-        'IDENTITY_INVALID',
-        `ORCID iD ${orcid} is deprecated${primary ? ` (merged into ${primary})` : ''}; update the identity`,
-        { url, status: response.status },
-      );
-    }
-    if (response.status === 404) {
-      throw new FetchError('IDENTITY_NOT_FOUND', `ORCID iD ${orcid} does not exist`, { url, status: 404 });
-    }
-    if (response.status === 409) {
-      const error = response.body as { 'user-message'?: unknown; 'error-code'?: unknown } | null;
-      const detail = typeof error?.['user-message'] === 'string' ? error['user-message'] : 'record unavailable';
-      throw new FetchError(
-        'IDENTITY_INVALID',
-        `ORCID record ${orcid} cannot be read: ${detail}${error?.['error-code'] ? ` (error ${String(error['error-code'])})` : ''}`,
-        { url, status: 409 },
-      );
-    }
-
-    const body = response.body;
-    if (body !== null && typeof body === 'object' && ('error-code' in body || 'response-code' in body)) {
-      const message = (body as { 'developer-message'?: unknown })['developer-message'];
-      throw new FetchError('INVALID_RESPONSE', `ORCID returned an error payload for ${orcid}: ${String(message)}`, { url });
-    }
+    const { url, body } = await this.getSection(orcid, 'works');
     const parsed = OrcidWorksSchema.safeParse(body);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -141,5 +109,74 @@ export class OrcidClient {
       }
     }
     return { orcid, summaries, duplicatePutCodes };
+  }
+
+  /**
+   * The record holder's public display name from `/v3.0/{orcid}/person` (anonymous, same identity
+   * checks as /works), used for the administrator's identity preview (Phase 9, decision #69).
+   * null when the name is not public. The credit name is preferred over given + family names.
+   */
+  async fetchPersonName(externalId: string): Promise<{ orcid: string; name: string | null }> {
+    const orcid = normalizeOrcidId(externalId);
+    const { url, body } = await this.getSection(orcid, 'person');
+    const parsed = OrcidPersonSchema.safeParse(body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      throw new FetchError(
+        'INVALID_RESPONSE',
+        `ORCID returned an invalid person response for ${orcid}: ${issue.path.join('.') || '(root)'} ${issue.message}`,
+        { url },
+      );
+    }
+    if (parsed.data.path !== `/${orcid}/person`) {
+      throw new FetchError('INVALID_RESPONSE', `ORCID answered for "${parsed.data.path}" instead of /${orcid}/person`, { url });
+    }
+    const name = parsed.data.name;
+    const text = (v: { value?: string | null } | null | undefined) => v?.value?.trim() || null;
+    const credit = text(name?.['credit-name']);
+    const given = [text(name?.['given-names']), text(name?.['family-name'])].filter(Boolean).join(' ');
+    return { orcid, name: credit ?? (given || null) };
+  }
+
+  /**
+   * GET one section of a record (`works`, `person`) with the identity checks shared by every
+   * section: redirects not followed (deprecated iD), 404 (nonexistent), 409 (deactivated/locked)
+   * and ORCID error payloads are failures.
+   */
+  private async getSection(orcid: string, section: 'works' | 'person'): Promise<{ url: string; body: unknown }> {
+    const url = `${this.baseUrl}/${orcid}/${section}`;
+    const response = await this.http.getJson(url, {
+      headers: { Accept: 'application/json' },
+      followRedirects: false,
+      passThroughStatuses: [301, 302, 303, 307, 308, 404, 409],
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      const primary = /(\d{4}-\d{4}-\d{4}-\d{3}[\dX])/.exec(response.location ?? '')?.[1];
+      throw new FetchError(
+        'IDENTITY_INVALID',
+        `ORCID iD ${orcid} is deprecated${primary ? ` (merged into ${primary})` : ''}; update the identity`,
+        { url, status: response.status },
+      );
+    }
+    if (response.status === 404) {
+      throw new FetchError('IDENTITY_NOT_FOUND', `ORCID iD ${orcid} does not exist`, { url, status: 404 });
+    }
+    if (response.status === 409) {
+      const error = response.body as { 'user-message'?: unknown; 'error-code'?: unknown } | null;
+      const detail = typeof error?.['user-message'] === 'string' ? error['user-message'] : 'record unavailable';
+      throw new FetchError(
+        'IDENTITY_INVALID',
+        `ORCID record ${orcid} cannot be read: ${detail}${error?.['error-code'] ? ` (error ${String(error['error-code'])})` : ''}`,
+        { url, status: 409 },
+      );
+    }
+
+    const body = response.body;
+    if (body !== null && typeof body === 'object' && ('error-code' in body || 'response-code' in body)) {
+      const message = (body as { 'developer-message'?: unknown })['developer-message'];
+      throw new FetchError('INVALID_RESPONSE', `ORCID returned an error payload for ${orcid}: ${String(message)}`, { url });
+    }
+    return { url, body };
   }
 }

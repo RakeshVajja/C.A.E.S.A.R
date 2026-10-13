@@ -59,6 +59,10 @@ export interface ValidatedAuthor {
   authorId: string;
   merged: boolean;
   displayName: string | null;
+  /** The author's ORCID URL as reported by OpenAlex (shown in identity previews). */
+  orcid: string | null;
+  /** OpenAlex's works_count for the author (informational; not used for completeness, #34). */
+  worksCount: number | null;
 }
 
 export interface OpenAlexFetchResult {
@@ -106,7 +110,14 @@ export class OpenAlexClient {
     }
     const author: OpenAlexAuthor = parse(OpenAlexAuthorSchema, response.body, `author ${requestedId}`, url);
     const authorId = shortOpenAlexId(author.id);
-    return { requestedId, authorId, merged: authorId !== requestedId, displayName: author.display_name ?? null };
+    return {
+      requestedId,
+      authorId,
+      merged: authorId !== requestedId,
+      displayName: author.display_name ?? null,
+      orcid: author.orcid ?? null,
+      worksCount: author.works_count ?? null,
+    };
   }
 
   /** Fetches every work of a validated author, following the cursor to the end. */

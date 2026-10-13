@@ -14,6 +14,7 @@ import { env } from '../../config/env';
 const ISSUER = 'cse-research-hub';
 const SESSION_AUDIENCE = 'session';
 const RESET_AUDIENCE = 'password-reset';
+const IDENTITY_PREVIEW_AUDIENCE = 'identity-preview';
 const ALGORITHM = 'HS256';
 
 export const SESSION_TTL_SECONDS = 8 * 60 * 60;
@@ -78,6 +79,46 @@ function verify(token: string, audience: string, now: Date): jwt.JwtPayload | nu
     });
     if (typeof claims === 'string' || typeof claims.sub !== 'string' || typeof claims.exp !== 'number') return null;
     return claims;
+  } catch {
+    return null;
+  }
+}
+
+/** How long an identity preview stays valid for saving (decision #68). */
+export const IDENTITY_PREVIEW_TTL_SECONDS = 15 * 60;
+
+export interface IdentityPreviewClaims {
+  professorId: string;
+  source: 'OPENALEX' | 'DBLP' | 'ORCID';
+  /** The normalized identifier the administrator submitted (what is stored). */
+  externalId: string;
+  previewedAt: Date;
+}
+
+/**
+ * Proof that an identity was previewed successfully, bound to the professor, source and normalized
+ * identifier. Saving accepts only this token and makes no further external request.
+ */
+export function signIdentityPreviewToken(claims: Omit<IdentityPreviewClaims, 'previewedAt'>, now = new Date()): string {
+  return jwt.sign(
+    { pid: claims.professorId, src: claims.source, xid: claims.externalId, iat: Math.floor(now.getTime() / 1000) },
+    env.jwtSecret,
+    { algorithm: ALGORITHM, issuer: ISSUER, audience: IDENTITY_PREVIEW_AUDIENCE, expiresIn: IDENTITY_PREVIEW_TTL_SECONDS },
+  );
+}
+
+export function verifyIdentityPreviewToken(token: string, now = new Date()): IdentityPreviewClaims | null {
+  try {
+    const claims = jwt.verify(token, env.jwtSecret, {
+      algorithms: [ALGORITHM],
+      issuer: ISSUER,
+      audience: IDENTITY_PREVIEW_AUDIENCE,
+      clockTimestamp: Math.floor(now.getTime() / 1000),
+    });
+    if (typeof claims === 'string' || typeof claims.exp !== 'number' || typeof claims.iat !== 'number') return null;
+    const { pid, src, xid } = claims as Record<string, unknown>;
+    if (typeof pid !== 'string' || typeof xid !== 'string' || (src !== 'OPENALEX' && src !== 'DBLP' && src !== 'ORCID')) return null;
+    return { professorId: pid, source: src, externalId: xid, previewedAt: new Date(claims.iat * 1000) };
   } catch {
     return null;
   }

@@ -5,6 +5,7 @@ import { loadFixture, noSleep, RecordedResponse, replayFetch, Route, toResponse 
 
 const fx = (name: string) => loadFixture('orcid', name);
 const PIWOWAR = '0000-0003-1613-5981';
+const VARDI_ID = '0000-0002-0661-5773';
 const piwowar = fx('works-piwowar');
 const worksUrl = (orcid: string) => `${ORCID_API_BASE_URL}/${orcid}/works`;
 
@@ -164,5 +165,29 @@ describe('response validation (§13.1): HTTP 200 is not success', () => {
     });
     await expect(client.fetchWorks(PIWOWAR)).resolves.toMatchObject({ orcid: PIWOWAR });
     expect(calls).toBe(3);
+  });
+});
+
+describe('person name for identity previews (recorded, decision #69)', () => {
+  const personUrl = (id: string) => `${ORCID_API_BASE_URL}/${id}/person`;
+
+  it('prefers the public credit name, else given + family names', async () => {
+    const { client, calls } = orcid([fx('person-vardi'), fx('person-carberry')]);
+    expect(await client.fetchPersonName('https://orcid.org/0000-0002-0661-5773')).toEqual({ orcid: '0000-0002-0661-5773', name: 'Moshe Y. Vardi' });
+    expect(await client.fetchPersonName('0000-0002-1825-0097')).toEqual({ orcid: '0000-0002-1825-0097', name: 'Josiah Carberry' });
+    expect(calls.every((c) => c.headers.accept === 'application/json')).toBe(true);
+  });
+
+  it('returns null when the name is not public, and applies the same identity checks as /works', async () => {
+    const { client } = orcid([fx('person-not-found')], {
+      [personUrl(VARDI_ID)]: () => jsonAt({ path: `/${VARDI_ID}/person`, name: null }),
+      [personUrl(PIWOWAR)]: () => jsonAt({ path: '/0000-0002-1825-0097/person', name: null }),
+      [personUrl('0000-0002-1825-0097')]: () => new Response('', { status: 301, headers: { location: 'https://orcid.org/0000-0002-0661-5773' } }),
+    });
+    expect(await client.fetchPersonName(VARDI_ID)).toEqual({ orcid: VARDI_ID, name: null });
+    expect((await fetchError(client.fetchPersonName('0000-0001-2345-6789'))).kind).toBe('IDENTITY_NOT_FOUND');
+    expect((await fetchError(client.fetchPersonName(PIWOWAR))).kind).toBe('INVALID_RESPONSE');
+    expect((await fetchError(client.fetchPersonName('0000-0002-1825-0097'))).kind).toBe('IDENTITY_INVALID');
+    expect((await fetchError(client.fetchPersonName('0000-0002-0661-5774'))).message).toContain('checksum');
   });
 });

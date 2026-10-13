@@ -5,18 +5,55 @@
 ## Current Phase
 
 ```text
-Phase 8 — Authentication
-STATUS: COMPLETE (pending architect review)
+Phase 9 — Professor Management
+STATUS: COMPLETE (verified and architect-approved; 521/521 tests passing)
 
-Next phase: Phase 9 — Professor Management (NOT STARTED)
+Next phase: Phase 10 — Verification Workflow (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–8 done)
+Implementation: IN PROGRESS (Phases 1–9 done)
 ```
+
+## Phase 9 Report
+
+Administrator management of professors, their login accounts and external identities, plus the professor's own profile. Backend only (screens in Phase 14). No schema change.
+
+**Implemented** (`backend/`)
+
+* `src/services/professors/professors.ts` — list (all professors, ordered by name, unpaginated, #70), detail, create (professor + PROFESSOR user in one nested write; role fixed by the server), account for an existing professor without one (transaction with a conditional link, so concurrent requests create exactly one account), profile and email update (one transaction; an email change clears a pending recovery code, send limits kept, #70), activation/deactivation (idempotent; identities and relationships unchanged, #71), own profile read and name update (#67). Duplicate emails → 409 `EMAIL_IN_USE`.
+* `src/services/auth/password.ts` — `generateTemporaryPassword()`: 4 × 5 unambiguous characters from `crypto.randomInt` (≈100 bits), within the password policy (#66).
+* `src/services/auth/tokens.ts` — identity preview token: HS256, issuer + own audience, 15 minutes, bound to professor, source and normalized submitted identifier (#68).
+* `src/services/identities/identities.ts` — preview: normalize with the existing source normalizer, validate with the existing client (OpenAlex author check; DBLP person check; ORCID `/works` + `/person`), show source details, report an existing assignment, return the token; reads only. Save: valid token for that professor, no external request, `verified_at` = preview time, the unique constraint settles conflicts (409 `IDENTITY_IN_USE`). The submitted normalized identifier is stored — a merged OpenAlex ID is not replaced (#33, #68). Deactivate/delete: one transaction removing PENDING relationships discovered through the identity (§12.4); the identity change is conditional, so an identity removed concurrently after the ownership check gives 404 and rolls the transaction back (other database errors are not suppressed). Errors: 400 `INVALID_IDENTIFIER`, 422 `IDENTITY_NOT_FOUND` / `IDENTITY_INVALID`, 502 `IDENTITY_SOURCE_UNAVAILABLE`, all with stable project messages (DBLP: not a single person / disambiguation page; ORCID: deactivated or locked; ORCID: deprecated); no provider message, error code or URL reaches the client — the sanitized detail (e.g. ORCID's user message, a merged record's primary iD) is logged server-side. Preview clients use a 20 s timeout and one retry; synchronization clients are unchanged (#68).
+* `src/integrations/openalex/client.ts` — `validateAuthor` also returns the author's `orcid` and `works_count` from the response it already validates (additive). `src/integrations/orcid/` — the identity checks of `/works` moved into a shared section request (behaviour unchanged; all ORCID tests pass) and `fetchPersonName` reads the public name from `/person` (#69).
+* Routes: `src/routes/adminProfessors.ts` under the existing admin guards — `GET/POST /api/admin/professors`, `GET/PATCH /api/admin/professors/:id`, `PATCH …/:id/status`, `POST …/:id/account`, `POST …/:id/identities/preview`, `POST …/:id/identities`, `PATCH/DELETE …/:id/identities/:identityId`; strict bodies (unknown fields such as `role` refused); responses carrying a temporary password or preview token are `Cache-Control: no-store`. `src/routes/protected.ts` — `GET/PATCH /api/me/profile` (professors only; profile from the session). `src/app.ts` — `identityClients` option (tests inject replays).
+* Fixtures: `tests/fixtures/orcid/person-{carberry,vardi,not-found}.json`, recorded once from the public API (`npm run fixtures:orcid -- person`, read-only; works fixtures not re-recorded).
+
+**Tests** — 41 new (521 total, all passing)
+
+* `tests/professors/professorsAdmin.test.ts` (13, real test DB): every route refuses anonymous users (401), professors (403), admins with a temporary password (403) and foreign origins, without writes or source calls; create returns the temporary password once (`no-store`, policy-compliant, not in logs or later responses), the user is PROFESSOR with forced change, first login is limited until changed; duplicate email → 409 with no orphan rows, 5 concurrent creations with one email → exactly one; strict validation (role, `mustChangePassword`, `isActive` refused); list order, inactive and account-less professors; 404 for unknown/malformed IDs; no delete route; profile edits and clearing; email change normalized, recovery code cleared, send limits kept; an update with a taken email rolls back entirely; `NO_ACCOUNT`; deactivation (repeated) keeps every row, identity flag and PENDING link, ends the session, blocks login, and discovery refuses the identity without a request; reactivation restores login; account for an existing professor (once; concurrent requests → one account, no orphan user; taken email creates nothing).
+* `tests/professors/identities.test.ts` (18, recorded responses): OpenAlex preview (no writes; only the author request), merged author (requested/resolved IDs, warning, submitted ID stored), DBLP person/disambiguation/missing and a non-person creator (stable message, no dblp type URIs; detail only in the server log), ORCID name (credit name; given + family), works count and recent works, checksum (no request), nonexistent, deactivated and deprecated (stable messages without ORCID's wording or error code); all nine tables unchanged by successful OpenAlex, DBLP and ORCID previews; HTML with 200, 503, malformed JSON, network error and timeout → 502 without upstream text or writes; unknown professor refused before any request; existing assignment reported; save without further requests and `verified_at` = preview time; expired, tampered, session and other-professor tokens refused; several identities from one source; concurrent saves of one identity for two professors → one 201, one 409; deactivation removes only that identity's PENDING links (idempotent; reactivation restores nothing); deletion keeps APPROVED/REJECTED with `discovered_via` cleared, publications, records and sync history; another professor's path → 404; an identity removed concurrently after the ownership check (deterministic race via a second connection) → 404 for both deactivation and deletion, with the transaction rolled back (fails without the fix); real rollback (temporary trigger blocking the delete) keeps the PENDING link and still reports the database error.
+* `tests/professors/meProfile.test.ts` (5): own profile; 401/403/404 cases; name-only edits (department, designation, email, status, other IDs and empty names refused); deactivated professor's session ends.
+* `tests/integrations/orcid.client.test.ts` (+2): person name (credit name; given + family), private name → null, 404, path mismatch, deprecated, checksum. `tests/auth/units.test.ts` (+3): temporary passwords; preview token round trip, expiry and separation from session/reset tokens. `tests/integrations/openalex.client.test.ts`: the author assertion now includes `orcid` and `worksCount`.
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 521/521 ✅, `prisma validate` ✅, test database `migrate status` up to date and no drift ✅, no leftover test triggers. Frontend: `lint` ✅.
+* Test breakdown (each test counted once): Phases 1–7 **386** (unchanged) · configuration **12** · Phase 8 **82** (unchanged) · Phase 9 **41** = 521. The 41 Phase 9 tests are 36 in `tests/professors/` (13 + 18 + 5) plus 5 placed in existing files: 2 ORCID person-name tests in `tests/integrations/orcid.client.test.ts` and 3 unit tests (temporary passwords, preview tokens) in `tests/auth/units.test.ts`. By directory: Phase 1–7 files 388 (386 + 2), `env.test.ts` 12, `tests/auth/` 85 (82 + 3), `tests/professors/` 36.
+
+**Schema:** none — no migration; still 9 tables.
+
+**Known limitations / open items**
+
+* No admin endpoint to reset a professor's password (#66, deferred): recovery is the email-code flow, so a professor without working email recovery (no SMTP, locked window) cannot regain access until that is resolved.
+* A synchronization already running when an identity is deactivated or deleted could still create a PENDING link through it (or fail on its foreign key after deletion); Phase 12 (one run at a time, re-checking identities) must account for this.
+* Links removed by §12.4 that another identity would also support return only with the next synchronization.
+* Previews call the live sources (DBLP is throttled; large ORCID records are large); failures save nothing.
+* The temporary password is only in the creation response (`no-store`); the frontend (Phase 14) must not log or cache it. No audit trail of administrator changes (audit tables excluded).
+* `npm run demo` still creates professors and identities directly (development tool; bypasses previews).
 
 ## Phase 8 Report
 
@@ -376,7 +413,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 | 6 | ORCID Integration | v3.0 works retrieval, JSON handling, put-code source records, failure handling | **COMPLETE** (approved) |
 | 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | **COMPLETE** (approved) |
 | 8 | Authentication | Roles, JWT in HTTP-only cookie, hashing, temporary password, forced change, route protection, professor email-code recovery, admin CLI | **COMPLETE** (pending review) |
-| 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | NOT STARTED |
+| 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | **COMPLETE** (approved) |
 | 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | NOT STARTED |
 | 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | NOT STARTED |
 | 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | NOT STARTED |
@@ -484,5 +521,11 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 63 | 2026-10-13 | Reset tokens are bound to one issuance of a code (code hash + send time); every password change (change-password, recovery, admin CLI reset) clears a pending code and its attempts, keeping send limits | Phase 8 security audit F3/F7: earlier reset tokens could outlive a password change or a reissued identical code; §15.4 amended |
 | 64 | 2026-10-13 | While a recovery window's attempt budget is used up, a recovery request issues nothing: no code generated or sent, no send slot used, last-send time and budget unchanged (same public response); enforced in the same atomic `UPDATE` | Follow-up to #61: sending unusable codes advanced the last-send time and could extend the lockout; §15.4 amended |
 | 65 | 2026-10-13 | bcrypt cost 12 everywhere, except cost 4 when `NODE_ENV=test` **and** the configured database name (URL path of `DATABASE_URL`) ends in `_test`; unverifiable configuration fails closed to 12 | Defence in depth after the Phase 8 audit: `NODE_ENV=test` alone could have stored weak hashes in a real database |
+| 66 | 2026-10-14 | Professor accounts: creating a professor creates its PROFESSOR user atomically; an account can be added to an existing professor without one; the temporary password is generated (CSPRNG, ≈100 bits), returned once in the response (`Cache-Control: no-store`), never stored in plain text or logged, and handed over by the administrator; no onboarding email; no admin endpoint to reset professor passwords (deferred; email recovery is the recovery path) | Owner decisions D1–D3 (Phase 9) |
+| 67 | 2026-10-14 | `GET/PATCH /api/me/profile`: a professor reads their own profile and may edit only their own name; department, designation, email, status and identities are administrator-managed; the profile is derived from the session | Owner decision D4; §15.1 clarified |
+| 68 | 2026-10-14 | Identity preview → save: preview validates with the existing source clients and writes nothing; a signed 15-minute token bound to professor, source and normalized submitted identifier is required to save, with no further external request (`verified_at` = preview time); the submitted ID is stored (merged OpenAlex IDs are shown, not substituted, #33); previews use a 20 s timeout and one retry, synchronization clients unchanged | Owner decisions D5, D6, D8 |
+| 69 | 2026-10-14 | ORCID identity preview shows the public display name from the anonymous `/v3.0/{orcid}/person` endpoint (credit name, else given + family; absent if not public), plus works count, recent works and profile link; recorded fixtures added | Owner decision D7 (no OAuth or credentials needed); §13.5 clarified |
+| 70 | 2026-10-14 | A professor's login email change is normalized, validated, unique, and clears any pending recovery code in the same transaction (send limits kept); the professor list is unpaginated and ordered by name | Owner decisions D9, D10 |
+| 71 | 2026-10-14 | Professor deactivation changes only the professor's flag: identity flags and all relationships (including PENDING) are kept; sign-in and synchronization are already refused for inactive professors | Consistent with §6.10 (deactivation keeps all data) and §12.4 (cleanup applies to identities) |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

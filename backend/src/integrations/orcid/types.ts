@@ -42,3 +42,16 @@ export const OrcidWorksSchema = z.looseObject({
   ),
 });
 export type OrcidWorks = z.infer<typeof OrcidWorksSchema>;
+
+/** `/v3.0/{orcid}/person`: only the path and the (possibly private, hence absent) name are used. */
+export const OrcidPersonSchema = z.looseObject({
+  path: z.string(),
+  name: z
+    .looseObject({
+      'given-names': valueOf(z.string().nullable()),
+      'family-name': valueOf(z.string().nullable()),
+      'credit-name': valueOf(z.string().nullable()),
+    })
+    .nullable()
+    .optional(),
+});
