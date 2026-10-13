@@ -5,20 +5,62 @@ import { z } from 'zod';
 // Values already present in process.env (e.g. set by the test runner) take precedence over .env.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().min(1).max(65535).default(5001),
-  DATABASE_URL: z
-    .string({ error: 'DATABASE_URL is required' })
-    .regex(/^postgres(ql)?:\/\/.+/, 'DATABASE_URL must be a PostgreSQL connection URL'),
-  CORS_ORIGIN: z.url().default('http://localhost:3000'),
-  // Optional (decision #32): sent to OpenAlex when set; requests are keyless otherwise.
-  OPENALEX_API_KEY: z
-    .string()
-    .trim()
-    .optional()
-    .transform((value) => (value ? value : null)),
-});
+/** Unset and empty values are treated alike. */
+const optionalText = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value ? value : null));
+
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().min(1).max(65535).default(5001),
+    DATABASE_URL: z
+      .string({ error: 'DATABASE_URL is required' })
+      .regex(/^postgres(ql)?:\/\/.+/, 'DATABASE_URL must be a PostgreSQL connection URL'),
+    CORS_ORIGIN: z.url().default('http://localhost:3000'),
+    // Optional (decision #32): sent to OpenAlex when set; requests are keyless otherwise.
+    OPENALEX_API_KEY: optionalText,
+    // Signs session and password-reset tokens; the recovery-code HMAC key is derived from it (§15).
+    JWT_SECRET: z
+      .string({ error: 'JWT_SECRET is required' })
+      .min(32, 'JWT_SECRET must be at least 32 characters'),
+    // Express "trust proxy" (needed behind a reverse proxy so per-IP rate limits see client IPs).
+    TRUST_PROXY: optionalText,
+    // SMTP for professor password-recovery emails (§15.4). All unset → recovery is disabled.
+    SMTP_HOST: optionalText,
+    SMTP_PORT: optionalText,
+    SMTP_SECURE: optionalText,
+    SMTP_USER: optionalText,
+    SMTP_PASSWORD: optionalText,
+    MAIL_FROM: optionalText,
+  })
+  .superRefine((value, ctx) => {
+    const smtpKeys = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM'] as const;
+    if (smtpKeys.every((key) => value[key] === null)) return;
+    for (const key of ['SMTP_HOST', 'SMTP_PORT', 'MAIL_FROM'] as const) {
+      if (value[key] === null) ctx.addIssue({ code: 'custom', path: [key], message: `${key} is required when SMTP is configured` });
+    }
+    if (value.SMTP_PORT !== null && !/^\d{1,5}$/.test(value.SMTP_PORT)) {
+      ctx.addIssue({ code: 'custom', path: ['SMTP_PORT'], message: 'SMTP_PORT must be a port number' });
+    }
+    if (value.SMTP_SECURE !== null && !['true', 'false'].includes(value.SMTP_SECURE)) {
+      ctx.addIssue({ code: 'custom', path: ['SMTP_SECURE'], message: 'SMTP_SECURE must be "true" or "false"' });
+    }
+    if ((value.SMTP_USER === null) !== (value.SMTP_PASSWORD === null)) {
+      ctx.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP_USER and SMTP_PASSWORD must be set together' });
+    }
+  });
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  /** true: TLS from the start (usually port 465); false: STARTTLS is required (usually port 587). */
+  secure: boolean;
+  auth: { user: string; pass: string } | null;
+  from: string;
+}
 
 export interface Env {
   nodeEnv: 'development' | 'test' | 'production';
@@ -26,25 +68,50 @@ export interface Env {
   databaseUrl: string;
   corsOrigin: string;
   openAlexApiKey: string | null;
+  jwtSecret: string;
+  trustProxy: boolean | number | string;
+  /** null when SMTP is not configured: password recovery is then unavailable. */
+  smtp: SmtpConfig | null;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv): Env {
   const result = envSchema.safeParse(source);
 
   if (!result.success) {
+    // Only names and rules are reported, never values (they may be secrets).
     const problems = result.error.issues
       .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${problems}`);
   }
 
+  const data = result.data;
   return {
-    nodeEnv: result.data.NODE_ENV,
-    port: result.data.PORT,
-    databaseUrl: result.data.DATABASE_URL,
-    corsOrigin: result.data.CORS_ORIGIN,
-    openAlexApiKey: result.data.OPENALEX_API_KEY,
+    nodeEnv: data.NODE_ENV,
+    port: data.PORT,
+    databaseUrl: data.DATABASE_URL,
+    corsOrigin: data.CORS_ORIGIN,
+    openAlexApiKey: data.OPENALEX_API_KEY,
+    jwtSecret: data.JWT_SECRET,
+    trustProxy: parseTrustProxy(data.TRUST_PROXY),
+    smtp:
+      data.SMTP_HOST && data.SMTP_PORT && data.MAIL_FROM
+        ? {
+            host: data.SMTP_HOST,
+            port: Number(data.SMTP_PORT),
+            secure: data.SMTP_SECURE === 'true',
+            auth: data.SMTP_USER && data.SMTP_PASSWORD ? { user: data.SMTP_USER, pass: data.SMTP_PASSWORD } : null,
+            from: data.MAIL_FROM,
+          }
+        : null,
   };
+}
+
+/** "true"/"false", a hop count, or Express's address/subnet list; unset → false (no proxy). */
+function parseTrustProxy(value: string | null): boolean | number | string {
+  if (value === null || value === 'false') return false;
+  if (value === 'true') return true;
+  return /^\d+$/.test(value) ? Number(value) : value;
 }
 
 export const env = loadEnv(process.env);

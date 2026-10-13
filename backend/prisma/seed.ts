@@ -2,7 +2,7 @@
  * Minimal development seed: demo data that exercises every relationship of the
  * 9-table model. Idempotent (fixed IDs + upserts), so it can be re-run safely.
  *
- * The admin account is NOT created here: it needs password hashing (Phase 8).
+ * The admin account is NOT created here: use `npm run admin -- create` (Project_plan.md §15.4).
  * All identifiers below are obviously fake and do not refer to real researchers.
  */
 import { prisma } from '../src/config/database';

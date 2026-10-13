@@ -84,7 +84,7 @@ Must NOT be implemented unless explicitly approved later:
 * Author/co-author entity tables
 * AI/ML/LLM-based matching, embeddings, vector databases, semantic search, `pg_trgm`
 * Student publication management
-* Email notification infrastructure
+* Email notification infrastructure (sole exception: the transactional email that delivers professor password-recovery codes, §15.4, decision #53)
 * Social or collaboration features
 * Queue infrastructure (Redis, BullMQ), microservices, GraphQL
 * OAuth/SSO, refresh-token infrastructure, complex RBAC
@@ -104,6 +104,7 @@ Must NOT be implemented unless explicitly approved later:
 | Validation | Zod |
 | HTTP client | Native Node `fetch` wrapped in one shared helper (no Axios) |
 | Authentication | JWT in an HTTP-only cookie; bcrypt/bcryptjs password hashing |
+| Email (password recovery only) | Nodemailer over generic SMTP, configured by environment variables (decision #55) |
 | Scheduler | node-cron (scheduler only) |
 | Testing | Vitest, Supertest |
 | Version control | Git |
@@ -163,7 +164,14 @@ User
   role                   ADMIN | PROFESSOR
   must_change_password
   created_at, updated_at
+  password_reset_code_hash      nullable (keyed HMAC of the recovery code; never the code)
+  password_reset_expires_at     nullable
+  password_reset_attempts       default 0
+  password_reset_last_sent_at   nullable
+  password_reset_send_count     default 0
 ```
+
+The `password_reset_*` columns hold professor password-recovery state (§15.4): at most one active code per user, so no separate table is needed (decision #54; additive migration `add_user_password_recovery`).
 
 ## 6.2 Professor
 
@@ -658,22 +666,41 @@ Rules:
 
 ## 15.2 Authentication
 
-* JWT stored in an HTTP-only, `SameSite=Lax` cookie; never in `localStorage`.
+* JWT stored in an HTTP-only, `SameSite=Lax` cookie (`Secure` in production); never in `localStorage`.
 * Passwords hashed with bcrypt/bcryptjs.
 * The admin creates professor accounts with a temporary password; the professor must change it at first login.
-* The admin account is created by a development/deployment seed.
+* The admin account is created, and its password reset, only through the backend command-line utility (§15.4); there is no HTTP endpoint for either.
 * No OAuth/SSO, no refresh-token infrastructure.
+* Sessions (decision #57): HS256 JWT signed with `JWT_SECRET` (required, at least 32 characters), valid 8 hours. Every authenticated request reloads the user from the database (role, professor link, active state); the token carries no role. It carries a fingerprint of the password hash, so any password change or reset ends every existing session.
+* Account rules (decision #58): emails are trimmed and lowercased; passwords are never normalized. Password policy: at least 10 characters, at most 72 bytes (UTF-8), different from the current password. Login errors are generic. A professor account whose linked professor is inactive cannot sign in and loses its sessions. While `must_change_password` is set, only the current-user, change-password and logout operations are allowed.
+* Login, password change and recovery endpoints are rate-limited per client IP (decision #59; in-process memory, so limits are per backend instance and reset on restart).
+* State-changing API requests that carry an `Origin` header other than `CORS_ORIGIN` are refused (`403 ORIGIN_NOT_ALLOWED`), in addition to the `SameSite=Lax` cookies and JSON-only request bodies; requests without `Origin` (non-browser clients) are unaffected (decision #62).
 
 ## 15.3 REST boundaries
 
 ```text
 /api/health
-/api/auth/*     login, logout, current user, change password
+/api/auth/*     login, logout, current user, change password, professor password recovery (request, verify, reset)
 /api/me/*       authenticated professor's own data (no professor IDs in URLs)
 /api/admin/*    ADMIN role only
 ```
 
 Request input is validated with Zod. Errors use one consistent JSON error shape.
+
+## 15.4 Password recovery (decisions #53–#56)
+
+**Professors — emailed one-time code.**
+
+* `POST /api/auth/password-recovery/request` sends a 6-digit code from a cryptographically secure generator to the account's email address. The response is identical for every address (unknown, administrator, inactive or unlinked professor, or eligible). Only a PROFESSOR account with a linked, active Professor is eligible; administrators never are.
+* The code is valid for 10 minutes and stored only as a keyed HMAC. At most one code per 60 seconds per account. A recovery window lasts until an hour has passed since the last code was sent; within it at most 5 codes are sent and at most 5 verification attempts are allowed **in total** — a replacement code does not restore the attempt budget (decision #61). While the budget is used up, no further code is generated or sent and nothing is recorded, so the window cannot be extended; the request still receives the same public response (decision #64). A new code replaces the previous one. Limits are enforced with atomic database updates, so concurrent requests cannot bypass them.
+* `POST /api/auth/password-recovery/verify` with the correct code sets a short-lived reset token (at most 10 minutes, never beyond the code's expiry) in an HTTP-only cookie limited to the recovery path. It is bound to that issuance of the code (a later code, even with the same digits, invalidates it) and cannot be used as a session (decision #63).
+* `POST /api/auth/password-recovery/reset` consumes the code atomically (only one reset succeeds), applies the password policy, clears the code state and ends every existing session. The user is not signed in automatically.
+* Every password change (change-password, recovery, admin command-line reset) clears a pending code and its attempt state, so an earlier reset token can no longer be used; send limits are kept (decision #63).
+* Email is sent through generic SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`); changing provider (e.g. a Gmail app password → institute SMTP) changes configuration only. Without SMTP configuration every recovery request answers `503 RECOVERY_UNAVAILABLE`.
+
+**Administrator — command-line utility only.** `npm run admin -- create` and `npm run admin -- reset-password` run on the backend host with database access. Passwords are entered at a hidden prompt or piped with `--password-stdin` (never as arguments); the target admin email must be confirmed; the same policy and hashing apply; a reset ends all admin sessions. More than one admin, or none for a reset, is refused. There is no email or HTTP recovery for the administrator.
+
+Codes, reset tokens, passwords and password hashes never appear in logs, responses or command output. SMS, phone numbers, two-factor authentication, OAuth/SSO and refresh tokens are not part of recovery.
 
 ---
 
@@ -722,7 +749,7 @@ No UI features beyond the required workflows.
 | 5 | DBLP Integration | SPARQL client, identity handling, query/mapping, response validation, throttling, normalization, matching, provenance, failure handling. |
 | 6 | ORCID Integration | Identity handling, works retrieval, JSON handling, put-code source records, normalization, matching, provenance, failure handling. |
 | 7 | Core Pipeline Testing & Audit | Test the complete multi-source pipeline against the required cases (Section 18) before building application workflows. |
-| 8 | Authentication | ADMIN/PROFESSOR, JWT, HTTP-only cookie, password hashing, temporary password, forced password change, route protection. |
+| 8 | Authentication | ADMIN/PROFESSOR, JWT, HTTP-only cookie, password hashing, temporary password, forced password change, route protection, professor email-code password recovery, admin command-line account creation and recovery. Backend only; the login and recovery screens are built in Phase 14. |
 | 9 | Professor Management | Professor creation, profile, external identity management, identity activation/deactivation, professor deactivation (no hard delete). |
 | 10 | Verification Workflow | PENDING/APPROVED/REJECTED, approval/rejection, reversible rejection, authenticated ownership. |
 | 11 | Manual Publication Addition | Manual entry through the same pipeline; test exact match, DOI match, uncertain match, DuplicateCandidate, later API discovery. |

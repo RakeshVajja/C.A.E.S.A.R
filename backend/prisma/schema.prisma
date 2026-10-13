@@ -127,6 +127,14 @@ model User {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  // Professor password recovery (Project_plan.md §15.4, decision #54): at most one active code
+  // per user. Only a keyed HMAC of the code is stored, never the code itself.
+  passwordResetCodeHash   String?   @map("password_reset_code_hash")
+  passwordResetExpiresAt  DateTime? @map("password_reset_expires_at") @db.Timestamptz(3)
+  passwordResetAttempts   Int       @default(0) @map("password_reset_attempts")
+  passwordResetLastSentAt DateTime? @map("password_reset_last_sent_at") @db.Timestamptz(3)
+  passwordResetSendCount  Int       @default(0) @map("password_reset_send_count")
+
   professor            Professor?
   createdSourceRecords PublicationSourceRecord[] @relation("SourceRecordCreatedBy")
   decidedRelationships ProfessorPublication[]    @relation("RelationshipDecidedBy")

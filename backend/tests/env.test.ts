@@ -6,6 +6,7 @@ const validSource = {
   PORT: '5001',
   DATABASE_URL: 'postgresql://localhost:5432/cse_research_hub?schema=public',
   CORS_ORIGIN: 'http://localhost:3000',
+  JWT_SECRET: 'x'.repeat(32),
 };
 
 describe('loadEnv', () => {
@@ -16,6 +17,9 @@ describe('loadEnv', () => {
       databaseUrl: 'postgresql://localhost:5432/cse_research_hub?schema=public',
       corsOrigin: 'http://localhost:3000',
       openAlexApiKey: null,
+      jwtSecret: 'x'.repeat(32),
+      trustProxy: false,
+      smtp: null,
     });
   });
 
@@ -25,7 +29,7 @@ describe('loadEnv', () => {
   });
 
   it('applies defaults for optional values', () => {
-    const env = loadEnv({ DATABASE_URL: validSource.DATABASE_URL });
+    const env = loadEnv({ DATABASE_URL: validSource.DATABASE_URL, JWT_SECRET: validSource.JWT_SECRET });
     expect(env.nodeEnv).toBe('development');
     expect(env.port).toBe(5001);
     expect(env.corsOrigin).toBe('http://localhost:3000');
@@ -45,5 +49,68 @@ describe('loadEnv', () => {
 
   it('rejects an unknown NODE_ENV', () => {
     expect(() => loadEnv({ ...validSource, NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+  });
+
+  it('requires JWT_SECRET with at least 32 characters, without echoing the value', () => {
+    expect(() => loadEnv({ ...validSource, JWT_SECRET: undefined })).toThrow(/JWT_SECRET is required/);
+    const short = 'short-secret-value';
+    let message = '';
+    try {
+      loadEnv({ ...validSource, JWT_SECRET: short });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/JWT_SECRET must be at least 32 characters/);
+    expect(message).not.toContain(short);
+  });
+
+  it('disables recovery when no SMTP setting is present', () => {
+    expect(loadEnv({ ...validSource, SMTP_HOST: '', MAIL_FROM: ' ' }).smtp).toBeNull();
+  });
+
+  it('reads generic SMTP settings (any provider)', () => {
+    const smtp = {
+      SMTP_HOST: 'smtp.example.org',
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'false',
+      SMTP_USER: 'mailer@example.org',
+      SMTP_PASSWORD: 'app-password-value',
+      MAIL_FROM: 'CSE Research Hub <mailer@example.org>',
+    };
+    expect(loadEnv({ ...validSource, ...smtp }).smtp).toEqual({
+      host: 'smtp.example.org',
+      port: 587,
+      secure: false,
+      auth: { user: 'mailer@example.org', pass: 'app-password-value' },
+      from: 'CSE Research Hub <mailer@example.org>',
+    });
+    // A relay without authentication (e.g. an institute-internal server).
+    expect(loadEnv({ ...validSource, SMTP_HOST: 'relay.example.org', SMTP_PORT: '25', MAIL_FROM: 'noreply@example.org' }).smtp).toMatchObject({
+      auth: null,
+      secure: false,
+    });
+  });
+
+  it('rejects incomplete or malformed SMTP settings without echoing values', () => {
+    let message = '';
+    try {
+      loadEnv({ ...validSource, SMTP_HOST: 'smtp.example.org', SMTP_USER: 'u', SMTP_PASSWORD: 'super-secret-pw', SMTP_SECURE: 'yes' });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/SMTP_PORT is required/);
+    expect(message).toMatch(/MAIL_FROM is required/);
+    expect(message).toMatch(/SMTP_SECURE must be "true" or "false"/);
+    expect(message).not.toContain('super-secret-pw');
+    expect(() => loadEnv({ ...validSource, SMTP_HOST: 'h', SMTP_PORT: '587', MAIL_FROM: 'a@b.c', SMTP_USER: 'u' })).toThrow(
+      /SMTP_USER and SMTP_PASSWORD must be set together/,
+    );
+  });
+
+  it('parses TRUST_PROXY', () => {
+    expect(loadEnv({ ...validSource, TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+    expect(loadEnv({ ...validSource, TRUST_PROXY: '1' }).trustProxy).toBe(1);
+    expect(loadEnv({ ...validSource, TRUST_PROXY: 'loopback' }).trustProxy).toBe('loopback');
+    expect(loadEnv({ ...validSource, TRUST_PROXY: '' }).trustProxy).toBe(false);
   });
 });

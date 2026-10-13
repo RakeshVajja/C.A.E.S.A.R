@@ -20,19 +20,27 @@
     "fixtures:orcid": "tsx scripts/record-orcid-fixtures.ts",
     "smoke:orcid": "tsx scripts/orcid-smoke.ts",
     "demo": "tsx scripts/demo-discovery.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "admin": "tsx scripts/admin-account.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^10.1.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.13.9",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^7.2.1",
     "eslint": "^9.39.5",
     "prisma": "^6.4.1",

@@ -37,6 +37,15 @@ export default defineConfig({
       NODE_ENV: 'test',
       DATABASE_URL: resolveTestDatabaseUrl(),
       CORS_ORIGIN: 'http://localhost:3000',
+      // Test-only secret; SMTP stays unset (tests inject an in-memory mailer, never real SMTP).
+      JWT_SECRET: 'test-only-jwt-secret-0123456789abcdefghijklmnop',
+      SMTP_HOST: '',
+      SMTP_PORT: '',
+      SMTP_SECURE: '',
+      SMTP_USER: '',
+      SMTP_PASSWORD: '',
+      MAIL_FROM: '',
+      TRUST_PROXY: '',
     },
   },
 });

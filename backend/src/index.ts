@@ -13,6 +13,9 @@ async function startServer(): Promise<void> {
   if (!env.openAlexApiKey && env.nodeEnv !== 'test') {
     console.warn('OPENALEX_API_KEY is not set: OpenAlex requests will use the smaller keyless budget');
   }
+  if (!env.smtp && env.nodeEnv !== 'test') {
+    console.warn('SMTP is not configured: professor password recovery is unavailable');
+  }
 
   const server = createApp().listen(env.port, () => {
     console.log(`CSE_Research_Hub backend listening on http://localhost:${env.port} (${env.nodeEnv})`);
