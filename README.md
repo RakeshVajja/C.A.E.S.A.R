@@ -46,7 +46,7 @@ The backend validates its environment at startup and exits with a clear message 
 |---|---|---|
 | Type check | `npm run typecheck` | `npm run typecheck` |
 | Tests | `npm test` | — |
-| Lint | — | `npm run lint` |
+| Lint | `npm run lint` | `npm run lint` |
 | Build | `npm run build` | `npm run build` |
 
 Backend tests (Vitest + Supertest) never call external APIs: live network access is blocked in tests, which replay recorded responses from `backend/tests/fixtures/`. Database tests use a separate database — `DATABASE_URL`'s name plus `_test` (e.g. `cse_research_hub_test`), or `TEST_DATABASE_URL` if set — which is created and migrated automatically; tests refuse to touch any database whose name does not end in `_test`.

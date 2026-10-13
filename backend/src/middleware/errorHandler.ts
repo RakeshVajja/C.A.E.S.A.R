@@ -17,6 +17,7 @@ export function notFoundHandler(req: Request, res: Response<ErrorBody>): void {
 }
 
 // Express recognises error handlers by their four-argument signature, so `next` must stay.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, req: Request, res: Response<ErrorBody>, next: NextFunction): void {
   if (err instanceof HttpError) {
     res.status(err.status).json({

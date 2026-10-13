@@ -23,9 +23,14 @@ async function startServer(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`${signal} received, shutting down`);
-    server.close(async () => {
-      await disconnectDatabase();
-      process.exit(0);
+    server.close(() => {
+      disconnectDatabase().then(
+        () => process.exit(0),
+        (error: unknown) => {
+          console.error('Failed to disconnect from PostgreSQL:', error);
+          process.exit(1);
+        },
+      );
     });
   };
 
@@ -33,4 +38,7 @@ async function startServer(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-startServer();
+startServer().catch((error: unknown) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});

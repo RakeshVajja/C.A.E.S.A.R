@@ -19,7 +19,8 @@
     "smoke:dblp": "tsx scripts/dblp-smoke.ts",
     "fixtures:orcid": "tsx scripts/record-orcid-fixtures.ts",
     "smoke:orcid": "tsx scripts/orcid-smoke.ts",
-    "demo": "tsx scripts/demo-discovery.ts"
+    "demo": "tsx scripts/demo-discovery.ts",
+    "lint": "eslint"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",
@@ -33,10 +34,12 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.9",
     "@types/supertest": "^7.2.1",
+    "eslint": "^9.39.5",
     "prisma": "^6.4.1",
     "supertest": "^7.3.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
+    "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.2"
   },
   "engines": {
