@@ -5,18 +5,53 @@
 ## Current Phase
 
 ```text
-Phase 9 — Professor Management
-STATUS: COMPLETE (verified and architect-approved; 521/521 tests passing)
+Phase 10 — Verification Workflow
+STATUS: COMPLETE (verified and architect-approved; 540/540 tests passing)
 
-Next phase: Phase 10 — Verification Workflow (NOT STARTED)
+Next phase: Phase 11 — Manual Publication Addition (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–9 done)
+Implementation: IN PROGRESS (Phases 1–10 done)
 ```
+
+## Phase 10 Report
+
+Professors verify the publications discovered for them (Project_plan.md §11). Backend only (screens in Phase 14). No schema change; matching and ingestion unchanged.
+
+**Implemented** (`backend/`)
+
+* `src/services/verification/verification.ts`
+  * `listOwnPublications` — the professor's relationships to ACTIVE publications only (relationships to SUPPRESSED publications are neither listed nor counted, #75); optional status filter (`status=APPROVED` is the verified list); `limit` (default 50, max 200) and `offset`; order: PENDING, APPROVED, REJECTED, then publication year descending with unknown years last, then title, then relationship id; `total` = visible relationships matching the filter, `counts` = per status over all visible relationships (not affected by the filter).
+  * `decide` — one conditional `UPDATE` on (relationship, owning professor, visible publication, `expectedStatus`) setting `status`, `decided_at` and `decided_by_user_id` (#72). Allowed: PENDING→APPROVED/REJECTED, APPROVED→REJECTED, REJECTED→APPROVED; never to PENDING. When nothing is updated: 404 `RELATIONSHIP_NOT_FOUND` (missing, another professor's — no detail — or suppressed), 409 `STATUS_CONFLICT` with the current status (stale or concurrent change — always for a valid transition whose conditional update did not match, even if a later change restored the expected status before the lookup), 409 `INVALID_TRANSITION` (requested status equals the current one, #73). The returned item is read after the update, so a decision committed in between may show a newer status (stored state and attribution stay correct; accepted).
+  * `bulkApprove` — one conditional `UPDATE` approving the given relationships that are the professor's, visible and PENDING; returns `{ approved, skipped }` without saying which IDs were skipped or why (#74).
+  * Response items (#76): relationship `id`, `status`, `origin`, `decidedAt`, `createdAt`; publication `id`, `title`, `year`, `venue`, `typeFamily`, `doi`, `authorNamesDisplay`, `sources` (distinct, in the order OPENALEX, DBLP, ORCID, MANUAL). No raw metadata, identities, users, `decidedByUserId` or other professors' data.
+* `src/routes/mePublications.ts` — `GET /api/me/publications`, `PATCH /api/me/publications/:relationshipId` (`{ status, expectedStatus }`), `POST /api/me/publications/approve` (`{ relationshipIds }`, 1–500 unique UUIDs), mounted in the existing `/api/me` router (session, active account, no temporary password; professors only; the professor is the session's own, loaded from the database). Strict bodies and query (a `professorId` or `decidedByUserId` is refused, never used).
+
+**Tests** — 19 new (540 total, all passing): `tests/verification/verification.test.ts` (real test database)
+
+* Access: 401 without a session, 403 for the admin, `PASSWORD_CHANGE_REQUIRED` for a temporary password, 404 for an unlinked professor account; a deactivated professor's session ends (no decision applied); foreign origin, `text/plain` and form bodies refused.
+* Listing: only own relationships with exactly the approved fields (raw metadata, other professors, users and attribution never appear); distinct ordered sources with an in-source duplicate; status filter with filtered `total` and unfiltered `counts`; deterministic order (PENDING first, newest year, unknown last, title, id) and paging; invalid query parameters (incl. `professorId`) → 400; SUPPRESSED publications excluded from results and counts, decisions on them 404 and skipped in bulk.
+* Decisions: every allowed transition with `decided_at`/`decided_by_user_id` updated each time; to PENDING refused; same status → 409 `INVALID_TRANSITION` without touching `decided_at`; stale `expectedStatus` → 409 `STATUS_CONFLICT`; a lost compare-and-set stays `STATUS_CONFLICT` even when the status is restored before the lookup (deterministic race via a second connection; fails without the fix); strict bodies; another professor's, unknown and malformed IDs → the same 404; one publication approved by A and rejected by B independently; rejection leaves all nine table counts unchanged; concurrent approve + reject → exactly one 200 and one 409; a failing update (temporary trigger in the test database) rolls back and answers a generic 500 for single and bulk decisions.
+* Bulk approval: mixed IDs (own PENDING, own REJECTED, another professor's, unknown) → correct counts and attribution, others untouched; empty, duplicate, malformed, 501 IDs → 400; exactly 500 accepted; three concurrent identical requests approve each relationship once (approved 5, skipped 10 in total).
+* Resync and cleanup: re-running recorded ORCID discovery after API decisions changes no relationship row (status, `decided_at`, `decided_by_user_id`) and creates no link; identity deactivation removes only PENDING links, APPROVED and REJECTED stay.
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 540/540 ✅, `prisma validate` ✅, test database `migrate status` up to date and no drift ✅, no leftover test triggers. Frontend: `lint` ✅.
+* Test breakdown (each test counted once): Phases 1–7 **386** · configuration **12** · Phase 8 **82** · Phase 9 **41** · Phase 10 **19** = 540.
+
+**Schema:** none — no migration; still 9 tables. `Project_plan.md` unchanged (the decisions refine §11 without changing it).
+
+**Known limitations / open items**
+
+* No administrator view or override of professor decisions (not an admin role in §15.1); only the latest decision's `decided_at`/`decided_by_user_id` are kept (no history; audit tables excluded).
+* Offset paging can shift while decisions are being made; `counts` help the client re-sync.
+* Phase 11: a manual entry upgrades an existing PENDING/REJECTED relationship to APPROVED (§12.2); Phase 10's transitions remain the rule for professor decisions.
+* Phase 12 must keep synchronization create-only (as `ingestDiscoveredRecords` already is).
 
 ## Phase 9 Report
 
@@ -414,7 +449,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 | 7 | Core Pipeline Testing & Audit | Test the full multi-source pipeline against all required cases | **COMPLETE** (approved) |
 | 8 | Authentication | Roles, JWT in HTTP-only cookie, hashing, temporary password, forced change, route protection, professor email-code recovery, admin CLI | **COMPLETE** (pending review) |
 | 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | **COMPLETE** (approved) |
-| 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | NOT STARTED |
+| 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | **COMPLETE** (approved) |
 | 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | NOT STARTED |
 | 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | NOT STARTED |
 | 13 | Analytics | Required admin statistics following the preprint policy | NOT STARTED |
@@ -527,5 +562,10 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 69 | 2026-10-14 | ORCID identity preview shows the public display name from the anonymous `/v3.0/{orcid}/person` endpoint (credit name, else given + family; absent if not public), plus works count, recent works and profile link; recorded fixtures added | Owner decision D7 (no OAuth or credentials needed); §13.5 clarified |
 | 70 | 2026-10-14 | A professor's login email change is normalized, validated, unique, and clears any pending recovery code in the same transaction (send limits kept); the professor list is unpaginated and ordered by name | Owner decisions D9, D10 |
 | 71 | 2026-10-14 | Professor deactivation changes only the professor's flag: identity flags and all relationships (including PENDING) are kept; sign-in and synchronization are already refused for inactive professors | Consistent with §6.10 (deactivation keeps all data) and §12.4 (cleanup applies to identities) |
+| 72 | 2026-10-14 | Every professor decision carries `status` and `expectedStatus` and is one conditional update on relationship, owner, visible publication and expected status; a stale or concurrent change answers 409 `STATUS_CONFLICT` with the current status | Owner decision D1 (Phase 10): concurrent or stale decisions must not silently overwrite each other |
+| 73 | 2026-10-14 | Requesting the status a relationship already has answers 409 `INVALID_TRANSITION`; decisions never move a relationship back to PENDING | Owner decision D2; §11 lists no same-status or to-PENDING transition |
+| 74 | 2026-10-14 | Bulk approval takes 1–500 unique relationship IDs and approves only the professor's visible PENDING ones in one conditional update, answering `{ approved, skipped }` without identifying skipped IDs; no bulk rejection | Owner decision D3; §11 "bulk approval is supported" |
+| 75 | 2026-10-14 | Relationships to SUPPRESSED publications are hidden from the professor (not listed, not counted, decisions 404, skipped in bulk); the list is paged (`limit` 50/200, `offset`) and ordered PENDING first, newest year (unknown last), title, id; `total` is filtered, `counts` unfiltered; the verified list is `status=APPROVED` on the same endpoint | Owner decisions D4–D6; §6.4 (suppressed = hidden), §11 (verified list) |
+| 76 | 2026-10-14 | Professor-facing items expose relationship `id`, `status`, `origin`, `decidedAt`, `createdAt` and publication `id`, `title`, `year`, `venue`, `typeFamily`, `doi`, `authorNamesDisplay` plus distinct source types; nothing else | Owner decision D7 |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

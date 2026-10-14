@@ -63,6 +63,10 @@ Recovery codes expire after 10 minutes; at most one code per minute and 5 per ho
 
 `/api/admin/professors` lists, creates (with a login account and a one-time temporary password the admin hands over), edits and activates/deactivates professors (never deletes them). `POST /api/admin/professors/:id/account` adds an account to a professor without one. External identities are previewed first — `POST …/:id/identities/preview` with `{ source: "OPENALEX" | "DBLP" | "ORCID", externalId }` checks the identity with the source and writes nothing — then saved with the returned `previewToken` (`POST …/:id/identities`, valid 15 minutes). Deactivating or deleting an identity removes the PENDING publication links it discovered; approved and rejected ones stay. Professors can read their own profile and change their name at `/api/me/profile`.
 
+### Verifying publications (professors)
+
+`GET /api/me/publications` lists the signed-in professor's discovered publications (`?status=PENDING|APPROVED|REJECTED`, `limit` up to 200, `offset`; `status=APPROVED` is the verified list). `PATCH /api/me/publications/:relationshipId` with `{ status: "APPROVED" | "REJECTED", expectedStatus }` records a decision (a stale `expectedStatus` answers 409, so concurrent decisions never overwrite each other); a rejection can be reversed later, but nothing returns to pending. `POST /api/me/publications/approve` with `{ relationshipIds: [...] }` (up to 500) approves the pending ones. Synchronization never changes a decision.
+
 ### Admin account (command line only)
 
 There is no HTTP endpoint for creating the administrator or resetting its password. On the backend host:

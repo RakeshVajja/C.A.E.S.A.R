@@ -6,6 +6,7 @@ import { getOwnProfile, updateOwnName } from '../services/professors/professors'
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 import { createAdminProfessorsRouter } from './adminProfessors';
+import { createMePublicationsRouter } from './mePublications';
 
 /**
  * Protected route groups (Project_plan.md §15.3). Every endpoint inherits the checks mounted here.
@@ -14,7 +15,7 @@ import { createAdminProfessorsRouter } from './adminProfessors';
 
 const ownProfileBody = z.strictObject({ name: z.string().trim().min(1).max(200) });
 
-export function createMeRouter(): Router {
+export function createMeRouter(deps: { now: () => Date }): Router {
   const router = Router();
   router.use(requireAuth, requirePasswordChanged);
 
@@ -31,6 +32,9 @@ export function createMeRouter(): Router {
     const body = parseBody(ownProfileBody, req.body);
     res.json({ profile: await updateOwnName(req.auth!.user.id, body.name) });
   });
+
+  // Verification of the professor's own publication relationships (Phase 10).
+  router.use('/publications', createMePublicationsRouter(deps));
 
   return router;
 }

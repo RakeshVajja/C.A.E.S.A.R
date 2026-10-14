@@ -44,7 +44,7 @@ export function createApp(options: AppOptions = {}): Express {
       limits: { ...DEFAULT_AUTH_RATE_LIMITS, ...options.rateLimits },
     }),
   );
-  app.use('/api/me', createMeRouter());
+  app.use('/api/me', createMeRouter({ now }));
   app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now }));
 
   app.use(notFoundHandler);
