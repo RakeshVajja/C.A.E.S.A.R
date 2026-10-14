@@ -65,6 +65,11 @@ function toItem(row: ItemRow) {
 
 const notFound = () => new HttpError(404, 'RELATIONSHIP_NOT_FOUND', 'Publication relationship not found');
 
+/** One relationship in the professor-facing item shape (also used for manual entries, Phase 11). */
+export async function readItem(relationshipId: string, client: PrismaClient = defaultClient) {
+  return toItem(await client.professorPublication.findUniqueOrThrow({ where: { id: relationshipId }, select: itemSelect }));
+}
+
 /**
  * One page of the professor's visible relationships. Order: PENDING first, then APPROVED, then
  * REJECTED; within a status, newest publication year first (unknown years last), then title, then

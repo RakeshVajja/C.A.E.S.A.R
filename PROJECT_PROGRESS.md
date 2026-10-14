@@ -5,18 +5,52 @@
 ## Current Phase
 
 ```text
-Phase 10 — Verification Workflow
-STATUS: COMPLETE (verified and architect-approved; 540/540 tests passing)
+Phase 11 — Manual Publication Addition
+STATUS: COMPLETE (verified and architect-approved; 554/554 tests passing)
 
-Next phase: Phase 11 — Manual Publication Addition (NOT STARTED)
+Next phase: Phase 12 — Synchronization (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–10 done)
+Implementation: IN PROGRESS (Phases 1–11 done)
 ```
+
+## Phase 11 Report
+
+Professors add publications missing from the sources (Project_plan.md §12). Backend only (screens in Phase 14). No schema change; matching rules unchanged.
+
+**Implemented** (`backend/`)
+
+* `src/services/manual/manualPublications.ts` — `addManualPublication`: the entry is normalized with the shared `buildNormalizedPublication` into a MANUAL source record (generated UUID external ID, `created_by_user_id` = the professor's user, no `last_seen_at`, raw metadata only the normalized DOI list) and ingested with the unchanged Phase 3 engine (rules 1–3, vetoes, DuplicateCandidates, canonical priority with MANUAL last, curated publications untouched). In the same transaction the professor's relationship becomes APPROVED with origin MANUAL, `decided_at` and `decided_by_user_id` set: created if missing, upgraded from PENDING or REJECTED (§12.2), left unchanged if already APPROVED (#77). A match with a SUPPRESSED publication is refused (409 `PUBLICATION_SUPPRESSED`) and the whole entry rolled back (#78). A DOI that does not normalize is refused (400 `INVALID_DOI`) rather than dropped (#79); a title without usable text → 400 `INVALID_TITLE`. Entries with the same normalized title are processed one at a time within the backend process, so a double submission matches the first instead of duplicating it (#80).
+* `src/services/matching/engine.ts` — additive `onIngested` option: runs inside the ingest transaction after matching (throwing rolls the ingest back; re-run on the existing concurrent-ingest retry). No matching behaviour changed; all Phase 3–7 tests pass unchanged.
+* `src/services/verification/verification.ts` — `readItem` exported (the Phase 10 item shape, reused for the response).
+* `src/routes/mePublications.ts` — `POST /api/me/publications` (professors only, the session's own professor): strict body `{ title, typeFamily, doi?, year?, venue?, authorNames? }` — abstracts, full text, files and any other field are refused. 201 `{ item, match: { outcome, candidatesCreated, relationship } }` with `outcome` NEW_PUBLICATION / MATCHED_DOI / MATCHED_TITLE_YEAR and `relationship` CREATED / UPGRADED / UNCHANGED.
+
+**Tests** — 14 new (554 total, all passing): `tests/manual/manualPublications.test.ts` (real test database, recorded fixtures)
+
+* Access: 401, admin 403, temporary password, unlinked 404, foreign origin, form body, deactivated professor — nothing stored.
+* Validation: title and type family required; invalid type family, year, empty/punctuation-only title; `abstract`, `fullText`, `pdfUrl`, `professorId`, `status` refused; invalid DOI → `INVALID_DOI` — nothing stored.
+* New publication: canonical publication, MANUAL source record (creator, UUID, no `last_seen_at`, no content), APPROVED/MANUAL relationship with attribution.
+* Matching: DOI match (case-insensitive) upgrades the professor's PENDING link and leaves another professor's PENDING link alone; REJECTED upgraded; APPROVED unchanged (origin and `decided_at` kept); exact title + year ±1 attaches; unknown year or other type family → new publication plus DuplicateCandidate (reason recorded); curated publication's canonical fields unchanged; SUPPRESSED match → 409 with all nine table counts unchanged.
+* Later API discovery: recorded ORCID data attaches to the manual publication by title + year; recorded OpenAlex data attaches by DOI and its metadata becomes canonical (§9); the relationship stays APPROVED/MANUAL, no second publication or link.
+* Concurrency and failure: simultaneous double submissions (with and without DOI) → one publication and one relationship each, no candidates; two professors adding the same paper share one publication; both fail without the per-title serialization (checked by disabling it); a failing link insert (temporary trigger) rolls back publication, record and link and answers a generic 500.
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 554/554 ✅ (Phases 1–10 unchanged and passing), `prisma validate` ✅, test database `migrate status` up to date and no drift ✅, no leftover test triggers. Frontend: `lint` ✅.
+* Test breakdown (each test counted once): Phases 1–7 **386** · configuration **12** · Phase 8 **82** · Phase 9 **41** · Phase 10 **19** · Phase 11 **14** = 554.
+
+**Schema:** none — no migration; still 9 tables. `Project_plan.md` unchanged (§12 implemented as written; the choices below fill details it leaves open).
+
+**Known limitations / open items**
+
+* The per-title serialization is per backend process; with several instances (not planned) two simultaneous entries of a DOI-less paper could still create two publications. A simultaneous API discovery of the same DOI-less paper is the same race: the serialization covers manual entries only, so the two could create two publications without a DuplicateCandidate (papers with a DOI are protected by the unique canonical DOI). **Open item for Phase 12:** Phase 12 must serialize sync ingestion with manual entries on the same normalized title (or an approved database lock), with a concurrent manual + sync test.
+* An upgraded relationship keeps its `discovered_via_identity_id` (history of the discovery); it is APPROVED, so identity cleanup never removes it.
+* Manual entries cannot be edited or withdrawn by the professor afterwards (the relationship can still be rejected); no admin edit of manual records yet.
+* A refused SUPPRESSED match leaves no trace (nothing stored); the administrator is not notified (notifications out of scope).
 
 ## Phase 10 Report
 
@@ -450,7 +484,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 | 8 | Authentication | Roles, JWT in HTTP-only cookie, hashing, temporary password, forced change, route protection, professor email-code recovery, admin CLI | **COMPLETE** (pending review) |
 | 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | **COMPLETE** (approved) |
 | 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | **COMPLETE** (approved) |
-| 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | NOT STARTED |
+| 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | **COMPLETE** (approved) |
 | 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | NOT STARTED |
 | 13 | Analytics | Required admin statistics following the preprint policy | NOT STARTED |
 | 14 | Frontend Integration | Admin and professor workflows in the UI | NOT STARTED |
@@ -567,5 +601,9 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 74 | 2026-10-14 | Bulk approval takes 1–500 unique relationship IDs and approves only the professor's visible PENDING ones in one conditional update, answering `{ approved, skipped }` without identifying skipped IDs; no bulk rejection | Owner decision D3; §11 "bulk approval is supported" |
 | 75 | 2026-10-14 | Relationships to SUPPRESSED publications are hidden from the professor (not listed, not counted, decisions 404, skipped in bulk); the list is paged (`limit` 50/200, `offset`) and ordered PENDING first, newest year (unknown last), title, id; `total` is filtered, `counts` unfiltered; the verified list is `status=APPROVED` on the same endpoint | Owner decisions D4–D6; §6.4 (suppressed = hidden), §11 (verified list) |
 | 76 | 2026-10-14 | Professor-facing items expose relationship `id`, `status`, `origin`, `decidedAt`, `createdAt` and publication `id`, `title`, `year`, `venue`, `typeFamily`, `doi`, `authorNamesDisplay` plus distinct source types; nothing else | Owner decision D7 |
+| 77 | 2026-10-14 | `POST /api/me/publications` (strict `{ title, typeFamily, doi?, year?, venue?, authorNames? }`) ingests a MANUAL record through the unchanged engine and, in the same transaction, makes the professor's relationship APPROVED/MANUAL with attribution: created if missing, upgraded from PENDING or REJECTED, left unchanged if already APPROVED; the engine gains an additive in-transaction `onIngested` hook | §12.2 implemented as written; leaving APPROVED untouched preserves the existing decision record. Approved by architect |
+| 78 | 2026-10-14 | A manual entry that matches a SUPPRESSED publication is refused (409 `PUBLICATION_SUPPRESSED`) and rolled back entirely; nothing is absorbed or linked | §6.4/#30 (suppressed publications are hidden and never re-linked); the administrator's suppression prevails over a professor's assertion; rollback avoids accumulating records on retries. Approved by architect |
+| 79 | 2026-10-14 | A DOI typed in a manual entry that does not normalize is refused (400 `INVALID_DOI`) instead of being treated as absent | §7.1 treats an invalid source DOI as absent; for user input, silently dropping it could hide a typo and cause an unsafe title-only match. Approved by architect |
+| 80 | 2026-10-14 | Manual entries with the same normalized title are processed one at a time within the backend process | §12.3 (never silently duplicate): a double submission of a DOI-less paper would otherwise create two publications; application-level serialization matches the single-instance assumption (§14, §20 advisory locking deferred). Approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

@@ -18,7 +18,7 @@ import { evaluateDoiMatch, evaluateTitleMatch, PublicationSnapshot } from './rul
  * (`IngestResult.publicationStatus`, decision #30).
  */
 
-type Tx = Prisma.TransactionClient;
+export type Tx = Prisma.TransactionClient;
 
 export type IngestOutcome = 'UPDATED_EXISTING' | 'MATCHED_DOI' | 'MATCHED_TITLE_YEAR' | 'NEW_PUBLICATION';
 
@@ -41,6 +41,12 @@ export interface IngestOptions {
   /** The professor/admin who entered a MANUAL record. */
   createdByUserId?: string | null;
   client?: PrismaClient;
+  /**
+   * Runs inside the ingest transaction after matching, with its result (manual entries use it to
+   * link the professor atomically, Phase 11). Throwing rolls the whole ingest back. Matching is
+   * unaffected; on a concurrent-ingest retry it runs again in the new transaction.
+   */
+  onIngested?: (tx: Tx, result: IngestResult) => Promise<void>;
 }
 
 interface PossibleDuplicate {
@@ -75,7 +81,9 @@ async function ingestInTransaction(tx: Tx, record: NormalizedPublication, option
     where: { id: result.publicationId },
     select: { status: true },
   });
-  return { ...result, publicationStatus: status };
+  const ingested: IngestResult = { ...result, publicationStatus: status };
+  if (options.onIngested) await options.onIngested(tx, ingested);
+  return ingested;
 }
 
 async function applyRules(

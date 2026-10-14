@@ -8,6 +8,7 @@ import {
   LIST_MAX_LIMIT,
   listOwnPublications,
 } from '../services/verification/verification';
+import { addManualPublication } from '../services/manual/manualPublications';
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 
@@ -33,6 +34,18 @@ const bulkBody = z.strictObject({
 });
 
 /** The signed-in professor (403 for other roles, 404 for a professor account without a profile). */
+// Manual entry (§12.1): title and type family required; DOI, year, venue and author names optional.
+// Strict: abstracts, full text, files or other fields are refused, never stored.
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => (v ? v : null));
+const manualBody = z.strictObject({
+  title: z.string().trim().min(1).max(1000),
+  typeFamily: z.enum(['PREPRINT', 'CONFERENCE', 'JOURNAL', 'BOOK_CHAPTER', 'BOOK', 'OTHER']),
+  doi: optionalText(300),
+  year: z.number().int().min(1000).max(2100).nullable().optional(),
+  venue: optionalText(500),
+  authorNames: optionalText(5000),
+});
+
 function ownProfessor(req: Request): { professorId: string; userId: string } {
   const user = req.auth!.user;
   if (user.role !== 'PROFESSOR') throw new HttpError(403, 'FORBIDDEN', 'Only professors verify publications');
@@ -56,6 +69,13 @@ export function createMePublicationsRouter(deps: { now: () => Date }): Router {
     }
     const query = parsed.data;
     res.json(await listOwnPublications(professorId, query));
+  });
+
+  // Manual publication addition (Phase 11): through the shared matching pipeline; APPROVED/MANUAL.
+  router.post('/', async (req, res) => {
+    const { professorId, userId } = ownProfessor(req);
+    const body = parseBody(manualBody, req.body);
+    res.status(201).json(await addManualPublication(professorId, userId, body, deps.now()));
   });
 
   // Registered before '/:relationshipId' so "approve" is never read as an ID.

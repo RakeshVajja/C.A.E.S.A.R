@@ -67,6 +67,10 @@ Recovery codes expire after 10 minutes; at most one code per minute and 5 per ho
 
 `GET /api/me/publications` lists the signed-in professor's discovered publications (`?status=PENDING|APPROVED|REJECTED`, `limit` up to 200, `offset`; `status=APPROVED` is the verified list). `PATCH /api/me/publications/:relationshipId` with `{ status: "APPROVED" | "REJECTED", expectedStatus }` records a decision (a stale `expectedStatus` answers 409, so concurrent decisions never overwrite each other); a rejection can be reversed later, but nothing returns to pending. `POST /api/me/publications/approve` with `{ relationshipIds: [...] }` (up to 500) approves the pending ones. Synchronization never changes a decision.
 
+### Adding a publication manually (professors)
+
+`POST /api/me/publications` with `{ title, typeFamily: "PREPRINT" | "CONFERENCE" | "JOURNAL" | "BOOK_CHAPTER" | "BOOK" | "OTHER", doi?, year?, venue?, authorNames? }` adds a publication missing from the sources. It goes through the same matching as synchronized data: an existing publication (same DOI, or same title, year ±1 and type) is reused, an uncertain match is flagged for the administrator as a possible duplicate, otherwise a new publication is created. The professor's relationship becomes approved. Only metadata is accepted — no abstracts, full text or files.
+
 ### Admin account (command line only)
 
 There is no HTTP endpoint for creating the administrator or resetting its password. On the backend host:
