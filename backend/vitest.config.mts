@@ -46,6 +46,8 @@ export default defineConfig({
       SMTP_PASSWORD: '',
       MAIL_FROM: '',
       TRUST_PROXY: '',
+      SYNC_CRON: '',
+      SYNC_TIMEZONE: '',
     },
   },
 });

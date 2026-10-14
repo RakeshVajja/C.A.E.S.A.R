@@ -1,6 +1,8 @@
 import { createApp } from './app';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { env } from './config/env';
+import { startSyncScheduler } from './services/sync/scheduler';
+import { createSyncClients, recoverInterruptedRuns, SyncService } from './services/sync/syncService';
 
 async function startServer(): Promise<void> {
   try {
@@ -17,7 +19,16 @@ async function startServer(): Promise<void> {
     console.warn('SMTP is not configured: professor password recovery is unavailable');
   }
 
-  const server = createApp().listen(env.port, () => {
+  // Runs left RUNNING by a crash or restart are marked failed before anything else (§14).
+  const recovered = await recoverInterruptedRuns(new Date());
+  if (recovered > 0) console.warn(`Marked ${recovered} interrupted synchronization run(s) as FAILED`);
+
+  // One synchronization engine per process, shared by the admin trigger and the monthly schedule.
+  const sync = new SyncService({ clients: createSyncClients(), now: () => new Date() });
+  const scheduler = env.nodeEnv === 'test' ? null : startSyncScheduler(sync, { cronExpression: env.syncCron, timezone: env.syncTimezone });
+  if (scheduler) console.log(`Monthly synchronization scheduled: "${env.syncCron}" (${env.syncTimezone})`);
+
+  const server = createApp({ sync }).listen(env.port, () => {
     console.log(`CSE_Research_Hub backend listening on http://localhost:${env.port} (${env.nodeEnv})`);
   });
 
@@ -26,6 +37,7 @@ async function startServer(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`${signal} received, shutting down`);
+    void scheduler?.stop().catch(() => undefined);
     server.close(() => {
       disconnectDatabase().then(
         () => process.exit(0),

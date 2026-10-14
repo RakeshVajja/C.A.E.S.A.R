@@ -10,6 +10,7 @@ import { healthRouter } from './routes/health';
 import { createAdminRouter, createMeRouter } from './routes/protected';
 import { createSmtpMailer, Mailer } from './services/email/mailer';
 import { createPreviewClients, IdentityClients } from './services/identities/identities';
+import { createSyncClients, SyncService } from './services/sync/syncService';
 
 export interface AppOptions {
   /** Defaults to SMTP from the environment (null when unconfigured); tests inject a fake. */
@@ -20,6 +21,8 @@ export interface AppOptions {
   trustProxy?: boolean | number | string;
   /** Source clients for identity previews; defaults to live clients with short timeouts. Tests inject replays. */
   identityClients?: IdentityClients;
+  /** The synchronization engine (one per process, shared with the scheduler); tests inject replays. */
+  sync?: SyncService;
 }
 
 export function createApp(options: AppOptions = {}): Express {
@@ -45,7 +48,8 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
   app.use('/api/me', createMeRouter({ now }));
-  app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now }));
+  const sync = options.sync ?? new SyncService({ clients: createSyncClients(), now });
+  app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now, sync }));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

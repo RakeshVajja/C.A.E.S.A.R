@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
 import { ingestPublication } from '../matching/engine';
+import { serializeByTitle } from '../matching/titleSerialization';
 import {
   buildNormalizedPublication,
   NormalizationError,
@@ -65,30 +66,32 @@ export async function ingestDiscoveredRecords(
       continue;
     }
 
-    const result = await ingestPublication(record, { seenAt: options.seenAt, client });
+    // Same-title records from every ingestion path (manual entries included) are matched one at a
+    // time (#84), so a concurrent manual entry and sync cannot both create a DOI-less publication.
+    const normalized = record;
+    const { result, linked } = await serializeByTitle(normalized.normalizedTitle, async () => {
+      const ingested = await ingestPublication(normalized, { seenAt: options.seenAt, client });
+      if (ingested.publicationStatus === 'SUPPRESSED') return { result: ingested, linked: 0 };
+      // Create-only: skipDuplicates leaves any existing relationship (and its status) untouched.
+      const { count } = await client.professorPublication.createMany({
+        data: [
+          {
+            professorId: identity.professorId,
+            publicationId: ingested.publicationId,
+            status: 'PENDING',
+            origin: 'DISCOVERED',
+            discoveredViaIdentityId: identity.id,
+          },
+        ],
+        skipDuplicates: true,
+      });
+      return { result: ingested, linked: count };
+    });
     if (result.outcome === 'UPDATED_EXISTING') summary.recordsUpdated++;
     else summary.recordsNew++;
     summary.candidatesCreated += result.candidatesCreated;
-
-    if (result.publicationStatus === 'SUPPRESSED') {
-      summary.suppressedMatches++;
-      continue;
-    }
-
-    // Create-only: skipDuplicates leaves any existing relationship (and its status) untouched.
-    const { count } = await client.professorPublication.createMany({
-      data: [
-        {
-          professorId: identity.professorId,
-          publicationId: result.publicationId,
-          status: 'PENDING',
-          origin: 'DISCOVERED',
-          discoveredViaIdentityId: identity.id,
-        },
-      ],
-      skipDuplicates: true,
-    });
-    summary.linksCreated += count;
+    if (result.publicationStatus === 'SUPPRESSED') summary.suppressedMatches++;
+    summary.linksCreated += linked;
   }
 
   return summary;

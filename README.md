@@ -71,6 +71,10 @@ Recovery codes expire after 10 minutes; at most one code per minute and 5 per ho
 
 `POST /api/me/publications` with `{ title, typeFamily: "PREPRINT" | "CONFERENCE" | "JOURNAL" | "BOOK_CHAPTER" | "BOOK" | "OTHER", doi?, year?, venue?, authorNames? }` adds a publication missing from the sources. It goes through the same matching as synchronized data: an existing publication (same DOI, or same title, year ±1 and type) is reused, an uncertain match is flagged for the administrator as a possible duplicate, otherwise a new publication is created. The professor's relationship becomes approved. Only metadata is accepted — no abstracts, full text or files.
 
+### Synchronization (admin)
+
+Publications are synchronized from OpenAlex, DBLP and ORCID for every active identity of every active professor — monthly (`SYNC_CRON`, default `0 2 1 * *` = 02:00 on the 1st, in `SYNC_TIMEZONE`, default `Asia/Kolkata`) and on demand with `POST /api/admin/sync` (202; 409 while a run is in progress). `GET /api/admin/sync/runs` lists runs and `GET /api/admin/sync/runs/:runId` shows each identity's task, counts and error. A failed or incomplete source response fails only that identity's task and changes nothing; synchronization never deletes data or changes a professor's decisions. Runs interrupted by a restart are marked failed at startup.
+
 ### Admin account (command line only)
 
 There is no HTTP endpoint for creating the administrator or resetting its password. On the backend host:

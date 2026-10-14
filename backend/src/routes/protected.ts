@@ -7,6 +7,8 @@ import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 import { createAdminProfessorsRouter } from './adminProfessors';
 import { createMePublicationsRouter } from './mePublications';
+import { createAdminSyncRouter } from './adminSync';
+import { SyncService } from '../services/sync/syncService';
 
 /**
  * Protected route groups (Project_plan.md §15.3). Every endpoint inherits the checks mounted here.
@@ -39,9 +41,10 @@ export function createMeRouter(deps: { now: () => Date }): Router {
   return router;
 }
 
-export function createAdminRouter(deps: { identityClients: IdentityClients; now: () => Date }): Router {
+export function createAdminRouter(deps: { identityClients: IdentityClients; now: () => Date; sync: SyncService }): Router {
   const router = Router();
   router.use(requireAuth, requireRole('ADMIN'), requirePasswordChanged);
   router.use('/professors', createAdminProfessorsRouter(deps));
+  router.use('/sync', createAdminSyncRouter(deps));
   return router;
 }

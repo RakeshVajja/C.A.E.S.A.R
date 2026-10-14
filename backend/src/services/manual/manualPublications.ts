@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { prisma as defaultClient } from '../../config/database';
 import { HttpError } from '../../utils/httpError';
 import { ingestPublication, IngestOutcome } from '../matching/engine';
+import { serializeByTitle } from '../matching/titleSerialization';
 import { normalizeDoi } from '../normalization/doi';
 import { buildNormalizedPublication, NormalizationError } from '../normalization/normalizedPublication';
 import { readItem } from '../verification/verification';
@@ -30,29 +31,6 @@ export interface ManualPublicationInput {
 }
 
 export type RelationshipChange = 'CREATED' | 'UPGRADED' | 'UNCHANGED';
-
-/**
- * Manual entries with the same normalized title are processed one at a time within this backend
- * process (#80): a repeated submission (e.g. a double click) then sees the first one and matches it
- * instead of creating a second publication. DOI conflicts are additionally settled by the unique
- * canonical DOI and the engine's retry.
- */
-const titleLocks = new Map<string, Promise<unknown>>();
-
-async function oneAtATime<T>(key: string, run: () => Promise<T>): Promise<T> {
-  const previous = titleLocks.get(key) ?? Promise.resolve();
-  const current = previous.then(run, run);
-  const settled = current.then(
-    () => undefined,
-    () => undefined,
-  );
-  titleLocks.set(key, settled);
-  try {
-    return await current;
-  } finally {
-    if (titleLocks.get(key) === settled) titleLocks.delete(key);
-  }
-}
 
 export async function addManualPublication(
   professorId: string,
@@ -86,7 +64,8 @@ export async function addManualPublication(
   }
 
   let relationship: RelationshipChange = 'UNCHANGED';
-  const result = await oneAtATime(record.normalizedTitle, () =>
+  // Shared with synchronization ingestion (#80, #84): same-title records are matched one at a time.
+  const result = await serializeByTitle(record.normalizedTitle, () =>
     ingestPublication(record, {
       client,
       createdByUserId: userId,

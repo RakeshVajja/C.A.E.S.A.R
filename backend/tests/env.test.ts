@@ -20,6 +20,8 @@ describe('loadEnv', () => {
       jwtSecret: 'x'.repeat(32),
       trustProxy: false,
       smtp: null,
+      syncCron: '0 2 1 * *',
+      syncTimezone: 'Asia/Kolkata',
     });
   });
 
@@ -112,5 +114,11 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...validSource, TRUST_PROXY: '1' }).trustProxy).toBe(1);
     expect(loadEnv({ ...validSource, TRUST_PROXY: 'loopback' }).trustProxy).toBe('loopback');
     expect(loadEnv({ ...validSource, TRUST_PROXY: '' }).trustProxy).toBe(false);
+  });
+
+  it('validates the synchronization schedule (defaults: 02:00 on the 1st, Asia/Kolkata)', () => {
+    expect(loadEnv({ ...validSource, SYNC_CRON: '30 3 15 * *', SYNC_TIMEZONE: 'UTC' })).toMatchObject({ syncCron: '30 3 15 * *', syncTimezone: 'UTC' });
+    expect(() => loadEnv({ ...validSource, SYNC_CRON: 'every month' })).toThrow(/SYNC_CRON must be a valid cron expression/);
+    expect(() => loadEnv({ ...validSource, SYNC_TIMEZONE: 'Mars/Olympus' })).toThrow(/SYNC_TIMEZONE must be an IANA time zone/);
   });
 });

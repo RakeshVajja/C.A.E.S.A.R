@@ -1,9 +1,23 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import cron from 'node-cron';
 import { z } from 'zod';
 
 // Values already present in process.env (e.g. set by the test runner) take precedence over .env.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+/** 02:00 on the 1st of every month (decision #81; the exact time was deferred to Phase 12). */
+export const DEFAULT_SYNC_CRON = '0 2 1 * *';
+export const DEFAULT_SYNC_TIMEZONE = 'Asia/Kolkata';
+
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Unset and empty values are treated alike. */
 const optionalText = z
@@ -35,6 +49,13 @@ const envSchema = z
     SMTP_USER: optionalText,
     SMTP_PASSWORD: optionalText,
     MAIL_FROM: optionalText,
+    // Monthly synchronization (§14, decision #81): node-cron expression and IANA time zone.
+    SYNC_CRON: optionalText
+      .transform((value) => value ?? DEFAULT_SYNC_CRON)
+      .refine((value) => cron.validate(value), 'SYNC_CRON must be a valid cron expression'),
+    SYNC_TIMEZONE: optionalText
+      .transform((value) => value ?? DEFAULT_SYNC_TIMEZONE)
+      .refine(isTimeZone, 'SYNC_TIMEZONE must be an IANA time zone such as Asia/Kolkata'),
   })
   .superRefine((value, ctx) => {
     const smtpKeys = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM'] as const;
@@ -72,6 +93,8 @@ export interface Env {
   trustProxy: boolean | number | string;
   /** null when SMTP is not configured: password recovery is then unavailable. */
   smtp: SmtpConfig | null;
+  syncCron: string;
+  syncTimezone: string;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv): Env {
@@ -104,6 +127,8 @@ export function loadEnv(source: NodeJS.ProcessEnv): Env {
             from: data.MAIL_FROM,
           }
         : null,
+    syncCron: data.SYNC_CRON,
+    syncTimezone: data.SYNC_TIMEZONE,
   };
 }
 

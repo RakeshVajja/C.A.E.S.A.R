@@ -5,18 +5,64 @@
 ## Current Phase
 
 ```text
-Phase 11 — Manual Publication Addition
-STATUS: COMPLETE (verified and architect-approved; 554/554 tests passing)
+Phase 12 — Synchronization
+STATUS: COMPLETE (verified and architect-approved; 579/579 tests passing)
 
-Next phase: Phase 12 — Synchronization (NOT STARTED)
+Next phase: Phase 13 — Analytics (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–11 done)
+Implementation: IN PROGRESS (Phases 1–12 done)
 ```
+
+## Phase 12 Report
+
+Synchronization runs (Project_plan.md §14): administrator-triggered and monthly via node-cron, through the existing discovery pipelines. Backend only (screens in Phase 14). No schema change.
+
+**Implemented** (`backend/`)
+
+* `src/services/sync/syncService.ts` — `SyncService` (one per process, shared by the admin trigger and the scheduler):
+  * `start(trigger, userId)`: single-run guard taken synchronously in the process, plus refusal when the database holds a RUNNING run (another process, or an unrecovered crash) (#82); plans one PENDING `SyncTask` per active identity of an active professor and returns the RUNNING run at once; tasks execute in the background (`idle()` awaits them).
+  * Tasks run one at a time in a deterministic order, each through the existing `discoverOpenAlexIdentity` / `discoverDblpIdentity` / `discoverOrcidIdentity` (identity validation → complete fetch and validation → normalize → match → write; a failed or incomplete fetch writes nothing). Success records the counters and the number of warnings; a failure records FAILED with a safe message (`KIND: message` for source failures, the precondition message for inactive/removed identities, a generic database message with the Prisma code for write errors) (#83). Retries are those of the source HTTP clients; a failed task is retried by the next run.
+  * After each task, an identity deactivated meanwhile has its PENDING links removed again, so the §12.4 cleanup holds even if the task was already writing (#85); a removed identity fails its task.
+  * The run ends SUCCESS (no task failed, including zero tasks), PARTIAL_SUCCESS (some failed) or FAILED (all failed), with summed counters and `finished_at`.
+  * If the run itself stops unexpectedly (e.g. a database error outside a task's own error handling), one transaction marks its unfinished tasks FAILED ("Not completed…"), leaves completed tasks as they are, and sets the run FAILED with task and record counters recomputed from its tasks. The original error is logged first; a failure to record it is logged separately (the run then stays RUNNING until startup recovery). Publications and relationships are not touched.
+  * `recoverInterruptedRuns` closes runs left RUNNING the same way (unfinished tasks FAILED as "Interrupted…", counters recomputed); called at startup (§14).
+* `src/services/sync/scheduler.ts` — node-cron schedule (`SYNC_CRON`, default `0 2 1 * *` = 02:00 on the 1st; `SYNC_TIMEZONE`, default `Asia/Kolkata`; both validated at startup) calling the same `start`; a tick during a run is skipped with a log line; no catch-up run at startup (#81).
+* `src/services/matching/titleSerialization.ts` — the per-title serialization of Phase 11 (#80) moved here and now used by **both** manual entries and every discovery ingestion (`ingestDiscoveredRecords`), resolving the Phase 11 open item (#84). Matching rules unchanged.
+* `src/routes/adminSync.ts` — under the admin guards: `POST /api/admin/sync` (202 with the RUNNING run, 409 `SYNC_ALREADY_RUNNING`), `GET /api/admin/sync/runs` (newest first, `limit` ≤ 100, `offset`, `running` flag), `GET /api/admin/sync/runs/:runId` (run with tasks, each with its identity's external ID and professor name; 404 `SYNC_RUN_NOT_FOUND`).
+* `src/index.ts` — startup: recovery, one `SyncService`, scheduler (not in tests), stopped on shutdown. `src/config/env.ts`, `.env.example`, `vitest.config.mts` — `SYNC_CRON`, `SYNC_TIMEZONE`.
+* Dependency: `node-cron` 4.6 (frozen stack, §4; ships its own types); `npm audit` unchanged (the same 5 pre-existing findings).
+
+**Tests** — 25 new (579 total, all passing): `tests/sync/sync.test.ts` (24, real test database, recorded fixtures, injected replay clients) and `tests/env.test.ts` (+1)
+
+* Runs: only active identities of active professors get tasks; task and run counters, timestamps and outcomes; a run with recorded DBLP (830 records), OpenAlex and ORCID; zero identities → SUCCESS.
+* Reruns: no new records, links or candidates; 72 records updated with `last_seen_at` advanced; APPROVED/REJECTED decisions and a suppressed publication's missing link unchanged (relationship rows identical).
+* Failures: HTML with 200 → that task FAILED, run PARTIAL_SUCCESS, its records' `last_seen_at` and all rows unchanged; incomplete OpenAlex fetch (repeated work) → FAILED, nothing written; nonexistent and deactivated ORCID iDs → FAILED with their kinds, an earlier relationship untouched, all tasks failed → FAILED run; a transient 503 retried by the client → SUCCESS, exhausted retries → FAILED; a database error mid-task (temporary trigger) → safe message, records written before it keep their `last_seen_at`.
+* Identities changing during a run: deactivated during its fetch → no PENDING links left; removed before its task → that task FAILED, the other succeeds.
+* Guard and recovery: two simultaneous starts → one run, the other `SYNC_ALREADY_RUNNING`; a RUNNING row in the database blocks a new run; crash recovery marks the run and unfinished tasks FAILED, leaves completed runs alone, and is idempotent.
+* A run that stops unexpectedly (temporary trigger failing the second task's RUNNING update): the unfinished task FAILED, the completed task and its 67 records untouched, run FAILED with counters equal to its tasks, the guard released (fails without the fix); when recording the failure also fails, the original error is logged first, the run stays RUNNING, and startup recovery then closes it with consistent counters.
+* Scheduling: the expression, time zone and `noOverlap` passed to node-cron; a tick starts a SCHEDULED run without a user; a tick during a run is skipped; the real node-cron scheduler starts and stops without running; `SYNC_CRON`/`SYNC_TIMEZONE` validation.
+* Routes: anonymous, professor, temporary-password admin and foreign origin refused, no run created; manual trigger 202 attributed to the admin, 409 while running, history with `running`; listing order, paging, invalid queries, unknown and malformed IDs.
+* Phase 11 race: 12 manual entries racing 12 sync ingestions of the same DOI-less papers → exactly one publication each (this test fails 3 of 3 times without the shared serialization); a full sync run racing manual entries of recorded DOI-less ORCID works → one publication per paper (integration check).
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 579/579 ✅ (Phases 1–11 unchanged and passing), `prisma validate` ✅, test database `migrate status` up to date and no drift ✅, no leftover test triggers. Frontend: `lint` ✅.
+* Test breakdown (each test counted once): Phases 1–7 **386** · configuration **12** · Phase 8 **82** · Phase 9 **41** · Phase 10 **19** · Phase 11 **14** · Phase 12 **25** = 579.
+
+**Schema:** none — no migration; still 9 tables. `Project_plan.md` unchanged; the §20 deferred items "exact monthly schedule time" and "startup catch-up sync" are decided in #81.
+
+**Known limitations / open items**
+
+* The single-run guard and the per-title serialization live in one backend process. With several instances (not planned; §20 keeps advisory locking deferred), the database check narrows but does not close the window for two simultaneous runs, and simultaneous ingestions of a DOI-less paper in different processes could still create two publications.
+* Task warnings are stored as a count (the schema's `warnings` is an integer); their text appears only in the server log.
+* A manual trigger returns before the run finishes; clients poll `GET /api/admin/sync/runs/:runId` (no push notifications).
+* Runs and tasks are kept indefinitely (no history clean-up yet).
+* A run interrupted by a restart is not resumed; the next manual or monthly run starts afresh (recovery only marks it FAILED).
 
 ## Phase 11 Report
 
@@ -47,7 +93,7 @@ Professors add publications missing from the sources (Project_plan.md §12). Bac
 
 **Known limitations / open items**
 
-* The per-title serialization is per backend process; with several instances (not planned) two simultaneous entries of a DOI-less paper could still create two publications. A simultaneous API discovery of the same DOI-less paper is the same race: the serialization covers manual entries only, so the two could create two publications without a DuplicateCandidate (papers with a DOI are protected by the unique canonical DOI). **Open item for Phase 12:** Phase 12 must serialize sync ingestion with manual entries on the same normalized title (or an approved database lock), with a concurrent manual + sync test.
+* The per-title serialization is per backend process; with several instances (not planned) two simultaneous entries of a DOI-less paper could still create two publications. A simultaneous API discovery of the same DOI-less paper is the same race: the serialization covers manual entries only, so the two could create two publications without a DuplicateCandidate (papers with a DOI are protected by the unique canonical DOI). ~~**Open item for Phase 12:** Phase 12 must serialize sync ingestion with manual entries on the same normalized title (or an approved database lock), with a concurrent manual + sync test.~~ — resolved in Phase 12 (#84).
 * An upgraded relationship keeps its `discovered_via_identity_id` (history of the discovery); it is APPROVED, so identity cleanup never removes it.
 * Manual entries cannot be edited or withdrawn by the professor afterwards (the relationship can still be rejected); no admin edit of manual records yet.
 * A refused SUPPRESSED match leaves no trace (nothing stored); the administrator is not notified (notifications out of scope).
@@ -485,7 +531,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 | 9 | Professor Management | Professors, profiles, external identities, activation/deactivation | **COMPLETE** (approved) |
 | 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | **COMPLETE** (approved) |
 | 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | **COMPLETE** (approved) |
-| 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | NOT STARTED |
+| 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | **COMPLETE** (approved) |
 | 13 | Analytics | Required admin statistics following the preprint policy | NOT STARTED |
 | 14 | Frontend Integration | Admin and professor workflows in the UI | NOT STARTED |
 | 15 | Final Testing & Deployment | End-to-end tests, security checks, production config, deployment, demo readiness | NOT STARTED |
@@ -605,5 +651,10 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 78 | 2026-10-14 | A manual entry that matches a SUPPRESSED publication is refused (409 `PUBLICATION_SUPPRESSED`) and rolled back entirely; nothing is absorbed or linked | §6.4/#30 (suppressed publications are hidden and never re-linked); the administrator's suppression prevails over a professor's assertion; rollback avoids accumulating records on retries. Approved by architect |
 | 79 | 2026-10-14 | A DOI typed in a manual entry that does not normalize is refused (400 `INVALID_DOI`) instead of being treated as absent | §7.1 treats an invalid source DOI as absent; for user input, silently dropping it could hide a typo and cause an unsafe title-only match. Approved by architect |
 | 80 | 2026-10-14 | Manual entries with the same normalized title are processed one at a time within the backend process | §12.3 (never silently duplicate): a double submission of a DOI-less paper would otherwise create two publications; application-level serialization matches the single-instance assumption (§14, §20 advisory locking deferred). Approved by architect |
+| 81 | 2026-10-14 | Monthly schedule: node-cron `SYNC_CRON` (default `0 2 1 * *`, 02:00 on the 1st) in `SYNC_TIMEZONE` (default `Asia/Kolkata`), both validated at startup; no catch-up run at startup | §20 deferred items "exact monthly schedule time" and "startup catch-up sync" decided for Phase 12 (off-peak, institute time zone; a missed month is covered by the admin trigger). Approved by architect |
+| 82 | 2026-10-14 | Single-run guard: in-process flag taken synchronously, plus refusal while any RUNNING run exists in the database; a manual trigger then answers 409 `SYNC_ALREADY_RUNNING`, a scheduled tick is skipped | §14 "one sync run at a time (application-level guard is sufficient)"; advisory locking stays deferred (§20). Approved by architect |
+| 83 | 2026-10-14 | Runs plan one task per active identity of an active professor at start and execute them sequentially through the existing discovery services; retries are the source clients'; failed tasks get a safe `KIND: message` (database errors generic); run = SUCCESS / PARTIAL_SUCCESS / FAILED (all tasks failed); the manual trigger returns 202 immediately | §14 rules; sequential tasks respect the sources' throttling. Approved by architect |
+| 84 | 2026-10-14 | Every discovery ingestion shares the per-title serialization of manual entries (`serializeByTitle`), so a sync and a manual entry of the same DOI-less paper cannot both create a publication | Phase 11 open item (§12.3); no new table or dependency; per-process. Approved by architect |
+| 85 | 2026-10-14 | After each task, an identity found deactivated has its PENDING links removed again; a task whose identity was removed fails | Keeps §12.4 true when an identity is deactivated or removed while its task is running (Phase 9 known limitation). Approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).
