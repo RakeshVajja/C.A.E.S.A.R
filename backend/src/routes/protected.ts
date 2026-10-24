@@ -6,6 +6,7 @@ import { getOwnProfile, updateOwnName } from '../services/professors/professors'
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 import { createAdminAnalyticsRouter } from './adminAnalytics';
+import { createAdminDuplicatesRouter, createAdminPublicationsRouter, createAdminSourceRecordsRouter } from './adminPublications';
 import { createAdminProfessorsRouter } from './adminProfessors';
 import { createMePublicationsRouter } from './mePublications';
 import { createAdminSyncRouter } from './adminSync';
@@ -48,5 +49,8 @@ export function createAdminRouter(deps: { identityClients: IdentityClients; now:
   router.use('/professors', createAdminProfessorsRouter(deps));
   router.use('/sync', createAdminSyncRouter(deps));
   router.use('/analytics', createAdminAnalyticsRouter());
+  router.use('/publications', createAdminPublicationsRouter());
+  router.use('/duplicate-candidates', createAdminDuplicatesRouter(deps));
+  router.use('/source-records', createAdminSourceRecordsRouter(deps));
   return router;
 }

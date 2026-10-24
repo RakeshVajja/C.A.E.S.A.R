@@ -5,8 +5,8 @@
 ## Current Phase
 
 ```text
-Phase 13 — Analytics
-STATUS: COMPLETE (verified and architect-approved; 591/591 tests passing)
+Phase 13B — Admin Publication & Duplicate Management
+STATUS: COMPLETE (verified and architect-approved; 620/620 tests passing)
 
 Next phase: Phase 14 — Frontend Integration (NOT STARTED)
 ```
@@ -15,8 +15,54 @@ Next phase: Phase 14 — Frontend Integration (NOT STARTED)
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–13 done)
+Implementation: IN PROGRESS (Phases 1–13B done)
 ```
+
+## Phase 13B Report
+
+Administrator publication management and duplicate-candidate resolution (Project_plan.md §6.4, §8.5, §9, §15.1), inserted after Phase 13 by decision #95 (resolving the Phase 3 roadmap gap #29). Backend only (screens in Phase 14). No schema change, migration or dependency.
+
+**Implemented** (`backend/`)
+
+* `src/services/publications/adminPublications.ts`:
+  * `listPublications` — every publication, suppressed included; `q` matches the normalized title (substring, shared `normalizeTitle`) or, if it is a DOI, the canonical DOI (shared `normalizeDoi`); filters `status`, `typeFamily`, `curated`; `limit` (default 50, max 200), `offset`; order normalized title, id. Rows carry sources (priority order), source-record count and relationship counts per status.
+  * `getPublication` — canonical fields, source-record summaries (no raw metadata), relationships (professor name/active, origin, decision time, discovering identity), and every duplicate candidate with the other publication's summary.
+  * `updatePublication` (#90) — strict edit of title, year, venue, type family, author names and DOI; title and DOI through the shared normalizers (400 `INVALID_TITLE` / `INVALID_DOI`); a DOI owned by another publication → 409 `DOI_IN_USE` (also when a concurrent change wins the unique constraint); sets `is_curated`. Source records and relationship decisions are untouched (§9).
+  * `setPublicationStatus` (#92) — ACTIVE ⇄ SUPPRESSED with `expectedStatus` (one conditional update): 409 `STATUS_CONFLICT` with the current status, 409 `INVALID_TRANSITION`, 404. Records, relationships and candidates are kept; restoring creates no relationship. Professor lists and analytics keep hiding suppressed publications (unchanged code).
+* `src/services/publications/duplicates.ts`:
+  * `listCandidates` (status, default OPEN, oldest first, paged; both publication summaries, a removed side is `null`) and `dismissCandidate` (conditional OPEN → DISMISSED with resolver and time; 409 `CANDIDATE_NOT_OPEN`, 404).
+  * `mergeCandidate` (#93) — one transaction: claim the OPEN candidate (MERGED, resolver, time); `keepPublicationId` must be one of its two publications (400 `INVALID_KEEP_PUBLICATION`; a candidate with a removed side → 409 `CANDIDATE_INCOMPLETE`); lock both publications; ACTIVE with SUPPRESSED → 409 `MERGE_STATUS_MISMATCH` (equal statuses merge and keep that status); move the source records (match method `ADMIN`, detail naming the merge and the previous method); lock and consolidate relationships (APPROVED > PENDING > REJECTED, a tie keeps the survivor's; the winning row is kept with its id and decision metadata); re-point the removed publication's other OPEN candidates to the survivor, or close one as DISMISSED with a note when the survivor already has that pair in any status (never duplicating or reopening a pair); resolved candidates keep their history (reference NULL, §6.10); delete the merged-away publication; recompute the survivor unless curated. Any failure rolls everything back. Before its transaction the merge takes the per-title serialization (`serializeByTitle`, shared with manual entries and sync ingestion) for every normalized title of both publications and their source records, in sorted order; under the row locks it re-reads those titles and refuses with 409 `MERGE_CONFLICT` if one is not covered (e.g. a record attached by DOI meanwhile) (#96).
+  * `detachSourceRecord` (#94) — one transaction with the publication locked: refuses the only record (409 `LAST_SOURCE_RECORD`); creates an ACTIVE publication from the record's fields, moves the record (match method `ADMIN`, "Detached by the administrator from publication …"), recomputes the old publication first (releasing a DOI only that record carried) and then the new one. No relationship is moved or created; a later sync gives the discovering professor a PENDING link, and rule 1 keeps the record on its new publication.
+* `src/services/sync/syncService.ts` — `exclusive(operation)` (#91): refused with 409 `SYNC_ALREADY_RUNNING` while a run executes (in-process guard or a RUNNING row); exclusive operations run one at a time; `start` takes its guard synchronously and then waits for queued exclusive operations before planning the run, so a run can never start between the check and the mutation (a queued operation that finds a run pending is refused). Merge and detach use it; a scheduled run that coincides with one simply starts after it instead of failing.
+* `src/services/matching/engine.ts` — `recomputeCanonical` writes only `WHERE is_curated = false` (#90), so an administrator's edit committed while a synchronization ingest is in flight is never overwritten; `ingestPublication`'s single retry now also covers a foreign-key violation (P2003) — the publication a record was matched to was removed by a merge meanwhile — so the record is matched again against the committed state (#96). Matching rules are unchanged.
+* `src/routes/adminPublications.ts` (mounted in `protected.ts` under the admin guards): `GET /api/admin/publications`, `GET` and `PATCH /api/admin/publications/:id`, `PATCH /api/admin/publications/:id/status`, `GET /api/admin/duplicate-candidates`, `POST /api/admin/duplicate-candidates/:id/dismiss`, `POST /api/admin/duplicate-candidates/:id/merge`, `POST /api/admin/source-records/:id/detach`. Strict Zod bodies and queries; malformed IDs → 404.
+
+**Tests** — 29 new (620 total, all passing): `tests/publications/adminPublications.test.ts` (real test database, recorded fixtures for the sync run, no network)
+
+* Authorization on all eight endpoints (anonymous 401, professor 403, temporary-password admin, foreign origin) with nothing changed; no raw metadata or emails in responses.
+* List: suppressed included, filters, title and DOI search, order, paging; invalid queries. Detail: record summaries, relationships with identity, candidates; 404s.
+* Edit: normalized title and DOI, clearing fields, curated; records and decisions unchanged; a curated edit survives a later rule-1 re-ingest; an edit committed between a recompute's read and write is not overwritten (fails without the conditional update); invalid input, `DOI_IN_USE`, unknown publication — nothing changed.
+* Suppress/restore: records and relationships kept, hidden from the professor's list and analytics, findable by the admin; restore creates or changes no relationship; stale/redundant transitions, invalid bodies, two concurrent suppressions (one wins).
+* Candidates: listing by status with summaries, invalid queries; dismissal with attribution, second dismissal 409, 404s.
+* Merge: records moved with provenance, survivor recomputed (DOI and venue from the merged record), candidate MERGED with the removed side NULL; either side kept; six relationship combinations (precedence, tie, winner metadata); re-pointing, redundant pair closed, dismissed pair not reopened, history kept, no duplicate pairs; curated survivor untouched; suppressed pair merges and stays suppressed; refusals (status mismatch, foreign keep ID, invalid bodies, resolved, unknown) change nothing; rollback via a temporary trigger blocking the delete (500, every row unchanged); two simultaneous merges → one 200, one 409.
+* Detach: new ACTIVE publication with ADMIN provenance, old publication recomputed (DOI released), relationships unchanged, rule 1 keeps the record there; curated/suppressed source publication untouched; last record 409, 404s, rollback via trigger, two simultaneous detachments from a two-record publication → one succeeds.
+* Merges and concurrent manual entries (#96), made deterministic with a temporary trigger that holds the manual entry's insert inside its transaction on an advisory lock: a manual entry matching the removed publication by title holds the merge until it commits, then both succeed and the record and APPROVED relationship follow the merge (fails without the title locks); a manual entry matched by DOI while the merge completes is re-matched to the survivor (`MATCHED_DOI`) instead of failing with P2003 (fails without the retry); a title appearing after the locks were chosen → 409 `MERGE_CONFLICT`, nothing changed. Each run three times without flakiness.
+* Synchronization: merge/detach 409 while a run executes (nothing changed; edits still allowed) and succeed afterwards; a RUNNING row blocks them; a run started during an exclusive operation waits for it and a queued operation is refused (fails without the wait in `start`).
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 620/620 ✅ (Phases 1–13 unchanged and passing; no earlier test file modified), `prisma validate` ✅, test database `migrate status` up to date and `migrate diff` empty ✅, no leftover test triggers. Frontend: `lint` ✅ (frontend code untouched).
+* Test breakdown (each test counted once): Phases 1–7 **386** · configuration **12** · Phase 8 **82** · Phase 9 **41** · Phase 10 **19** · Phase 11 **14** · Phase 12 **25** · Phase 13 **12** · Phase 13B **29** = 620.
+
+**Schema:** none — still 9 tables; the existing `ADMIN` match method, `MERGED`/`DISMISSED` statuses and `resolved_by`/`resolved_at` columns are used. `Project_plan.md` §19 gains the Phase 13B row (#95).
+
+**Known limitations**
+
+* Coordination with synchronization is per process (single-instance assumption; §20 advisory locking deferred).
+* Manual entries and merges are coordinated (#96): title matches wait for the merge (or the merge waits for them), DOI matches are re-matched once after the merge. Still open: a manual entry that loses that single retry to a second concurrent removal (not possible today, since merges are serialized) would surface the database error; a merge refused with `MERGE_CONFLICT` must be retried by the administrator. Detachment takes no title locks (it removes no publication, so it cannot break a concurrent entry). All of this is per process.
+* After a merge the candidate keeps only the survivor's reference (§6.10); the removed publication's id remains in the moved records' `match_detail`.
+* No separate audit trail of merges or detachments beyond the candidate's resolver, the records' `match_detail` and the relationships' decision metadata (no audit table, §6); a relationship removed by consolidation is not kept.
+* Curation cannot be undone through the API (not required by the plan).
 
 ## Phase 13 Report
 
@@ -497,7 +543,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 
 ## Open Documentation / Roadmap Issues
 
-* **Duplicate-candidate resolution has no assigned phase** (decision #29). `Project_plan.md` §8.5 defines admin *dismiss*, *merge B into A* and *detach source record*, and §17 lists an admin "duplicate candidates" page, but no phase in §19 includes implementing them. Phase 3 only creates candidates. Awaiting the architect's assignment.
+* **Duplicate-candidate resolution had no assigned phase** (decision #29). Resolved 2026-10-26: assigned to Phase 13B (#95) and implemented there (#93, #94).
 
 ## Phase 2 Report
 
@@ -573,6 +619,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 | 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | **COMPLETE** (approved) |
 | 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | **COMPLETE** (approved) |
 | 13 | Analytics | Required admin statistics following the preprint policy | **COMPLETE** (approved) |
+| 13B | Admin Publication & Duplicate Management | Publication search/edit/curation/suppression, duplicate dismiss/merge, source-record detach | **COMPLETE** (approved) |
 | 14 | Frontend Integration | Admin and professor workflows in the UI | NOT STARTED |
 | 15 | Final Testing & Deployment | End-to-end tests, security checks, production config, deployment, demo readiness | NOT STARTED |
 
@@ -639,7 +686,7 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 26 | 2026-09-27 | Canonical selection: OTHER does not outrank a known type family; within one source the oldest record wins | §7.3 defines OTHER as insufficient information; approved |
 | 27 | 2026-09-27 | DOI ownership precedence: canonical DOI owner before source-record-only DOI carriers | Phase 3 implementation decision (not frozen); approved |
 | 28 | 2026-09-27 | ~~Known limitation: secondary DOIs of stored records not searched~~ **Superseded:** all normalized DOIs are kept in `raw_metadata._normalizedDois` and searched during matching | Architect review: the limitation conflicted with §6.5; implemented without schema change |
-| 29 | 2026-09-27 | Roadmap gap recorded: §8.5 duplicate-candidate resolution has no implementation phase in §19 | Verified in Phase 3; not implemented; awaiting assignment |
+| 29 | 2026-09-27 | Roadmap gap recorded: §8.5 duplicate-candidate resolution has no implementation phase in §19 | Verified in Phase 3. Resolved 2026-10-26: assigned to Phase 13B (#95), implemented (#93, #94) |
 | 30 | 2026-09-27 | SUPPRESSED publications stay in matching and absorb matching source records (provenance only); no professor links are ever created for them automatically; ingest result reports `publicationStatus` | Architect review of §6.4/§14; excluding them would recreate the suppressed paper as a new publication |
 | 31 | 2026-09-28 | OpenAlex repository hosting is not a preprint signal; preprints = type `preprint` or `10.48550/` DOI (§7.4 updated) | Architect decision in Phase 4 on live data: 140 repository-hosted works of one author — 94 already typed preprint, 46 published papers/reports/books |
 | 32 | 2026-09-28 | `OPENALEX_API_KEY` optional; sent as Bearer token when set; keyless otherwise with a startup warning | Architect decision; keyless budget verified (1,000 credits/day) |
@@ -700,5 +747,12 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 87 | 2026-10-25 | The OTHER type family is counted in default analytics, with a per-type breakdown in the overview | §20 deferred item (Phase 13): only preprints are excluded by §10; OTHER items are professor-approved and include real output (reports, datasets, untyped records); the breakdown lets the UI show or subtract them. Approved by architect |
 | 88 | 2026-10-25 | Pending verifications = every PENDING relationship to a non-suppressed publication, whatever the professor's active state, preprints included | The metric is the outstanding verification backlog: deactivating a professor must not make unresolved relationships disappear from analytics; suppressed publications are hidden everywhere (Phase 10). Corrected in the final review (an earlier draft excluded inactive professors). Approved by architect |
 | 89 | 2026-10-25 | Sync statistics use the stored SyncRun/SyncTask rows: runs by outcome; tasks and summed record counters of finished runs only; "added" = `records_new`, "updated" = `records_updated` | Run counters are sums of their tasks (Phase 12); a RUNNING run has no final counters yet. Approved by architect |
+| 90 | 2026-10-26 | Admin edits of canonical title, year, venue, type, authors and DOI set `is_curated`; DOI ownership conflicts → 409 `DOI_IN_USE`; `recomputeCanonical` writes only while `is_curated = false` | §6.4/§9 (curated metadata is never overwritten); the conditional write closes the window between a sync recompute's read and write. Approved by architect |
+| 91 | 2026-10-26 | Merge and detach run through `SyncService.exclusive`: 409 `SYNC_ALREADY_RUNNING` during a run (in-process or RUNNING row), serialized among themselves; a run started meanwhile waits for them | Approved coordination with synchronization within the single-instance architecture (§14, §20); scheduled runs start late instead of failing. Approved by architect |
+| 92 | 2026-10-26 | Suppression is reversible: ACTIVE ⇄ SUPPRESSED with `expectedStatus`; records, relationships and candidates kept; restoring creates no relationship | Approved behaviour (§6.4 "replaces deletion"); mistakes are recoverable without deleting anything. Approved by architect |
+| 93 | 2026-10-26 | Merge B into A in one transaction: open candidate claimed; equal publication statuses required (`MERGE_STATUS_MISMATCH`); records moved with `ADMIN` provenance; relationships consolidated APPROVED > PENDING > REJECTED (tie → survivor's row; the winner keeps its decision metadata); other OPEN candidates re-pointed, or closed as DISMISSED when the pair already exists; B deleted; survivor recomputed unless curated | §8.5 with the approved refinements. Approved by architect |
+| 94 | 2026-10-26 | Detach: refused for the only record; new ACTIVE publication from the record; record moved with `ADMIN` provenance; old then new publication recomputed; no relationship moved or created | §8.5 "detach"; links come only from the next synchronization (PENDING), never automatic approvals. Approved by architect |
+| 95 | 2026-10-26 | Phase 13B "Admin Publication & Duplicate Management" inserted between Phases 13 and 14 (`Project_plan.md` §19) | Resolves roadmap gap #29 and the missing §15.1 publication administration before the frontend phase. Approved by architect (assignment) |
+| 96 | 2026-10-26 | A merge holds the per-title serialization for every normalized title of both publications and their records (sorted order) and revalidates them under its row locks (409 `MERGE_CONFLICT` otherwise); `ingestPublication` retries once on P2003 as on P2002 | Concurrent manual entries complete safely instead of failing with a database error when a merge removes their matching publication; reuses the existing mechanism (#80, #84), no new lock or dependency. Approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

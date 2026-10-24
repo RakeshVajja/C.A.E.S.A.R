@@ -68,9 +68,10 @@ export async function ingestPublication(
   try {
     return await run();
   } catch (error) {
-    // A concurrent ingest may have created the same source record or claimed the same DOI;
-    // re-running sees the committed state and takes rule 1 / rule 2 instead.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return run();
+    // A concurrent ingest may have created the same source record or claimed the same DOI (P2002),
+    // or an administrator's merge may have removed the publication this record was matched to
+    // (P2003, #96); re-running once sees the committed state and matches again.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2003')) return run();
     throw error;
   }
 }
@@ -345,7 +346,8 @@ export async function recomputeCanonical(tx: Tx, publicationId: string): Promise
   );
 
   const canonical = selectCanonicalMetadata(publication.sourceRecords, (doi) => taken.has(doi));
-  await tx.publication.update({ where: { id: publicationId }, data: canonical });
+  // Conditional on `is_curated`, so an administrator's edit committed meanwhile is never overwritten (#90).
+  await tx.publication.updateMany({ where: { id: publicationId, isCurated: false }, data: canonical });
 }
 
 /**

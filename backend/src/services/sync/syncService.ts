@@ -25,6 +25,9 @@ import type { DiscoverySummary } from '../discovery/ingestDiscoveredRecords';
  * writing) and never deletes or unlinks anything. Retries are those of the source HTTP clients
  * (backoff, Retry-After); a failed task is retried by the next run (#83). Only one run at a time
  * per process, also checked against RUNNING rows in the database (#82).
+ *
+ * Administrator merge/detach operations (Phase 13B, #91) run through `exclusive`: they are refused
+ * while a run executes, run one at a time, and a run started meanwhile waits until they finish.
  */
 
 export interface SyncClients {
@@ -54,6 +57,8 @@ export class SyncAlreadyRunningError extends HttpError {
 export class SyncService {
   private readonly client: PrismaClient;
   private current: Promise<void> | null = null;
+  /** Settles when every queued `exclusive` operation has finished; never rejects. */
+  private exclusiveQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: SyncServiceOptions) {
     this.client = options.client ?? defaultClient;
@@ -79,6 +84,8 @@ export class SyncService {
     let release!: () => void;
     this.current = new Promise<void>((resolve) => (release = resolve));
     try {
+      // Administrator operations already in progress finish first; new ones are refused from now on.
+      await this.exclusiveQueue;
       // A RUNNING row not owned by this process (another instance, or a run interrupted without
       // the startup recovery) also blocks a new run.
       if (await this.client.syncRun.findFirst({ where: { status: 'RUNNING' }, select: { id: true } })) {
@@ -108,6 +115,32 @@ export class SyncService {
       this.current = null;
       release();
       throw error;
+    }
+  }
+
+  /**
+   * Runs `operation` while no synchronization run can execute (#91): refused with
+   * SYNC_ALREADY_RUNNING while a run executes (in this process or as a RUNNING row), serialized
+   * with other exclusive operations, and a run started meanwhile waits until it has finished. The
+   * check and the operation cannot be separated by a run start, because `start` takes its guard
+   * synchronously and then waits for this queue.
+   */
+  async exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.current) throw new SyncAlreadyRunningError();
+    const previous = this.exclusiveQueue;
+    let finished!: () => void;
+    const done = new Promise<void>((resolve) => (finished = resolve));
+    this.exclusiveQueue = previous.then(() => done);
+    await previous;
+    try {
+      // A run may have been started while this operation waited behind another one.
+      if (this.current) throw new SyncAlreadyRunningError();
+      if (await this.client.syncRun.findFirst({ where: { status: 'RUNNING' }, select: { id: true } })) {
+        throw new SyncAlreadyRunningError();
+      }
+      return await operation();
+    } finally {
+      finished();
     }
   }
 

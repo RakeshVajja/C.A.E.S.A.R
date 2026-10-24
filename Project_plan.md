@@ -756,6 +756,7 @@ No UI features beyond the required workflows.
 | 11 | Manual Publication Addition | Manual entry through the same pipeline; test exact match, DOI match, uncertain match, DuplicateCandidate, later API discovery. |
 | 12 | Synchronization | SyncRun, SyncTask, node-cron, one-sync-at-a-time guard, retries, failure handling, idempotency, last-seen tracking. |
 | 13 | Analytics | Required admin statistics following the preprint policy. |
+| 13B | Admin Publication & Duplicate Management | Backend for the §15.1 publication administration and §8.5 duplicate-candidate resolution: publication search and details, canonical metadata editing (curation), suppression/restoration, candidate listing, dismiss, merge, source-record detach; merge/detach coordinated with synchronization. Inserted 2026-10-26 (decision #95, resolving #29). Backend only. |
 | 14 | Frontend Integration | Admin and professor workflows, pending verification, manual addition, sync status, analytics. |
 | 15 | Final Testing & Deployment | End-to-end testing, edge cases, security checks, production configuration, deployment preparation, documentation, demo readiness. Deployment provider chosen here. |
 
