@@ -5,18 +5,58 @@
 ## Current Phase
 
 ```text
-Phase 12 — Synchronization
-STATUS: COMPLETE (verified and architect-approved; 579/579 tests passing)
+Phase 13 — Analytics
+STATUS: COMPLETE (verified and architect-approved; 591/591 tests passing)
 
-Next phase: Phase 13 — Analytics (NOT STARTED)
+Next phase: Phase 14 — Frontend Integration (NOT STARTED)
 ```
 
 ## Current Architecture Status
 
 ```text
 Architecture:   FROZEN
-Implementation: IN PROGRESS (Phases 1–12 done)
+Implementation: IN PROGRESS (Phases 1–13 done)
 ```
+
+## Phase 13 Report
+
+Administrator analytics (Project_plan.md §16), computed from the stored rows on each request — no counters, caches, schema change or dependency. Backend only (screens in Phase 14).
+
+**Implemented** (`backend/`)
+
+* `src/services/analytics/analytics.ts` — five read-only functions, each a fixed number of Prisma queries (`count` / `groupBy` / `aggregate`) in one read transaction, no per-row queries:
+  * **Default policy** (#86, #87): a publication is *counted* when it is ACTIVE (not suppressed), not a PREPRINT (canonical `type_family`), and has at least one APPROVED relationship — of any professor, active or not, as §16 states (no professor-activity condition). OTHER is counted. Publication figures count distinct canonical publications (co-authored or multi-source papers once); per-professor figures count relationships; source figures count source records — the three are reported separately.
+  * `overview` — professors (`total`, `active`), `uniquePublications` (counted) with a per-type breakdown (JOURNAL, CONFERENCE, BOOK_CHAPTER, BOOK, OTHER), `pendingVerifications` (#88), `lastSync` (latest finished run: id, trigger, status, start, finish; `null` if none) and `syncRunning`.
+  * `approvedPerProfessor` — every professor (id, name, department, designation, `isActive`) with `approvedPublications` (APPROVED relationships to countable publications), zero rows included; most first, then name.
+  * `publicationsByYear` — counted publications per year, oldest first; publications without a year are reported as `unknownYear`, never folded into a year; `total` = years + unknown = overview `uniquePublications`.
+  * `sourceStatistics` — `counted`: per source (OPENALEX, DBLP, ORCID, MANUAL) the source records attached to counted publications and how many counted publications that source reports, plus the record total against `uniquePublications` (the deduplication effect); `stored`: all source records per source and all canonical publications in the database (pending, rejected, preprint and suppressed included).
+  * `syncStatistics` (#89) — runs by outcome (`success`, `partialSuccess`, `failed`, `running`, `total`), tasks of finished runs (`success`, `failed`), summed record counters of finished runs (`fetched`, `added` = new source records, `updated` = existing records seen again, `linksCreated`, `candidatesCreated`), `lastRun` and `lastSuccessfulRun`.
+* `src/routes/adminAnalytics.ts`, mounted in `src/routes/protected.ts` under the existing admin guards (session, ADMIN from the database, no temporary password): `GET /api/admin/analytics/overview` (`{ overview }`), `/professors`, `/years`, `/sources`, `/sync`. No query parameters are accepted (any → 400 `VALIDATION_ERROR`, values not echoed). Responses contain no emails, raw metadata, error messages or user IDs.
+
+**Tests** — 12 new (591 total, all passing): `tests/analytics/analytics.test.ts` (real test database, no network)
+
+* Empty database: every figure zero, empty or `null`.
+* A constructed world (4 professors, one inactive; 9 publications): unique total 5 although one paper has two approving professors and three source records, another two records from one source, another an inactive co-author; a publication approved only by the inactive professor counted; preprint, suppressed, pending and rejected publications excluded; OTHER counted; pending = 3 (preprint and inactive professor's pending counted; suppressed not); per-professor 3/2/2/0 (inactive professor listed with `isActive: false`) summing to 7 > 5 unique; per year with a separate unknown year; counted vs stored source records; figures follow suppression and rejections; deactivating a professor changes only the active-professor count (publication, year, source, per-professor and pending figures unchanged).
+* Regression for #86: a publication approved only by an inactive professor counts once in the overview, per-year and source figures, and under that professor.
+* Regression for #88: an inactive professor's PENDING relationships (a preprint included, a suppressed one not) are counted, and deactivating a professor with pending items leaves the backlog unchanged.
+* Synchronization: SUCCESS, PARTIAL_SUCCESS, FAILED and RUNNING runs — outcome counts, task counts and sums of finished runs only (the RUNNING run's counter excluded), last and last successful run, overview `lastSync`/`syncRunning`.
+* Consistency: two real runs on recorded OpenAlex, DBLP and ORCID data (both PARTIAL_SUCCESS: an unrecorded identity, then ORCID answering HTML with 200), mixed professor decisions; every figure equals an independent computation over the full rows (approved preprints and multi-record publications present); analytics change no row.
+* Routes: anonymous 401, professor 403, temporary-password admin refused on all five; admin 200 JSON; query parameters 400; other methods 404; no private data in any response.
+
+**Validation**
+
+* Backend: `lint` ✅, `typecheck` ✅, `build` ✅, `test` 591/591 ✅ (Phases 1–12 unchanged and passing; no earlier test file modified), `prisma validate` ✅, test database `migrate status` up to date and `migrate diff` against the schema empty ✅. Frontend: `lint` ✅.
+* Test breakdown (each test counted once): Phases 1–7 **386** · configuration **12** · Phase 8 **82** · Phase 9 **41** · Phase 10 **19** · Phase 11 **14** · Phase 12 **25** · Phase 13 **12** = 591.
+
+**Schema:** none — no migration; still 9 tables. `Project_plan.md` unchanged; the §20 deferred item "whether analytics count the OTHER type family" is decided in #87.
+
+**Known limitations**
+
+* Figures are computed on every request (no caching); fine at department scale, re-evaluate only if it proves slow.
+* No date-range or per-professor filters; the full history is always summarized.
+* Inactive professors' approved publications stay in the publication figures (#86, frozen §16 rule); an admin wanting current-faculty figures uses the per-professor rows' `isActive`. Their PENDING relationships stay in the pending-verification backlog (#88), although they cannot sign in to decide them.
+* Sync record counters come from succeeded tasks; a task that failed after writing some records reports 0 for them (Phase 12 behaviour, unchanged).
+* A preprint and its published version, if both approved, are not linked: only the published one counts (§10).
 
 ## Phase 12 Report
 
@@ -532,7 +572,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 | 10 | Verification Workflow | PENDING/APPROVED/REJECTED, reversible rejection, ownership | **COMPLETE** (approved) |
 | 11 | Manual Publication Addition | Manual entries through the same pipeline, with match/candidate tests | **COMPLETE** (approved) |
 | 12 | Synchronization | SyncRun/SyncTask, node-cron, single-run guard, retries, idempotency, last-seen tracking | **COMPLETE** (approved) |
-| 13 | Analytics | Required admin statistics following the preprint policy | NOT STARTED |
+| 13 | Analytics | Required admin statistics following the preprint policy | **COMPLETE** (approved) |
 | 14 | Frontend Integration | Admin and professor workflows in the UI | NOT STARTED |
 | 15 | Final Testing & Deployment | End-to-end tests, security checks, production config, deployment, demo readiness | NOT STARTED |
 
@@ -554,7 +594,7 @@ Two stages: a read-only audit of the Phase 3–6 pipeline against `Project_plan.
 
 ## Deferred Decisions
 
-Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER`; ORCID client registration; hard professor deletion; deployment provider.
+Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory locking; startup catch-up sync; exact monthly schedule; analytics treatment of `OTHER` (decided in #87); ORCID client registration; hard professor deletion; deployment provider.
 
 ## Progress Rules
 
@@ -656,5 +696,9 @@ Kept explicitly deferred (see `Project_plan.md` §20): fuzzy matching; advisory 
 | 83 | 2026-10-14 | Runs plan one task per active identity of an active professor at start and execute them sequentially through the existing discovery services; retries are the source clients'; failed tasks get a safe `KIND: message` (database errors generic); run = SUCCESS / PARTIAL_SUCCESS / FAILED (all tasks failed); the manual trigger returns 202 immediately | §14 rules; sequential tasks respect the sources' throttling. Approved by architect |
 | 84 | 2026-10-14 | Every discovery ingestion shares the per-title serialization of manual entries (`serializeByTitle`), so a sync and a manual entry of the same DOI-less paper cannot both create a publication | Phase 11 open item (§12.3); no new table or dependency; per-process. Approved by architect |
 | 85 | 2026-10-14 | After each task, an identity found deactivated has its PENDING links removed again; a task whose identity was removed fails | Keeps §12.4 true when an identity is deactivated or removed while its task is running (Phase 9 known limitation). Approved by architect |
+| 86 | 2026-10-25 | Default analytics count a canonical publication when it is ACTIVE, not PREPRINT, and has an APPROVED relationship of any professor (active or inactive); the per-professor list includes every professor with `isActive`; the active-professor count is reported separately; publication, relationship and source-record figures are reported separately | §16 policy as frozen (no professor-activity condition) and §10 preprint exclusion. Corrected in the final review (an earlier draft excluded inactive professors). Approved by architect |
+| 87 | 2026-10-25 | The OTHER type family is counted in default analytics, with a per-type breakdown in the overview | §20 deferred item (Phase 13): only preprints are excluded by §10; OTHER items are professor-approved and include real output (reports, datasets, untyped records); the breakdown lets the UI show or subtract them. Approved by architect |
+| 88 | 2026-10-25 | Pending verifications = every PENDING relationship to a non-suppressed publication, whatever the professor's active state, preprints included | The metric is the outstanding verification backlog: deactivating a professor must not make unresolved relationships disappear from analytics; suppressed publications are hidden everywhere (Phase 10). Corrected in the final review (an earlier draft excluded inactive professors). Approved by architect |
+| 89 | 2026-10-25 | Sync statistics use the stored SyncRun/SyncTask rows: runs by outcome; tasks and summed record counters of finished runs only; "added" = `records_new`, "updated" = `records_updated` | Run counters are sums of their tasks (Phase 12); a RUNNING run has no final counters yet. Approved by architect |
 
 Superseded/rejected (kept for history): per-source `SyncJob` table (replaced by SyncRun/SyncTask); `SourceRecordProfessor` table (rejected; replaced by `discovered_via_identity_id`); repository layer (rejected); DBLP pid-XML/search/mirror access (rejected); MANUAL outranking API metadata (rejected); Levenshtein/`pg_trgm` fuzzy thresholds (rejected for now; fuzzy matching deferred); advisory-lock requirement (deferred).

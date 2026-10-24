@@ -75,6 +75,10 @@ Recovery codes expire after 10 minutes; at most one code per minute and 5 per ho
 
 Publications are synchronized from OpenAlex, DBLP and ORCID for every active identity of every active professor — monthly (`SYNC_CRON`, default `0 2 1 * *` = 02:00 on the 1st, in `SYNC_TIMEZONE`, default `Asia/Kolkata`) and on demand with `POST /api/admin/sync` (202; 409 while a run is in progress). `GET /api/admin/sync/runs` lists runs and `GET /api/admin/sync/runs/:runId` shows each identity's task, counts and error. A failed or incomplete source response fails only that identity's task and changes nothing; synchronization never deletes data or changes a professor's decisions. Runs interrupted by a restart are marked failed at startup.
 
+### Analytics (admin)
+
+`GET /api/admin/analytics/overview`, `/professors`, `/years`, `/sources` and `/sync` return the administrator statistics, computed from the stored data on each request. Publication figures count approved, non-suppressed, non-preprint publications, each publication once however many professors or sources report it; per-professor figures count each professor's approved publications (inactive professors included and marked); source figures compare source records with unique publications. Pending verifications count every relationship still awaiting a professor's decision (inactive professors and preprints included, suppressed publications excluded). Publications without a year are reported separately.
+
 ### Admin account (command line only)
 
 There is no HTTP endpoint for creating the administrator or resetting its password. On the backend host:
