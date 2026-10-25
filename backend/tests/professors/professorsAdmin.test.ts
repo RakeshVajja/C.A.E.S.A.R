@@ -4,8 +4,8 @@ import { prisma } from '../../src/config/database';
 import { discoverOpenAlexIdentity, DiscoveryPreconditionError } from '../../src/services/discovery/openAlexDiscovery';
 import { passwordPolicyProblem } from '../../src/services/auth/password';
 import { resetDatabase } from '../helpers/database';
-import { cookiePair, createUser, PASSWORD } from '../auth/helpers';
-import { adminApp, adminCookie, login, replayIdentityClients, tableCounts } from './helpers';
+import { cookiePair, createUser, fakeMailer, PASSWORD } from '../auth/helpers';
+import { adminApp, adminCookie, login, replayIdentityClients, tableCounts, temporaryPasswordOf } from './helpers';
 
 /* Professor management by the administrator (Project_plan.md §6.2, §15; Phase 9). */
 
@@ -25,10 +25,13 @@ afterAll(async () => {
 const TEMP_PASSWORD = /^[A-HJ-NP-Z2-9]{5}(-[A-HJ-NP-Z2-9]{5}){3}$/;
 
 async function setup() {
-  const { server, calls } = adminApp();
+  const mail = fakeMailer();
+  const { server, calls } = adminApp({ mailer: mail.mailer });
   const cookie = await adminCookie(server);
   const as = (method: 'get' | 'post' | 'patch' | 'delete', path: string) => request(server)[method](path).set('Cookie', cookie);
-  return { server, cookie, as, calls };
+  /** The temporary password emailed to `email` most recently. */
+  const emailedPassword = (email: string) => temporaryPasswordOf(mail.sent.filter((m) => m.to === email).at(-1));
+  return { server, cookie, as, calls, sent: mail.sent, emailedPassword };
 }
 
 async function createProf(as: Awaited<ReturnType<typeof setup>>['as'], body: Record<string, unknown> = {}) {
@@ -75,8 +78,8 @@ describe('authorization on every professor-management route', () => {
 });
 
 describe('creating professors', () => {
-  it('creates the professor and its PROFESSOR account together, returning the temporary password once', async () => {
-    const { server, as } = await setup();
+  it('creates the professor and its PROFESSOR account together and emails the temporary password, never returning it', async () => {
+    const { server, as, sent, emailedPassword } = await setup();
     const logged: string[] = [];
     for (const m of ['log', 'info', 'warn', 'error'] as const) {
       vi.spyOn(console, m).mockImplementation((...a: unknown[]) => void logged.push(a.map(String).join(' ')));
@@ -85,35 +88,42 @@ describe('creating professors', () => {
 
     expect(res.status).toBe(201);
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(res.body.temporaryPassword).toMatch(TEMP_PASSWORD);
-    expect(passwordPolicyProblem(res.body.temporaryPassword)).toBeNull();
+    expect(res.body).not.toHaveProperty('temporaryPassword');
+    expect(res.body.invitation).toEqual({ status: 'SENT' });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBe('ada@example.org');
+    const temporaryPassword = emailedPassword('ada@example.org');
+    expect(temporaryPassword).toMatch(TEMP_PASSWORD);
+    expect(passwordPolicyProblem(temporaryPassword)).toBeNull();
+    expect(JSON.stringify(res.body)).not.toContain(temporaryPassword);
     expect(res.body.professor).toMatchObject({
       name: 'Ada Lovelace',
       department: 'CSE',
       designation: 'Professor',
       isActive: true,
-      account: { email: 'ada@example.org', mustChangePassword: true },
+      account: { email: 'ada@example.org', mustChangePassword: true, activated: false },
       identities: [],
     });
     const user = await prisma.user.findUniqueOrThrow({ where: { email: 'ada@example.org' }, include: { professor: true } });
     expect(user).toMatchObject({ role: 'PROFESSOR', mustChangePassword: true });
     expect(user.professor?.id).toBe(res.body.professor.id);
-    expect(user.passwordHash).not.toContain(res.body.temporaryPassword);
-    expect(logged.join('\n')).not.toContain(res.body.temporaryPassword);
+    expect(user.passwordHash).not.toContain(temporaryPassword);
+    expect(logged.join('\n')).not.toContain(temporaryPassword);
 
     // Not retrievable later.
     const detail = await as('get', `/api/admin/professors/${res.body.professor.id}`);
-    expect(JSON.stringify(detail.body)).not.toContain(res.body.temporaryPassword);
+    expect(JSON.stringify(detail.body)).not.toContain(temporaryPassword);
+    expect(JSON.stringify((await as('get', '/api/admin/professors')).body)).not.toContain(temporaryPassword);
 
     // First login is limited until the temporary password is changed.
-    const first = await login(server, 'ada@example.org', res.body.temporaryPassword);
+    const first = await login(server, 'ada@example.org', temporaryPassword);
     expect(first.body.user.mustChangePassword).toBe(true);
     const profCookie = cookiePair(first, 'cse_session');
     expect((await request(server).get('/api/me/profile').set('Cookie', profCookie)).body.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
     const changed = await request(server)
       .post('/api/auth/change-password')
       .set('Cookie', profCookie)
-      .send({ currentPassword: res.body.temporaryPassword, newPassword: 'my own password 1' });
+      .send({ currentPassword: temporaryPassword, newPassword: 'my own password 1' });
     expect(changed.status).toBe(200);
     expect((await request(server).get('/api/me/profile').set('Cookie', cookiePair(changed, 'cse_session'))).status).toBe(200);
   });
@@ -227,10 +237,11 @@ describe('updating profiles and email', () => {
 
 describe('activation and deactivation', () => {
   it('deactivation keeps all data, ends the professor session and blocks sign-in; reactivation restores access', async () => {
-    const { server, as } = await setup();
+    const { server, as, emailedPassword } = await setup();
     const created = await createProf(as);
     const id = created.body.professor.id;
-    const session = await login(server, 'ada@example.org', created.body.temporaryPassword);
+    const temporaryPassword = emailedPassword('ada@example.org');
+    const session = await login(server, 'ada@example.org', temporaryPassword);
     const profCookie = cookiePair(session, 'cse_session');
     const identity = await prisma.externalIdentity.create({ data: { professorId: id, source: 'DBLP', externalId: 'v/MosheYVardi' } });
     const publication = await prisma.publication.create({ data: { title: 'T One', normalizedTitle: 't one', typeFamily: 'JOURNAL' } });
@@ -246,7 +257,7 @@ describe('activation and deactivation', () => {
     expect(await prisma.externalIdentity.findUniqueOrThrow({ where: { id: identity.id } })).toMatchObject({ isActive: true });
     expect(await prisma.professorPublication.count({ where: { professorId: id, status: 'PENDING' } })).toBe(1);
     expect((await request(server).get('/api/auth/me').set('Cookie', profCookie)).status).toBe(401);
-    expect((await login(server, 'ada@example.org', created.body.temporaryPassword)).status).toBe(401);
+    expect((await login(server, 'ada@example.org', temporaryPassword)).status).toBe(401);
 
     // Identities of an inactive professor are not synchronized (refused before any request).
     const { clients, calls } = replayIdentityClients();
@@ -255,7 +266,7 @@ describe('activation and deactivation', () => {
 
     const reactivated = await as('patch', `/api/admin/professors/${id}/status`).send({ isActive: true });
     expect(reactivated.body.professor.isActive).toBe(true);
-    expect((await login(server, 'ada@example.org', created.body.temporaryPassword)).status).toBe(200);
+    expect((await login(server, 'ada@example.org', temporaryPassword)).status).toBe(200);
   });
 
   it('validates the status body', async () => {
@@ -267,14 +278,17 @@ describe('activation and deactivation', () => {
 });
 
 describe('account for an existing professor', () => {
-  it('creates a login account with a temporary password once; refuses a second account', async () => {
-    const { as } = await setup();
+  it('creates a login account and emails its temporary password; refuses a second account', async () => {
+    const { as, sent, emailedPassword } = await setup();
     const prof = await prisma.professor.create({ data: { name: 'Grace Hopper' } });
     const res = await as('post', `/api/admin/professors/${prof.id}/account`).send({ email: 'Grace@Example.org' });
     expect(res.status).toBe(201);
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(res.body.temporaryPassword).toMatch(TEMP_PASSWORD);
-    expect(res.body.professor.account).toMatchObject({ email: 'grace@example.org', mustChangePassword: true });
+    expect(res.body).not.toHaveProperty('temporaryPassword');
+    expect(res.body.invitation).toEqual({ status: 'SENT' });
+    expect(sent.map((m) => m.to)).toEqual(['grace@example.org']);
+    expect(emailedPassword('grace@example.org')).toMatch(TEMP_PASSWORD);
+    expect(res.body.professor.account).toMatchObject({ email: 'grace@example.org', mustChangePassword: true, activated: false });
 
     const again = await as('post', `/api/admin/professors/${prof.id}/account`).send({ email: 'other@example.org' });
     expect(again.body.error.code).toBe('ACCOUNT_EXISTS');

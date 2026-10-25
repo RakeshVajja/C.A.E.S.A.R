@@ -3,7 +3,8 @@ import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import type { SmtpConfig } from '../../config/env';
 
 /**
- * Outgoing email (Project_plan.md §15.4): used only for professor password-recovery codes.
+ * Outgoing email (Project_plan.md §15.2, §15.4): professor password-recovery codes and the emailed
+ * sign-in details of new professor accounts (decision #102).
  * The transport is plain SMTP built from configuration, so switching provider (e.g. a Gmail app
  * password → the institute's SMTP server) only changes environment variables. Tests inject an
  * in-memory Mailer and never send real email.
@@ -27,6 +28,10 @@ export function smtpTransportOptions(config: SmtpConfig): SMTPTransport.Options 
     secure: config.secure,
     // Without implicit TLS, STARTTLS is mandatory: credentials and codes never travel in clear text.
     requireTLS: !config.secure,
+    // Bounded waits: an unreachable server fails the delivery instead of holding a request open.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     ...(config.auth && { auth: { user: config.auth.user, pass: config.auth.pass } }),
   };
 }

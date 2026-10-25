@@ -169,9 +169,10 @@ User
   password_reset_attempts       default 0
   password_reset_last_sent_at   nullable
   password_reset_send_count     default 0
+  temporary_password_expires_at nullable (when an emailed temporary password stops being accepted; NULL once activated)
 ```
 
-The `password_reset_*` columns hold professor password-recovery state (§15.4): at most one active code per user, so no separate table is needed (decision #54; additive migration `add_user_password_recovery`).
+The `password_reset_*` columns hold professor password-recovery state (§15.4): at most one active code per user, so no separate table is needed (decision #54; additive migration `add_user_password_recovery`). `temporary_password_expires_at` holds the expiry of a professor's emailed temporary password (§15.2; decision #102; additive migration `add_user_temporary_password_expiry`).
 
 ## 6.2 Professor
 
@@ -669,7 +670,7 @@ Rules:
 
 * JWT stored in an HTTP-only, `SameSite=Lax` cookie (`Secure` in production); never in `localStorage`.
 * Passwords hashed with bcrypt/bcryptjs.
-* The admin creates professor accounts with a temporary password; the professor must change it at first login.
+* The admin creates professor accounts; a temporary password (CSPRNG, stored only as a bcrypt hash) is **emailed to the professor** through the configured SMTP and is valid for 7 days. The administrator never sees or can retrieve it — the admin sees only the delivery status (`SENT`, `FAILED`, `NOT_CONFIGURED`). The professor must change it at first login; an expired temporary password is refused (`TEMPORARY_PASSWORD_EXPIRED`). If delivery fails the account is kept and the admin can resend: a new temporary password replaces the old one, which stops working at once. Changing the login email of an account that is not yet activated sends a new temporary password to the new address (decision #102, replacing the hand-over of #66).
 * The admin account is created, and its password reset, only through the backend command-line utility (§15.4); there is no HTTP endpoint for either.
 * No OAuth/SSO, no refresh-token infrastructure.
 * Sessions (decision #57): HS256 JWT signed with `JWT_SECRET` (required, at least 32 characters), valid 8 hours. Every authenticated request reloads the user from the database (role, professor link, active state); the token carries no role. It carries a fingerprint of the password hash, so any password change or reset ends every existing session.
@@ -697,7 +698,7 @@ Request input is validated with Zod. Errors use one consistent JSON error shape.
 * `POST /api/auth/password-recovery/verify` with the correct code sets a short-lived reset token (at most 10 minutes, never beyond the code's expiry) in an HTTP-only cookie limited to the recovery path. It is bound to that issuance of the code (a later code, even with the same digits, invalidates it) and cannot be used as a session (decision #63).
 * `POST /api/auth/password-recovery/reset` consumes the code atomically (only one reset succeeds), applies the password policy, clears the code state and ends every existing session. The user is not signed in automatically.
 * Every password change (change-password, recovery, admin command-line reset) clears a pending code and its attempt state, so an earlier reset token can no longer be used; send limits are kept (decision #63).
-* Email is sent through generic SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`); changing provider (e.g. a Gmail app password → institute SMTP) changes configuration only. Without SMTP configuration every recovery request answers `503 RECOVERY_UNAVAILABLE`.
+* Email is sent through generic SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`); changing provider (e.g. a Gmail app password → institute SMTP) changes configuration only. Without SMTP configuration every recovery request answers `503 RECOVERY_UNAVAILABLE`, and professor sign-in emails report `NOT_CONFIGURED` (§15.2). The same mailer sends both kinds of email.
 
 **Administrator — command-line utility only.** `npm run admin -- create` and `npm run admin -- reset-password` run on the backend host with database access. Passwords are entered at a hidden prompt or piped with `--password-stdin` (never as arguments); the target admin email must be confirmed; the same policy and hashing apply; a reset ends all admin sessions. More than one admin, or none for a reset, is refused. There is no email or HTTP recovery for the administrator.
 

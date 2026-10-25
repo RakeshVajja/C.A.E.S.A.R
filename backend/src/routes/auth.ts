@@ -43,7 +43,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
 
   router.post('/login', limit('login'), async (req, res) => {
     const body = parseBody(loginBody, req.body);
-    const user = await authenticate(body.email, body.password);
+    const user = await authenticate(body.email, body.password, undefined, options.now());
     if (!user) throw new HttpError(401, 'INVALID_CREDENTIALS', 'Invalid email or password');
     setSessionCookie(res, signSessionToken(user.id, user.passwordHash));
     res.json({ user: publicUser(user) });
@@ -60,7 +60,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
 
   router.post('/change-password', limit('changePassword'), requireAuth, async (req, res) => {
     const body = parseBody(changePasswordBody, req.body);
-    const user = await changePassword(req.auth!.user.id, body.currentPassword, body.newPassword);
+    const user = await changePassword(req.auth!.user.id, body.currentPassword, body.newPassword, undefined, options.now());
     // The new password ends every other session; this one continues with a fresh token.
     setSessionCookie(res, signSessionToken(user.id, user.passwordHash));
     res.json({ user: publicUser(user) });

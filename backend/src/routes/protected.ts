@@ -11,6 +11,7 @@ import { createAdminProfessorsRouter } from './adminProfessors';
 import { createMePublicationsRouter } from './mePublications';
 import { createAdminSyncRouter } from './adminSync';
 import { SyncService } from '../services/sync/syncService';
+import { Mailer } from '../services/email/mailer';
 
 /**
  * Protected route groups (Project_plan.md §15.3). Every endpoint inherits the checks mounted here.
@@ -43,7 +44,7 @@ export function createMeRouter(deps: { now: () => Date }): Router {
   return router;
 }
 
-export function createAdminRouter(deps: { identityClients: IdentityClients; now: () => Date; sync: SyncService }): Router {
+export function createAdminRouter(deps: { identityClients: IdentityClients; now: () => Date; sync: SyncService; mailer: Mailer | null }): Router {
   const router = Router();
   router.use(requireAuth, requireRole('ADMIN'), requirePasswordChanged);
   router.use('/professors', createAdminProfessorsRouter(deps));

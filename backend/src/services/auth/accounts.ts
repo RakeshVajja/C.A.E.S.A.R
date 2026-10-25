@@ -31,6 +31,20 @@ export const CLEARED_RECOVERY_CODE = {
   passwordResetAttempts: 0,
 } as const;
 
+/**
+ * An emailed temporary password stops being accepted at its expiry (decision #102). Only checked
+ * after the password itself was verified, so it reveals nothing about unknown accounts.
+ */
+export function isTemporaryPasswordExpired(
+  user: { mustChangePassword: boolean; temporaryPasswordExpiresAt: Date | null },
+  now: Date,
+): boolean {
+  return user.mustChangePassword && user.temporaryPasswordExpiresAt !== null && user.temporaryPasswordExpiresAt.getTime() <= now.getTime();
+}
+
+const temporaryPasswordExpired = () =>
+  new HttpError(403, 'TEMPORARY_PASSWORD_EXPIRED', 'This temporary password has expired. Ask the department administrator to send new sign-in details.');
+
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -54,16 +68,22 @@ export function findAccountByEmail(email: string, client: PrismaClient = default
   return client.user.findUnique({ where: { email: normalizeEmail(email) }, include: userWithProfessor });
 }
 
-/** The account for these credentials, or null (unknown email, wrong password or inactive account). */
+/**
+ * The account for these credentials, or null (unknown email, wrong password or inactive account).
+ * A correct but expired temporary password is refused with TEMPORARY_PASSWORD_EXPIRED (#102).
+ */
 export async function authenticate(
   email: string,
   password: string,
   client: PrismaClient = defaultClient,
+  now: Date = new Date(),
 ): Promise<AccountUser | null> {
   const user = await findAccountByEmail(email, client);
   if (!user) return verifyAgainstDummy(password).then(() => null);
   if (!(await verifyPassword(password, user.passwordHash))) return null;
-  return isAccountActive(user) ? user : null;
+  if (!isAccountActive(user)) return null;
+  if (isTemporaryPasswordExpired(user, now)) throw temporaryPasswordExpired();
+  return user;
 }
 
 /** The account of a session token, or null when the token or the account is no longer valid. */
@@ -81,18 +101,21 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
   client: PrismaClient = defaultClient,
+  now: Date = new Date(),
 ): Promise<AccountUser> {
   const user = await client.user.findUniqueOrThrow({ where: { id: userId } });
   if (!(await verifyPassword(currentPassword, user.passwordHash))) {
     throw new HttpError(400, 'INVALID_CURRENT_PASSWORD', 'The current password is incorrect');
   }
+  // A session opened before the expiry cannot use the expired temporary password either (#102).
+  if (isTemporaryPasswordExpired(user, now)) throw temporaryPasswordExpired();
   await assertNewPassword(newPassword, user.passwordHash);
 
   // Compare-and-set on the old hash: two concurrent changes cannot both succeed. A pending
   // recovery code (and any reset capability bound to it) ends with the change; send limits stay.
   const { count } = await client.user.updateMany({
     where: { id: userId, passwordHash: user.passwordHash },
-    data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, ...CLEARED_RECOVERY_CODE },
+    data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, temporaryPasswordExpiresAt: null, ...CLEARED_RECOVERY_CODE },
   });
   if (count !== 1) throw new HttpError(400, 'INVALID_CURRENT_PASSWORD', 'The current password is incorrect');
   return client.user.findUniqueOrThrow({ where: { id: userId }, include: userWithProfessor });

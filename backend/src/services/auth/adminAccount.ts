@@ -106,7 +106,7 @@ export async function resetAdminPassword(client: PrismaClient, admin: AdminSumma
   const { count } = await client.user.updateMany({
     where: { id: admin.id, role: 'ADMIN', passwordHash: current.passwordHash },
     // Any recovery state on the row is cleared too (administrators cannot use email recovery).
-    data: { passwordHash: await hashPassword(password), mustChangePassword: false, ...CLEARED_RECOVERY_CODE },
+    data: { passwordHash: await hashPassword(password), mustChangePassword: false, temporaryPasswordExpiresAt: null, ...CLEARED_RECOVERY_CODE },
   });
   if (count !== 1) throw new AdminAccountError('The admin account changed; run the command again');
 }

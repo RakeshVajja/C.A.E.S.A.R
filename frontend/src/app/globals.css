@@ -1,26 +1,343 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — design-system/cse-research-hub/MASTER.md §2–§4 ("the departmental register").
+ * Components use only these semantic tokens (bg-surface, text-ink, …), never raw colours.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* White page, warm grey panels (owner request, 2026-10-26). */
+  --canvas: #ffffff;
+  --surface: #f6f5f8;
+  --surface-sunken: #efede7;
+  --field: #ffffff;
+  --border: #d6d3ca;
+  --border-strong: #8c877b;
+  --text: #1a1d24;
+  --text-muted: #545967;
+  --ink: #1e3a5f;
+  --ink-hover: #16304f;
+  --on-ink: #ffffff;
+  --ink-subtle: #e6ecf3;
+  --accent: #8a5a00;
+  --focus: #1d4ed8;
+
+  --success: #166534;
+  --success-bg: #e8f3ec;
+  --warning: #8a4b00;
+  --warning-bg: #fbf0dc;
+  --danger: #b42318;
+  --danger-bg: #fcebe9;
+  --on-danger: #ffffff;
+  --info: #1d4ed8;
+  --info-bg: #e8effc;
+  --neutral: #545967;
+  --neutral-bg: #efede7;
+
+  --src-openalex: #2f5d8a;
+  --src-dblp: #9b3d12;
+  --src-orcid: #4e7a2e;
+  --src-manual: #6b5b95;
+
+  --shadow-overlay: 0 8px 24px rgb(15 23 42 / 0.16);
+  --scrim: rgb(15 23 42 / 0.45);
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Dark theme: follows the system unless the user chose a theme (data-theme on <html>, set by the
+   appearance setting in the More menu before first paint). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --canvas: #000000;
+    --surface: #1a1d23;
+    --surface-sunken: #22262e;
+    --field: #1a1d23;
+    --border: #343943;
+    --border-strong: #6b7280;
+    --text: #ecedef;
+    --text-muted: #a6abb5;
+    --ink: #9db8dc;
+    --ink-hover: #b7cce8;
+    --on-ink: #0e1520;
+    --ink-subtle: #1f2b3c;
+    --accent: #e0b25a;
+    --focus: #93b4f5;
+
+    --success: #7fd19b;
+    --success-bg: #16291e;
+    --warning: #f0b95a;
+    --warning-bg: #2e2312;
+    --danger: #f79a8f;
+    --danger-bg: #33191a;
+    --on-danger: #1a0b0a;
+    --info: #93b4f5;
+    --info-bg: #172238;
+    --neutral: #a6abb5;
+    --neutral-bg: #22262e;
+
+    --src-openalex: #7fa6d6;
+    --src-dblp: #e39a6e;
+    --src-orcid: #93c46a;
+    --src-manual: #b3a3db;
+
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.5);
+    --scrim: rgb(0 0 0 / 0.6);
+    color-scheme: dark;
   }
 }
 
+:root[data-theme="dark"] {
+  --canvas: #000000;
+  --surface: #1a1d23;
+  --surface-sunken: #22262e;
+  --field: #1a1d23;
+  --border: #343943;
+  --border-strong: #6b7280;
+  --text: #ecedef;
+  --text-muted: #a6abb5;
+  --ink: #9db8dc;
+  --ink-hover: #b7cce8;
+  --on-ink: #0e1520;
+  --ink-subtle: #1f2b3c;
+  --accent: #e0b25a;
+  --focus: #93b4f5;
+
+  --success: #7fd19b;
+  --success-bg: #16291e;
+  --warning: #f0b95a;
+  --warning-bg: #2e2312;
+  --danger: #f79a8f;
+  --danger-bg: #33191a;
+  --on-danger: #1a0b0a;
+  --info: #93b4f5;
+  --info-bg: #172238;
+  --neutral: #a6abb5;
+  --neutral-bg: #22262e;
+
+  --src-openalex: #7fa6d6;
+  --src-dblp: #e39a6e;
+  --src-orcid: #93c46a;
+  --src-manual: #b3a3db;
+
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-field: var(--field);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-ink: var(--ink);
+  --color-ink-hover: var(--ink-hover);
+  --color-on-ink: var(--on-ink);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-accent: var(--accent);
+  --color-focus: var(--focus);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-on-danger: var(--on-danger);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-neutral: var(--neutral);
+  --color-neutral-bg: var(--neutral-bg);
+  --color-src-openalex: var(--src-openalex);
+  --color-src-dblp: var(--src-dblp);
+  --color-src-orcid: var(--src-orcid);
+  --color-src-manual: var(--src-manual);
+
+  /* San Francisco on Apple platforms (SF Pro Text/Display chosen by size); native UI fonts elsewhere. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-serif: var(--font-source-serif), Georgia, serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --shadow-overlay: var(--shadow-overlay);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 24px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Headings focused programmatically after navigation (tabindex="-1") show no ring. */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+::selection {
+  background: var(--ink-subtle);
+  color: var(--text);
+}
+
+/* Motion budget (MASTER §7): functional transitions only; none when reduced motion is requested. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation: none !important;
+  }
+}
+
+@layer components {
+  /* Inputs: 40px, 16px text, strong outline (≥ 3:1). */
+  .input {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    padding: 7px 12px;
+    font-size: 16px;
+    line-height: 24px;
+    color: var(--text);
+    background: var(--field);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+  }
+  .input:disabled,
+  .input[readonly] {
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+  }
+  .input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+  select.input {
+    appearance: none;
+    padding-right: 36px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+      linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+  }
+  textarea.input {
+    min-height: 88px;
+  }
+
+  /* Data tables (MASTER §6.1): real tables, stacked rows below 768px. */
+  .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .data-table th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--ink-subtle);
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .data-table tbody tr:hover td {
+    background: color-mix(in srgb, var(--canvas) 70%, var(--surface));
+  }
+  .data-table tbody tr[data-selected="true"] td {
+    background: var(--ink-subtle);
+  }
+  .data-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 767px) {
+    .data-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .data-table,
+    .data-table tbody,
+    .data-table tr,
+    .data-table td {
+      display: block;
+      width: 100%;
+    }
+    .data-table caption {
+      display: block;
+      width: 100%;
+    }
+    .data-table tr {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table tbody tr:last-child {
+      border-bottom: 0;
+    }
+    /* Row states apply to the whole stacked block, not to each cell. */
+    .data-table tbody tr:hover td,
+    .data-table tbody tr[data-selected="true"] td {
+      background: transparent;
+    }
+    .data-table tbody tr[data-selected="true"] {
+      background: var(--ink-subtle);
+    }
+    .data-table td {
+      padding: 4px 0;
+      border: 0;
+    }
+    .data-table .num {
+      text-align: left;
+    }
+    .data-table td[data-label]:not(.no-label) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 6px;
+    }
+    .data-table td[data-label]::before {
+      content: attr(data-label) ":";
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .data-table td[data-label=""]::before,
+    .data-table td.no-label::before {
+      content: none;
+    }
+  }
 }

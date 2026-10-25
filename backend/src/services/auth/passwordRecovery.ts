@@ -191,7 +191,7 @@ export async function resetPasswordWithRecovery(token: string, newPassword: stri
   await assertNewPassword(newPassword, user.passwordHash);
   const { count } = await client.user.updateMany({
     where: { id: user.id, passwordResetCodeHash: user.passwordResetCodeHash, passwordResetLastSentAt: user.passwordResetLastSentAt },
-    data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, ...CLEARED_RECOVERY_CODE },
+    data: { passwordHash: await hashPassword(newPassword), mustChangePassword: false, temporaryPasswordExpiresAt: null, ...CLEARED_RECOVERY_CODE },
   });
   if (count !== 1) throw invalidReset();
 }

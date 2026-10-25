@@ -135,6 +135,10 @@ model User {
   passwordResetLastSentAt DateTime? @map("password_reset_last_sent_at") @db.Timestamptz(3)
   passwordResetSendCount  Int       @default(0) @map("password_reset_send_count")
 
+  // Emailed temporary password of a professor account that is not yet activated (decision #102):
+  // when it stops being accepted. NULL once the professor has chosen their own password.
+  temporaryPasswordExpiresAt DateTime? @map("temporary_password_expires_at") @db.Timestamptz(3)
+
   professor            Professor?
   createdSourceRecords PublicationSourceRecord[] @relation("SourceRecordCreatedBy")
   decidedRelationships ProfessorPublication[]    @relation("RelationshipDecidedBy")

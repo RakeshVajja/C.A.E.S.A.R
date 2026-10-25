@@ -43,7 +43,7 @@ The backend validates its environment at startup and exits with a clear message 
 
 ## Authentication
 
-Backend only for now (the login and recovery screens come in Phase 14). Sessions are an HTTP-only cookie holding an 8-hour token.
+Sessions are an HTTP-only cookie holding an 8-hour token. The frontend (`frontend/`, Phase 14) provides sign-in, the forced password change, password recovery and every professor and administrator screen; it calls these endpoints from the browser with `credentials: 'include'`, so the frontend and backend must be served from the same site and `CORS_ORIGIN` must be the frontend's origin.
 
 | Endpoint | Purpose |
 |---|---|
@@ -61,7 +61,7 @@ Recovery codes expire after 10 minutes; at most one code per minute and 5 per ho
 
 ### Professor management (admin)
 
-`/api/admin/professors` lists, creates (with a login account and a one-time temporary password the admin hands over), edits and activates/deactivates professors (never deletes them). `POST /api/admin/professors/:id/account` adds an account to a professor without one. External identities are previewed first — `POST …/:id/identities/preview` with `{ source: "OPENALEX" | "DBLP" | "ORCID", externalId }` checks the identity with the source and writes nothing — then saved with the returned `previewToken` (`POST …/:id/identities`, valid 15 minutes). Deactivating or deleting an identity removes the PENDING publication links it discovered; approved and rejected ones stay. Professors can read their own profile and change their name at `/api/me/profile`.
+`/api/admin/professors` lists, creates (with a login account), edits and activates/deactivates professors (never deletes them). `POST /api/admin/professors/:id/account` adds an account to a professor without one. The professor's temporary password is emailed to them through the configured SMTP (valid 7 days, must be changed at first sign-in); the administrator never sees it and only gets the delivery status (`SENT`, `FAILED`, `NOT_CONFIGURED`). `POST /api/admin/professors/:id/account/invitation` sends new sign-in details to an account that is not yet activated; the previous temporary password stops working. External identities are previewed first — `POST …/:id/identities/preview` with `{ source: "OPENALEX" | "DBLP" | "ORCID", externalId }` checks the identity with the source and writes nothing — then saved with the returned `previewToken` (`POST …/:id/identities`, valid 15 minutes). Deactivating or deleting an identity removes the PENDING publication links it discovered; approved and rejected ones stay. Professors can read their own profile and change their name at `/api/me/profile`.
 
 ### Verifying publications (professors)
 

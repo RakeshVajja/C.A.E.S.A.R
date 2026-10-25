@@ -5,6 +5,7 @@ import { DblpClient } from '../../src/integrations/dblp/client';
 import { OpenAlexClient } from '../../src/integrations/openalex/client';
 import { OrcidClient } from '../../src/integrations/orcid/client';
 import type { IdentityClients } from '../../src/services/identities/identities';
+import type { Mailer, MailMessage } from '../../src/services/email/mailer';
 import { cookiePair, createUser, PASSWORD } from '../auth/helpers';
 import { loadFixture, noSleep, replayFetch, Route } from '../helpers/fixtures';
 
@@ -28,9 +29,16 @@ export function replayIdentityClients(overrides: Record<string, Route> = {}) {
   return { clients, calls: replay.calls };
 }
 
-export function adminApp(options: { overrides?: Record<string, Route>; now?: () => Date } = {}) {
+export function adminApp(options: { overrides?: Record<string, Route>; now?: () => Date; mailer?: Mailer | null } = {}) {
   const { clients, calls } = replayIdentityClients(options.overrides);
-  return { server: createApp({ mailer: null, identityClients: clients, now: options.now }), calls };
+  return { server: createApp({ mailer: options.mailer ?? null, identityClients: clients, now: options.now }), calls };
+}
+
+/** The temporary password in an emailed sign-in message (decision #102). */
+export function temporaryPasswordOf(message: MailMessage | undefined): string {
+  const match = /Temporary password: (\S+)/.exec(message?.text ?? '');
+  if (!match) throw new Error('No temporary password in the email');
+  return match[1];
 }
 
 /** An administrator session cookie for `server`. */

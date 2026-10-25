@@ -37,11 +37,13 @@ export function createApp(options: AppOptions = {}): Express {
   app.use(cookieParser());
 
   const now = options.now ?? (() => new Date());
+  // One mailer for recovery codes and professor sign-in details; null without SMTP configuration.
+  const mailer = options.mailer !== undefined ? options.mailer : env.smtp ? createSmtpMailer(env.smtp) : null;
   app.use('/api/health', healthRouter);
   app.use(
     '/api/auth',
     createAuthRouter({
-      mailer: options.mailer !== undefined ? options.mailer : env.smtp ? createSmtpMailer(env.smtp) : null,
+      mailer,
       now,
       limiter: new RateLimiter(() => now().getTime()),
       limits: { ...DEFAULT_AUTH_RATE_LIMITS, ...options.rateLimits },
@@ -49,7 +51,7 @@ export function createApp(options: AppOptions = {}): Express {
   );
   app.use('/api/me', createMeRouter({ now }));
   const sync = options.sync ?? new SyncService({ clients: createSyncClients(), now });
-  app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now, sync }));
+  app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now, sync, mailer }));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
