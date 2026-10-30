@@ -36,7 +36,7 @@ const RESEND_RULE: RateLimitRule = { windowMs: 10 * 60 * 1000, max: 3 };
 const name = z.string().trim().min(1).max(200);
 const optionalText = z.string().trim().max(200).nullable().optional().transform((v) => (v === '' ? null : v));
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
-const source = z.enum(['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS']);
+const source = z.enum(['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS', 'WOS']);
 
 const createBody = z.strictObject({ name, department: optionalText, designation: optionalText, email });
 const updateBody = z
@@ -48,7 +48,7 @@ const previewBody = z.strictObject({ source, externalId: z.string().trim().min(1
 const saveBody = z.strictObject({ previewToken: z.string().min(1).max(4096) });
 /** Manual verification from public profile evidence (decision #118): Scopus only in stage 15.3. */
 const manualBody = z.strictObject({
-  source: z.enum(['SCOPUS']),
+  source: z.enum(['SCOPUS', 'WOS']),
   externalId: z.string().trim().min(1).max(200),
   evidenceUrl: z.string().trim().min(1).max(500),
 });

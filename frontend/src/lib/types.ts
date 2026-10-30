@@ -115,6 +115,8 @@ export interface IdentityPreview {
     // Scopus
     authorId?: string;
     documentCount?: number | null;
+    // Web of Science
+    researcherId?: string;
     recentWorks?: { title: string | null; year: number | null }[];
     profileUrl: string;
   };

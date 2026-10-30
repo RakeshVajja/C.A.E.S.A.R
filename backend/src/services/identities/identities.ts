@@ -6,6 +6,7 @@ import { FetchError, SourceHttpConfig } from '../../integrations/http/httpClient
 import { normalizeOpenAlexAuthorId, OpenAlexClient } from '../../integrations/openalex/client';
 import { normalizeOrcidId, OrcidClient } from '../../integrations/orcid/client';
 import { normalizeScopusAuthorId, ScopusClient, scopusAuthorIdFromUrl, scopusProfileUrl } from '../../integrations/scopus/client';
+import { normalizeResearcherId, researcherIdFromProfileUrl, WosStarterClient, wosProfileUrl } from '../../integrations/wos/client';
 import { HttpError } from '../../utils/httpError';
 import { IDENTITY_PREVIEW_TTL_SECONDS, signIdentityPreviewToken, verifyIdentityPreviewToken } from '../auth/tokens';
 
@@ -27,6 +28,11 @@ import { IDENTITY_PREVIEW_TTL_SECONDS, signIdentityPreviewToken, verifyIdentityP
  * public Scopus profile and submits its URL as evidence (`registerManualIdentity`). The method,
  * evidence URL and administrator are recorded. Every synchronization revalidates the identity with
  * the Scopus API before accepting any record. Identities are never transferred between professors.
+ *
+ * Web of Science (stage 15.4): a ResearcherID is verified the same two ways — the API preview (only
+ * with Starter credentials; it shows the documents found by `AI=` and the author name they carry)
+ * or manually from the author's Web of Science author-record URL. Every synchronization revalidates
+ * it through the documents: only documents whose author list carries the ResearcherID are accepted.
  */
 
 export interface IdentityClients {
@@ -35,6 +41,8 @@ export interface IdentityClients {
   orcid: OrcidClient;
   /** Only when Scopus credentials are configured; without it, Scopus identities are verified manually. */
   scopus?: ScopusClient | null;
+  /** Only when Web of Science Starter credentials are configured; otherwise verified manually. */
+  wos?: WosStarterClient | null;
 }
 
 /** Interactive previews fail fast instead of using the synchronization retry budget (#68). */
@@ -48,6 +56,7 @@ export function createPreviewClients(): IdentityClients {
     scopus: env.providerCredentials.scopus
       ? new ScopusClient({ apiKey: env.providerCredentials.scopus.apiKey, instToken: env.providerCredentials.scopus.instToken, http: PREVIEW_HTTP })
       : null,
+    wos: env.providerCredentials.wosStarter ? new WosStarterClient({ apiKey: env.providerCredentials.wosStarter.apiKey, http: PREVIEW_HTTP }) : null,
   };
 }
 
@@ -59,12 +68,11 @@ const SOURCE_LABEL: Record<IdentitySource, string> = {
   WOS: 'Web of Science ResearcherID',
 };
 
-/** Sources whose identities can be previewed and saved today; WoS follows in Phase 15.4. */
-type PreviewableSource = 'OPENALEX' | 'DBLP' | 'ORCID' | 'SCOPUS';
+/** Sources whose identities can be previewed and saved: all five since stage 15.4. */
+type PreviewableSource = IdentitySource;
 
 function previewableSource(source: IdentitySource): PreviewableSource {
-  if (source === 'OPENALEX' || source === 'DBLP' || source === 'ORCID' || source === 'SCOPUS') return source;
-  throw new HttpError(400, 'SOURCE_NOT_AVAILABLE', `${SOURCE_LABEL[source]} identities cannot be added yet`);
+  return source;
 }
 const RECENT_WORKS = 5;
 
@@ -75,6 +83,7 @@ export function normalizeIdentifier(source: IdentitySource, value: string): stri
     if (previewable === 'OPENALEX') return normalizeOpenAlexAuthorId(value);
     if (previewable === 'DBLP') return normalizeDblpPid(value);
     if (previewable === 'SCOPUS') return normalizeScopusAuthorId(value);
+    if (previewable === 'WOS') return normalizeResearcherId(value);
     return normalizeOrcidId(value);
   } catch (error) {
     if (error instanceof FetchError) {
@@ -92,7 +101,13 @@ export function normalizeIdentifier(source: IdentitySource, value: string): stri
 function sourceFailure(source: IdentitySource, error: unknown): never {
   if (error instanceof FetchError) {
     if (error.kind === 'IDENTITY_NOT_FOUND') {
-      throw new HttpError(422, 'IDENTITY_NOT_FOUND', `${SOURCE_LABEL[source]} does not exist at the source`);
+      throw new HttpError(
+        422,
+        'IDENTITY_NOT_FOUND',
+        source === 'WOS'
+          ? 'No Web of Science document is linked to this ResearcherID, so it cannot be checked through the API; verify it manually from the author’s Web of Science record'
+          : `${SOURCE_LABEL[source]} does not exist at the source`,
+      );
     }
     console.warn(`Identity preview: ${source} ${error.kind}${error.details.status ? ` (HTTP ${error.details.status})` : ''}: ${error.message}`);
     if (error.kind === 'IDENTITY_INVALID') throw new HttpError(422, 'IDENTITY_INVALID', invalidIdentityMessage(source, error.details.status));
@@ -119,6 +134,9 @@ function invalidIdentityMessage(source: IdentitySource, status: number | undefin
   if (source === 'ORCID' && status === 409) return 'This ORCID record is deactivated or locked and cannot be used';
   if (source === 'ORCID' && status !== undefined && status >= 300 && status < 400) {
     return 'This ORCID iD is deprecated (merged into another record); use the record\'s current iD';
+  }
+  if (source === 'WOS') {
+    return 'The Web of Science documents found for this ResearcherID do not list it among their authors; check the ResearcherID on the author’s Web of Science record';
   }
   if (source === 'SCOPUS' && (status === 300 || status === 301)) {
     return 'Scopus has replaced this Author ID (the profile was merged); check the author\'s current Scopus profile and use its Author ID';
@@ -159,6 +177,26 @@ async function sourceDetails(source: PreviewableSource, externalId: string, clie
       // Author name and document count only: nothing is stored by a preview.
       const author = await clients.scopus.validateAuthor(externalId);
       return { authorId: author.authorId, name: author.name, documentCount: author.documentCount, profileUrl: author.profileUrl };
+    }
+    if (source === 'WOS') {
+      if (!clients.wos) {
+        throw new HttpError(
+          409,
+          'PROVIDER_NOT_CONFIGURED',
+          'Web of Science API credentials are not configured, so this ResearcherID cannot be checked automatically; verify it manually from the author\'s Web of Science record',
+        );
+      }
+      // Author name and document count only: nothing is stored by a preview (and no Times Cited is shown).
+      const researcher = await clients.wos.previewResearcher(externalId);
+      return {
+        researcherId: researcher.researcherId,
+        name: researcher.name,
+        documentCount: researcher.documentCount,
+        profileUrl: researcher.profileUrl,
+        warning:
+          'Web of Science finds the documents linked to this ResearcherID, which may not be every publication of the researcher; ' +
+          'only documents whose author list carries the ResearcherID are attributed.',
+      };
     }
     const works = await clients.orcid.fetchWorks(externalId);
     const person = await clients.orcid.fetchPersonName(externalId);
@@ -215,7 +253,23 @@ export async function previewIdentity(
 }
 
 /** Sources that may be verified manually from public profile evidence (decision #118). */
-const MANUALLY_VERIFIABLE = new Set<IdentitySource>(['SCOPUS']);
+const MANUALLY_VERIFIABLE = new Set<IdentitySource>(['SCOPUS', 'WOS']);
+
+/** How each manually verifiable source's profile evidence is read and stored. */
+const PROFILE_EVIDENCE: Partial<Record<IdentitySource, { idFromUrl: (url: string) => string | null; canonicalUrl: (id: string) => string; invalid: string; mismatch: string }>> = {
+  SCOPUS: {
+    idFromUrl: scopusAuthorIdFromUrl,
+    canonicalUrl: scopusProfileUrl,
+    invalid: 'The evidence must be the author\'s Scopus profile URL, e.g. https://www.scopus.com/authid/detail.uri?authorId=…',
+    mismatch: 'The Scopus profile URL names a different Author ID than the one entered',
+  },
+  WOS: {
+    idFromUrl: researcherIdFromProfileUrl,
+    canonicalUrl: wosProfileUrl,
+    invalid: 'The evidence must be the author\'s Web of Science record URL naming the ResearcherID, e.g. https://www.webofscience.com/wos/author/record/A-1009-2008',
+    mismatch: 'The Web of Science record URL names a different ResearcherID than the one entered',
+  },
+};
 
 const identityOutput = {
   id: true,
@@ -230,11 +284,11 @@ const identityOutput = {
 
 /**
  * Registers an identity verified manually by the administrator from the provider's public profile
- * (decision #118; Scopus only in stage 15.3). The evidence must be the author's profile URL on
- * scopus.com naming the same Author ID. Records MANUAL_PROFILE, the evidence URL, the administrator
- * and the time. No external request is made here; the first synchronization revalidates the
- * identity with the Scopus API before accepting any record. An identity already assigned (to this
- * or another professor) is refused, never transferred.
+ * (decision #118): Scopus (the author's profile URL on scopus.com naming the same Author ID) and
+ * Web of Science (the author-record URL on webofscience.com naming the same ResearcherID). Records
+ * MANUAL_PROFILE, the evidence URL, the administrator and the time. No external request is made
+ * here; every synchronization revalidates the identity with the provider before accepting any
+ * record. An identity already assigned (to this or another professor) is refused, never transferred.
  */
 export async function registerManualIdentity(
   professorId: string,
@@ -246,13 +300,10 @@ export async function registerManualIdentity(
     throw new HttpError(400, 'SOURCE_NOT_AVAILABLE', `${SOURCE_LABEL[input.source]} identities cannot be verified manually`);
   }
   const externalId = normalizeIdentifier(input.source, input.externalId);
-  const evidenceId = scopusAuthorIdFromUrl(input.evidenceUrl);
-  if (evidenceId === null) {
-    throw new HttpError(400, 'INVALID_EVIDENCE', 'The evidence must be the author\'s Scopus profile URL, e.g. https://www.scopus.com/authid/detail.uri?authorId=…');
-  }
-  if (evidenceId !== externalId) {
-    throw new HttpError(400, 'EVIDENCE_MISMATCH', 'The Scopus profile URL names a different Author ID than the one entered');
-  }
+  const evidence = PROFILE_EVIDENCE[input.source]!;
+  const evidenceId = evidence.idFromUrl(input.evidenceUrl);
+  if (evidenceId === null) throw new HttpError(400, 'INVALID_EVIDENCE', evidence.invalid);
+  if (evidenceId !== externalId) throw new HttpError(400, 'EVIDENCE_MISMATCH', evidence.mismatch);
   await requireProfessor(client, professorId);
   try {
     return await client.externalIdentity.create({
@@ -263,7 +314,7 @@ export async function registerManualIdentity(
         verifiedAt: deps.now(),
         verificationMethod: 'MANUAL_PROFILE',
         // Stored in canonical form, so the evidence always names exactly the stored identifier.
-        verificationEvidenceUrl: scopusProfileUrl(externalId),
+        verificationEvidenceUrl: evidence.canonicalUrl(externalId),
         verifiedByUserId: deps.verifiedByUserId,
       },
       select: identityOutput,

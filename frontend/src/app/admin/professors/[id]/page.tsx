@@ -328,8 +328,26 @@ const SOURCE_HINT: Record<IdentitySource, string> = {
   DBLP: "DBLP person ID (PID), e.g. v/MosheYVardi or https://dblp.org/pid/v/MosheYVardi",
   ORCID: "ORCID iD, e.g. 0000-0002-0661-5773",
   SCOPUS: "Scopus Author ID, e.g. 7004212771, or the author’s Scopus profile URL",
-  // Not offered in the form until its integration exists (Phase 15.4).
-  WOS: "Web of Science ResearcherID, e.g. A-1009-2008",
+  WOS: "Web of Science ResearcherID, e.g. A-1009-2008, or the author’s Web of Science record URL",
+};
+
+/**
+ * Licensed providers whose identities can also be verified manually from the author's public
+ * profile when their API is not configured (decision #118).
+ */
+const PROFILE_EVIDENCE: Partial<Record<IdentitySource, { provider: string; idLabel: string; urlLabel: string; placeholder: string }>> = {
+  SCOPUS: {
+    provider: "Scopus",
+    idLabel: "Scopus Author ID",
+    urlLabel: "Scopus profile URL",
+    placeholder: "https://www.scopus.com/authid/detail.uri?authorId=…",
+  },
+  WOS: {
+    provider: "Web of Science",
+    idLabel: "Web of Science ResearcherID",
+    urlLabel: "Web of Science record URL",
+    placeholder: "https://www.webofscience.com/wos/author/record/…",
+  },
 };
 
 function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetail; onChanged: () => void }) {
@@ -377,7 +395,7 @@ function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetai
       </SectionTitle>
       <p className="mb-3 max-w-[72ch] text-[13px] leading-5 text-text-muted">
         Synchronization collects publications through these identities. A professor may have several per source. An identity is saved after it is checked
-        with its source, or — for Scopus without API access — after an administrator verifies it from the author’s Scopus profile. Synchronization checks each
+        with its source, or — for Scopus and Web of Science without API access — after an administrator verifies it from the author’s public profile. Synchronization checks each
         identity with its source again before accepting publications.
       </p>
       <div className="flex flex-col gap-4">
@@ -394,7 +412,7 @@ function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetai
         )}
         <Panel>
           {professor.identities.length === 0 ? (
-            <EmptyState>No identities yet. Add an OpenAlex, DBLP, ORCID or Scopus identity so this professor’s publications can be collected.</EmptyState>
+            <EmptyState>No identities yet. Add an OpenAlex, DBLP, ORCID, Scopus or Web of Science identity so this professor’s publications can be collected.</EmptyState>
           ) : (
             <div className="overflow-x-auto">
               <table className="data-table">
@@ -500,11 +518,14 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
   const [busy, setBusy] = useState<"preview" | "save" | "manual" | null>(null);
   const errors = useFormErrors();
 
-  /** Scopus without API credentials: the administrator verifies from the public profile (decision #118). */
+  const evidence = PROFILE_EVIDENCE[source];
+
+  /** Scopus or Web of Science without API credentials: the administrator verifies from the public profile (decision #118). */
   async function saveManually() {
+    if (!evidence) return;
     const local: Record<string, string> = {};
-    if (!externalId.trim()) local.externalId = "Enter the Scopus Author ID";
-    if (!evidenceUrl.trim()) local.evidenceUrl = "Enter the author’s Scopus profile URL";
+    if (!externalId.trim()) local.externalId = `Enter the ${evidence.idLabel}`;
+    if (!evidenceUrl.trim()) local.evidenceUrl = `Enter the author’s ${evidence.urlLabel}`;
     if (Object.keys(local).length > 0) return errors.setLocal(local);
     errors.clear();
     setBusy("manual");
@@ -553,7 +574,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
         <ErrorSummary
           errors={errors.fields}
           formError={errors.form}
-          labels={{ externalId: "Identifier", source: "Source", evidenceUrl: "Scopus profile URL" }}
+          labels={{ externalId: "Identifier", source: "Source", evidenceUrl: evidence?.urlLabel ?? "Profile URL" }}
           fieldIds={{ externalId: "id-value", source: "id-source", evidenceUrl: "id-evidence" }}
           summaryRef={errors.summaryRef}
         />
@@ -566,6 +587,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
                 value={source}
                 onChange={(e) => {
                   setSource(e.target.value as IdentitySource);
+                  setEvidenceUrl("");
                   setPreview(null);
                 }}
               >
@@ -573,6 +595,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
                 <option value="DBLP">DBLP</option>
                 <option value="ORCID">ORCID</option>
                 <option value="SCOPUS">Scopus</option>
+                <option value="WOS">Web of Science</option>
               </select>
             )}
           </Field>
@@ -592,11 +615,15 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
             )}
           </Field>
         </div>
-        {source === "SCOPUS" && (
+        {evidence && (
           <Field
             id="id-evidence"
-            label="Scopus profile URL"
-            hint="Needed to save without the Scopus API: open the author’s Scopus profile, confirm it is this professor, and paste its URL. The next synchronization checks the Author ID with Scopus before accepting any publication."
+            label={evidence.urlLabel}
+            hint={
+              source === "WOS"
+                ? "Needed to save without the Web of Science API: open the author’s Web of Science record, confirm it is this professor, and paste its URL (it must contain the ResearcherID). Each synchronization accepts only documents that list this ResearcherID among their authors."
+                : "Needed to save without the Scopus API: open the author’s Scopus profile, confirm it is this professor, and paste its URL. The next synchronization checks the Author ID with Scopus before accepting any publication."
+            }
             error={errors.fields.evidenceUrl}
           >
             {(f) => (
@@ -607,7 +634,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
                 inputMode="url"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="https://www.scopus.com/authid/detail.uri?authorId=…"
+                placeholder={evidence.placeholder}
                 value={evidenceUrl}
                 onChange={(e) => setEvidenceUrl(e.target.value)}
               />
@@ -618,7 +645,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
           <Button type="submit" loading={busy === "preview"} loadingLabel="Checking with the source…" disabled={busy === "save" || busy === "manual"}>
             Check identity
           </Button>
-          {source === "SCOPUS" && (
+          {evidence && (
             <Button onClick={() => void saveManually()} loading={busy === "manual"} loadingLabel="Saving…" disabled={busy === "preview" || busy === "save"}>
               Save as verified from profile
             </Button>
@@ -645,7 +672,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
             )}
             {p.documentCount !== undefined && p.documentCount !== null && (
               <>
-                <dt className="text-text-muted">Documents at source</dt>
+                <dt className="text-text-muted">{p.source === "WOS" ? "Documents found by ResearcherID" : "Documents at source"}</dt>
                 <dd className="tabular-nums">{formatNumber(p.documentCount)}</dd>
               </>
             )}

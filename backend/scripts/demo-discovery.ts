@@ -47,9 +47,10 @@ const DISCOVER: Record<IdentitySource, (identityId: string) => Promise<Discovery
   DBLP: (id) => discoverDblpIdentity(id),
   ORCID: (id) => discoverOrcidIdentity(id),
   // Licensed providers are never run from this demo against live APIs (Project_plan.md §13.10):
-  // Scopus synchronization runs only through the sync engine once entitlement is confirmed.
+  // Scopus and Web of Science synchronization runs only through the sync engine, once entitlement
+  // (and, for Clarivate data, the §22.6 gate) is confirmed.
   SCOPUS: () => Promise.reject(new Error('Scopus is not run from the demo script (licensed data; use the synchronization)')),
-  WOS: () => Promise.reject(new Error('Web of Science discovery is not available yet (Phase 15.4)')),
+  WOS: () => Promise.reject(new Error('Web of Science is not run from the demo script (licensed data; use the synchronization)')),
 };
 
 const METHOD_LABEL: Record<string, string> = {
