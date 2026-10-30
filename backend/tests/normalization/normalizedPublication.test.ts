@@ -34,6 +34,7 @@ describe('buildNormalizedPublication (§7)', () => {
       typeFamily: 'JOURNAL',
       isPreprint: false,
       authorNamesDisplay: 'Heather Piwowar, Jason Priem',
+      issns: [],
       rawMetadata: { id: 'W2741809807' },
     });
   });

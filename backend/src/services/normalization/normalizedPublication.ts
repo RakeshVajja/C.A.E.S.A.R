@@ -1,5 +1,6 @@
 import type { PublicationSource, TypeFamily } from '@prisma/client';
 import { normalizeDois } from './doi';
+import { normalizeIssns } from './issn';
 import { NUL, replaceNul } from './nul';
 import { JsonValue, stripExcludedContent } from './rawMetadata';
 import { normalizeTitle } from './title';
@@ -18,6 +19,8 @@ export interface NormalizedPublication {
   /** Always equal to typeFamily === 'PREPRINT'; preprint detection happens in the type-family mapping. */
   isPreprint: boolean;
   authorNamesDisplay: string | null;
+  /** Normalized, de-duplicated, sorted ISSNs of the record's journal (for journal linking, stage 15.6). */
+  issns: string[];
   rawMetadata: JsonValue | null;
 }
 
@@ -31,6 +34,8 @@ export interface PublicationInput {
   venue?: string | null;
   typeFamily: TypeFamily;
   authorNamesDisplay?: string | null;
+  /** The ISSNs the source reports for the record's journal (normalized here; invalid ones dropped). */
+  issns?: ReadonlyArray<string | null | undefined>;
   rawMetadata?: unknown;
 }
 
@@ -85,6 +90,7 @@ export function buildNormalizedPublication(input: PublicationInput): NormalizedP
     typeFamily: input.typeFamily,
     isPreprint: input.typeFamily === 'PREPRINT',
     authorNamesDisplay: cleanText(input.authorNamesDisplay),
+    issns: normalizeIssns(input.issns ?? []),
     rawMetadata: input.rawMetadata === undefined ? null : stripExcludedContent(input.rawMetadata),
   };
 }

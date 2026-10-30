@@ -22,6 +22,7 @@ describe('loadEnv', () => {
       smtp: null,
       syncCron: '0 2 1 * *',
       syncTimezone: 'Asia/Kolkata',
+      jcrSyncCron: '0 3 15 * *',
       providerCredentials: { scopus: null, wosStarter: null, wosJournals: null, issues: [] },
     });
   });

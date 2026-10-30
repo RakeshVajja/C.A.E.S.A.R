@@ -10,7 +10,9 @@ import type { OrcidWorkSummary } from './types';
  * - DOIs: only external identifiers of type doi with relationship "self" (part-of/version-of ignored);
  * - title: title.title.value only; the subtitle stays in raw_metadata (decision #44);
  * - year: publication-date.year when present, otherwise unknown;
- * - venue: journal-title; author names: not in summaries (null).
+ * - venue: journal-title; author names: not in summaries (null);
+ * - ISSNs (stage 15.6): external identifiers of type issn/eissn with relationship "part-of" (the
+ *   journal the work is part of).
  */
 export function mapOrcidWorkSummary(orcid: string, summary: OrcidWorkSummary): PublicationInput {
   const selfDois = (summary['external-ids']?.['external-id'] ?? [])
@@ -29,6 +31,18 @@ export function mapOrcidWorkSummary(orcid: string, summary: OrcidWorkSummary): P
     venue: summary['journal-title']?.value ?? null,
     typeFamily: orcidTypeFamily(summary.type),
     authorNamesDisplay: null,
+    issns: orcidIssns(summary),
     rawMetadata: summary,
   };
+}
+
+/** Journal ISSNs of a work summary (raw or stored raw_metadata, read defensively). */
+export function orcidIssns(summary: unknown): string[] {
+  const ids = (summary as { 'external-ids'?: { 'external-id'?: unknown } | null } | null)?.['external-ids']?.['external-id'];
+  if (!Array.isArray(ids)) return [];
+  return ids
+    .filter((id): id is Record<string, unknown> => id !== null && typeof id === 'object')
+    .filter((id) => /^e?issn$/i.test(String(id['external-id-type'] ?? '')) && id['external-id-relationship'] === 'part-of')
+    .map((id) => id['external-id-value'])
+    .filter((value): value is string => typeof value === 'string');
 }

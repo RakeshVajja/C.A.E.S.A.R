@@ -9,6 +9,11 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 /** 02:00 on the 1st of every month (decision #81; the exact time was deferred to Phase 12). */
 export const DEFAULT_SYNC_CRON = '0 2 1 * *';
 export const DEFAULT_SYNC_TIMEZONE = 'Asia/Kolkata';
+/**
+ * Journal Citation Reports refresh (stage 15.6, decision #123: its own schedule): 03:00 on the 15th
+ * of every month, away from the discovery run on the 1st. Same time zone as SYNC_TIMEZONE.
+ */
+export const DEFAULT_JCR_SYNC_CRON = '0 3 15 * *';
 
 function isTimeZone(value: string): boolean {
   try {
@@ -64,6 +69,9 @@ const envSchema = z
     SYNC_TIMEZONE: optionalText
       .transform((value) => value ?? DEFAULT_SYNC_TIMEZONE)
       .refine(isTimeZone, 'SYNC_TIMEZONE must be an IANA time zone such as Asia/Kolkata'),
+    JCR_SYNC_CRON: optionalText
+      .transform((value) => value ?? DEFAULT_JCR_SYNC_CRON)
+      .refine((value) => cron.validate(value), 'JCR_SYNC_CRON must be a valid cron expression'),
   })
   .superRefine((value, ctx) => {
     const smtpKeys = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM'] as const;
@@ -103,6 +111,8 @@ export interface Env {
   smtp: SmtpConfig | null;
   syncCron: string;
   syncTimezone: string;
+  /** Journal Citation Reports refresh schedule (in syncTimezone). */
+  jcrSyncCron: string;
   /** Licensed provider credentials; null = that provider is NOT_CONFIGURED (§13.9). */
   providerCredentials: ProviderCredentials;
 }
@@ -156,6 +166,7 @@ export function loadEnv(source: NodeJS.ProcessEnv): Env {
         : null,
     syncCron: data.SYNC_CRON,
     syncTimezone: data.SYNC_TIMEZONE,
+    jcrSyncCron: data.JCR_SYNC_CRON,
     providerCredentials: {
       scopus: data.SCOPUS_API_KEY ? { apiKey: data.SCOPUS_API_KEY, instToken: data.SCOPUS_INST_TOKEN } : null,
       wosStarter: data.WOS_STARTER_API_KEY ? { apiKey: data.WOS_STARTER_API_KEY } : null,

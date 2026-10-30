@@ -2,7 +2,7 @@ import { createApp } from './app';
 import { configurationWarnings, providerConfiguration } from './services/providers/providerStatus';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { env } from './config/env';
-import { startSyncScheduler } from './services/sync/scheduler';
+import { startJournalMetricsScheduler, startSyncScheduler } from './services/sync/scheduler';
 import { createSyncClients, recoverInterruptedRuns, SyncService } from './services/sync/syncService';
 
 async function startServer(): Promise<void> {
@@ -29,10 +29,12 @@ async function startServer(): Promise<void> {
   const recovered = await recoverInterruptedRuns(new Date());
   if (recovered > 0) console.warn(`Marked ${recovered} interrupted synchronization run(s) as FAILED`);
 
-  // One synchronization engine per process, shared by the admin trigger and the monthly schedule.
-  const sync = new SyncService({ clients: createSyncClients(), now: () => new Date() });
+  // One synchronization engine per process, shared by the admin triggers and both schedules.
+  const sync = new SyncService({ clients: createSyncClients(), now: () => new Date(), journalMetricsAfterDiscovery: true });
   const scheduler = env.nodeEnv === 'test' ? null : startSyncScheduler(sync, { cronExpression: env.syncCron, timezone: env.syncTimezone });
   if (scheduler) console.log(`Monthly synchronization scheduled: "${env.syncCron}" (${env.syncTimezone})`);
+  const jcrScheduler = env.nodeEnv === 'test' ? null : startJournalMetricsScheduler(sync, { cronExpression: env.jcrSyncCron, timezone: env.syncTimezone });
+  if (jcrScheduler) console.log(`Monthly journal metrics refresh scheduled: "${env.jcrSyncCron}" (${env.syncTimezone})`);
 
   const server = createApp({ sync }).listen(env.port, () => {
     console.log(`CSE_Research_Hub backend listening on http://localhost:${env.port} (${env.nodeEnv})`);
@@ -44,6 +46,7 @@ async function startServer(): Promise<void> {
     shuttingDown = true;
     console.log(`${signal} received, shutting down`);
     void scheduler?.stop().catch(() => undefined);
+    void jcrScheduler?.stop().catch(() => undefined);
     server.close(() => {
       disconnectDatabase().then(
         () => process.exit(0),

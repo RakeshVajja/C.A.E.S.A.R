@@ -6,6 +6,7 @@ import { FetchError } from '../../integrations/http/httpClient';
 import { OpenAlexClient } from '../../integrations/openalex/client';
 import { OrcidClient } from '../../integrations/orcid/client';
 import { ScopusClient } from '../../integrations/scopus/client';
+import { JcrClient } from '../../integrations/jcr/client';
 import { WosStarterClient } from '../../integrations/wos/client';
 import { HttpError } from '../../utils/httpError';
 import { canAttempt, providerConfiguration, unavailableMessage, type ProviderConfiguration } from '../providers/providerStatus';
@@ -17,6 +18,7 @@ import { discoverScopusIdentity } from '../discovery/scopusDiscovery';
 import { discoverWosIdentity } from '../discovery/wosDiscovery';
 import { DiscoveryPreconditionError } from '../discovery/discoveryIdentity';
 import type { DiscoverySummary } from '../discovery/ingestDiscoveredRecords';
+import { backfillSourceRecordIssns, identifyJournals, isAccessFailure, linkPublications, refreshJournal } from '../journals/jcrRefresh';
 
 /**
  * Synchronization engine (Project_plan.md §14, Phase 12; decisions #81–#85). Independent of the
@@ -43,6 +45,14 @@ import type { DiscoverySummary } from '../discovery/ingestDiscoveredRecords';
  *
  * Administrator merge/detach operations (Phase 13B, #91) run through `exclusive`: they are refused
  * while a run executes, run one at a time, and a run started meanwhile waits until they finish.
+ *
+ * Journal Citation Reports (stage 15.6, decisions #115, #116, #122, #123): `startJournalMetrics`
+ * creates a JOURNAL_METRICS run — never part of discovery, its coverage or its outcome — under the
+ * same single-run guard, exclusivity and crash recovery. It identifies journals by ISSN, links
+ * publications to exactly one journal, then runs one JOURNAL_METRICS task per journal of an ACTIVE
+ * publication (every task references its journal) that adds snapshot revisions (jcrRefresh.ts). Its
+ * own counters are `journals_checked`, `snapshots_added` and `jcr_data_update`. Without JCR
+ * credentials the tasks are NOT_CONFIGURED and never executed.
  */
 
 export interface SyncClients {
@@ -53,17 +63,21 @@ export interface SyncClients {
   scopus?: ScopusClient | null;
   /** Present only when Web of Science Starter credentials are configured; otherwise NOT_CONFIGURED tasks. */
   wos?: WosStarterClient | null;
+  /** Present only when Web of Science Journals (JCR) credentials are configured (journal-metrics runs). */
+  jcr?: JcrClient | null;
 }
 
 export function createSyncClients(): SyncClients {
   const scopus = env.providerCredentials.scopus;
   const wos = env.providerCredentials.wosStarter;
+  const jcr = env.providerCredentials.wosJournals;
   return {
     openAlex: new OpenAlexClient({ apiKey: env.openAlexApiKey }),
     dblp: new DblpClient(),
     orcid: new OrcidClient(),
     scopus: scopus ? new ScopusClient({ apiKey: scopus.apiKey, instToken: scopus.instToken }) : null,
     wos: wos ? new WosStarterClient({ apiKey: wos.apiKey }) : null,
+    jcr: jcr ? new JcrClient({ apiKey: jcr.apiKey }) : null,
   };
 }
 
@@ -73,6 +87,12 @@ export interface SyncServiceOptions {
   client?: PrismaClient;
   /** Which licensed providers have credentials; defaults to the environment's (§13.9). */
   providers?: ProviderConfiguration;
+  /**
+   * Start a JCR refresh after a discovery run that added source records (§22.4: "after discovery
+   * runs add publications in journals without metrics"), when JCR can be attempted. Off by default;
+   * the application enables it.
+   */
+  journalMetricsAfterDiscovery?: boolean;
 }
 
 const MESSAGE_LIMIT = 500;
@@ -111,6 +131,53 @@ export class SyncService {
    * them). Refuses with SYNC_ALREADY_RUNNING while another run is executing.
    */
   async start(trigger: SyncTrigger, triggeredByUserId: string | null = null) {
+    return this.launch(
+      async () => {
+        const identities = await this.client.externalIdentity.findMany({
+          where: { isActive: true, professor: { isActive: true } },
+          select: { id: true, source: true },
+          orderBy: [{ professorId: 'asc' }, { source: 'asc' }, { externalId: 'asc' }],
+        });
+        const startedAt = this.options.now();
+        return this.client.syncRun.create({
+          data: {
+            kind: 'PUBLICATION_DISCOVERY',
+            trigger,
+            triggeredByUserId,
+            status: 'RUNNING',
+            startedAt,
+            // Configuration at start, so the outcome stays correct if credentials change later.
+            providerCoverage: coverageSnapshot(this.providers, identities),
+            tasksTotal: identities.length,
+            tasks: { create: identities.map((i) => this.planTask(i, startedAt)) },
+          },
+        });
+      },
+      (runId) => this.execute(runId),
+      (runId) => this.afterDiscovery(runId),
+    );
+  }
+
+  /**
+   * Starts a Journal Citation Reports refresh (a JOURNAL_METRICS run) and returns it immediately;
+   * its tasks are planned once the journals are identified. Same guard as `start`: refused with
+   * SYNC_ALREADY_RUNNING while any run executes.
+   */
+  async startJournalMetrics(trigger: SyncTrigger, triggeredByUserId: string | null = null) {
+    return this.launch(
+      () =>
+        this.client.syncRun.create({
+          data: { kind: 'JOURNAL_METRICS', trigger, triggeredByUserId, status: 'RUNNING', startedAt: this.options.now() },
+        }),
+      (runId) => this.executeJournalMetrics(runId),
+    );
+  }
+
+  /**
+   * The single-run guard shared by both run kinds (#82): taken synchronously, then the queued
+   * administrator operations finish, then a RUNNING row of either kind still refuses the start.
+   */
+  private async launch<R extends { id: string }>(create: () => Promise<R>, execute: (runId: string) => Promise<void>, after?: (runId: string) => void): Promise<R> {
     // The in-process guard is taken synchronously, before any await, so two starts cannot both pass.
     if (this.current) throw new SyncAlreadyRunningError();
     let release!: () => void;
@@ -123,28 +190,11 @@ export class SyncService {
       if (await this.client.syncRun.findFirst({ where: { status: 'RUNNING' }, select: { id: true } })) {
         throw new SyncAlreadyRunningError();
       }
-      const identities = await this.client.externalIdentity.findMany({
-        where: { isActive: true, professor: { isActive: true } },
-        select: { id: true, source: true },
-        orderBy: [{ professorId: 'asc' }, { source: 'asc' }, { externalId: 'asc' }],
-      });
-      const startedAt = this.options.now();
-      const run = await this.client.syncRun.create({
-        data: {
-          kind: 'PUBLICATION_DISCOVERY',
-          trigger,
-          triggeredByUserId,
-          status: 'RUNNING',
-          startedAt,
-          // Configuration at start, so the outcome stays correct if credentials change later.
-          providerCoverage: coverageSnapshot(this.providers, identities),
-          tasksTotal: identities.length,
-          tasks: { create: identities.map((i) => this.planTask(i, startedAt)) },
-        },
-      });
-      void this.execute(run.id).finally(() => {
+      const run = await create();
+      void execute(run.id).finally(() => {
         this.current = null;
         release();
+        after?.(run.id);
       });
       return run;
     } catch (error) {
@@ -152,6 +202,20 @@ export class SyncService {
       release();
       throw error;
     }
+  }
+
+  /** Chains a JCR refresh after a discovery run that added records, when enabled and JCR can be attempted. */
+  private afterDiscovery(runId: string): void {
+    if (!this.options.journalMetricsAfterDiscovery || !canAttempt(this.providers.JCR.credentials) || !this.options.clients.jcr) return;
+    void (async () => {
+      const run = await this.client.syncRun.findUnique({ where: { id: runId }, select: { recordsNew: true } });
+      if (!run || run.recordsNew === 0) return;
+      const started = await this.startJournalMetrics('SCHEDULED', null);
+      console.log(`Journal metrics refresh started after discovery run ${runId} (run ${started.id})`);
+    })().catch((error) => {
+      if (error instanceof SyncAlreadyRunningError) console.warn(`Journal metrics refresh after discovery run ${runId} skipped: a run is already in progress`);
+      else console.error(`Journal metrics refresh after discovery run ${runId} could not start (${describeFailure(error)})`);
+    });
   }
 
   /**
@@ -270,6 +334,125 @@ export class SyncService {
     }
   }
 
+  /**
+   * A JOURNAL_METRICS run: identification and linking, then one task per journal of an ACTIVE
+   * publication, then the outcome. Never throws. When the content date or the identification fails,
+   * the known journals are still refreshed (each task records its own failure).
+   */
+  private async executeJournalMetrics(runId: string): Promise<void> {
+    try {
+      const { credentials } = this.providers.JCR;
+      const jcr = this.options.clients.jcr ?? null;
+      const journals = async () =>
+        this.client.journal.findMany({ where: { publications: { some: { status: 'ACTIVE' } } }, select: { id: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }] });
+
+      if (!canAttempt(credentials) || !jcr) {
+        const now = this.options.now();
+        const planned = await journals();
+        const message = unavailableMessage('JCR', canAttempt(credentials) ? 'NOT_CONFIGURED' : credentials);
+        await this.client.syncTask.createMany({
+          data: planned.map((j) => ({ syncRunId: runId, kind: 'JOURNAL_METRICS' as const, journalId: j.id, status: 'NOT_CONFIGURED' as const, errorMessage: message, startedAt: now, finishedAt: now })),
+        });
+        await this.client.syncRun.update({ where: { id: runId }, data: { tasksTotal: planned.length } });
+        await this.finishJournalRun(runId, { stepFailed: false, notConfigured: true });
+        return;
+      }
+
+      let stepFailed = false;
+      let accessDenied = false;
+      // The content date is metadata of the snapshots: an unusable one is recorded as missing (and
+      // makes the run partial) but does not stop identification; only an access failure does.
+      let jcrDataUpdate: Date | null = null;
+      try {
+        jcrDataUpdate = parseIsoDate(await jcr.lastUpdated());
+        if (jcrDataUpdate === null) throw new FetchError('INVALID_RESPONSE', 'JCR: the content date is not a calendar date');
+        await this.client.syncRun.update({ where: { id: runId }, data: { jcrDataUpdate } });
+      } catch (error) {
+        if (!(error instanceof FetchError)) throw error;
+        stepFailed = true;
+        accessDenied = isAccessFailure(error);
+        console.error(`Journal metrics run ${runId}: content date unavailable (${describeFailure(error)})`);
+      }
+      if (!accessDenied) {
+        try {
+          await backfillSourceRecordIssns(this.client);
+          const identified = await identifyJournals(this.client, jcr);
+          if (identified.failures > 0) stepFailed = true;
+        } catch (error) {
+          // An access failure stops identification; the known journals still run (and record it).
+          if (!(error instanceof FetchError)) throw error;
+          stepFailed = true;
+          console.error(`Journal metrics run ${runId}: identification stopped (${describeFailure(error)})`);
+        }
+      }
+      await linkPublications(this.client);
+
+      const planned = await journals();
+      await this.client.syncTask.createMany({
+        data: planned.map((j) => ({ syncRunId: runId, kind: 'JOURNAL_METRICS' as const, journalId: j.id, status: 'PENDING' as const })),
+      });
+      await this.client.syncRun.update({ where: { id: runId }, data: { tasksTotal: planned.length } });
+      const tasks = await this.client.syncTask.findMany({
+        where: { syncRunId: runId, kind: 'JOURNAL_METRICS', status: 'PENDING' },
+        select: { id: true, journalId: true },
+        orderBy: [{ journal: { name: 'asc' } }, { id: 'asc' }],
+      });
+      for (const task of tasks) {
+        await this.client.syncTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: this.options.now() } });
+        try {
+          if (!task.journalId) throw new DiscoveryPreconditionError('The journal of this task was removed');
+          const result = await refreshJournal(this.client, jcr, task.journalId, { syncTaskId: task.id, retrievedAt: this.options.now(), jcrDataUpdate });
+          await this.client.syncTask.update({
+            where: { id: task.id },
+            data: { status: 'SUCCESS', recordsFetched: result.reportsFetched, snapshotsAdded: result.snapshotsAdded, warnings: result.warnings.length, finishedAt: this.options.now() },
+          });
+        } catch (error) {
+          if (!(error instanceof DiscoveryPreconditionError) && !(error instanceof FetchError)) {
+            console.error(`Journal metrics task ${task.id} failed (${describeFailure(error)})`);
+          }
+          await this.failTask(task.id, describeFailure(error));
+        }
+      }
+      await this.finishJournalRun(runId, { stepFailed, notConfigured: false });
+    } catch (error) {
+      console.error(`Journal metrics run ${runId} stopped unexpectedly (${describeFailure(error)})`);
+      try {
+        await closeFailedRun(this.client, runId, this.options.now(), 'Not completed: the journal metrics run stopped unexpectedly');
+      } catch (closeError) {
+        console.error(`Journal metrics run ${runId} could not be marked FAILED (${describeFailure(closeError)})`);
+      }
+    }
+  }
+
+  /**
+   * Outcome of a JOURNAL_METRICS run (independent of discovery coverage): SUCCESS when every task
+   * succeeded and identification completed; FAILED when no task succeeded and something failed;
+   * PARTIAL_SUCCESS otherwise — including a run that could not be attempted (no credentials).
+   */
+  private async finishJournalRun(runId: string, state: { stepFailed: boolean; notConfigured: boolean }): Promise<void> {
+    const tasks = await this.client.syncTask.findMany({ where: { syncRunId: runId }, select: { status: true, snapshotsAdded: true, recordsFetched: true } });
+    const succeeded = tasks.filter((t) => t.status === 'SUCCESS').length;
+    const failed = tasks.filter((t) => t.status === 'FAILED').length;
+    const status: SyncRunStatus =
+      succeeded === 0 && (failed > 0 || state.stepFailed)
+        ? 'FAILED'
+        : failed > 0 || state.stepFailed || state.notConfigured
+          ? 'PARTIAL_SUCCESS'
+          : 'SUCCESS';
+    await this.client.syncRun.update({
+      where: { id: runId },
+      data: {
+        status,
+        tasksSucceeded: succeeded,
+        tasksFailed: failed,
+        journalsChecked: succeeded,
+        snapshotsAdded: tasks.reduce((n, t) => n + t.snapshotsAdded, 0),
+        recordsFetched: tasks.reduce((n, t) => n + t.recordsFetched, 0),
+        finishedAt: this.options.now(),
+      },
+    });
+  }
+
   private async failTask(taskId: string, message: string): Promise<void> {
     await this.client.syncTask.update({
       where: { id: taskId },
@@ -360,6 +543,12 @@ export async function recoverInterruptedRuns(now: Date, client: PrismaClient = d
     }
     return runs.length;
   });
+}
+
+/** "YYYY-MM-DD" → a UTC date, or null when it is not a real calendar date. */
+function parseIsoDate(value: string): Date | null {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
 }
 
 /** A failure message safe for administrators: our own messages, error codes, no internals. */

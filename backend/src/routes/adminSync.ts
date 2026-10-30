@@ -14,10 +14,33 @@ import { HttpError } from '../utils/httpError';
  *   GET  /runs/:runId  one run with its tasks and per-provider coverage
  *
  * These endpoints cover publication-discovery runs only (decision #123); journal-metrics (JCR) runs
- * are reported separately, so their status never appears here.
+ * are reported separately, so their status never appears here:
+ *
+ *   POST /journal-metrics             start a JCR refresh (202; 409 SYNC_ALREADY_RUNNING)
+ *   GET  /journal-metrics/runs        JCR run history, newest first (limit/offset)
+ *   GET  /journal-metrics/runs/:runId one JCR run with its journal tasks
+ *
+ * JCR endpoints report run status and counters only — no metric values (their display waits for
+ * Clarivate's written confirmation, §13.10).
  */
 
 const DISCOVERY = { kind: 'PUBLICATION_DISCOVERY' } as const;
+const JOURNAL_METRICS = { kind: 'JOURNAL_METRICS' } as const;
+
+const journalRunSelect = {
+  id: true,
+  trigger: true,
+  triggeredByUserId: true,
+  status: true,
+  tasksTotal: true,
+  tasksSucceeded: true,
+  tasksFailed: true,
+  journalsChecked: true,
+  snapshotsAdded: true,
+  jcrDataUpdate: true,
+  startedAt: true,
+  finishedAt: true,
+} as const;
 
 const listQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -102,6 +125,57 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
     const { providerCoverage: stored, ...rest } = run;
     const snapshot = parseCoverageSnapshot(stored);
     res.json({ run: { ...rest, coverage: snapshot ? providerCoverage(snapshot, run.tasks) : null } });
+  });
+
+  router.post('/journal-metrics', async (req, res) => {
+    const run = await deps.sync.startJournalMetrics('MANUAL', req.auth!.user.id);
+    const started = await prisma.syncRun.findUniqueOrThrow({ where: { id: run.id }, select: journalRunSelect });
+    res.status(202).json({ run: started });
+  });
+
+  router.get('/journal-metrics/runs', async (req, res) => {
+    const parsed = listQuery.safeParse(req.query);
+    if (!parsed.success) {
+      throw new HttpError(
+        400,
+        'VALIDATION_ERROR',
+        'Invalid query parameters',
+        parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
+      );
+    }
+    const [runs, total] = await prisma.$transaction([
+      prisma.syncRun.findMany({ where: JOURNAL_METRICS, select: journalRunSelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], take: parsed.data.limit, skip: parsed.data.offset }),
+      prisma.syncRun.count({ where: JOURNAL_METRICS }),
+    ]);
+    res.json({ runs, total, limit: parsed.data.limit, offset: parsed.data.offset, running: deps.sync.running });
+  });
+
+  router.get('/journal-metrics/runs/:runId', async (req, res) => {
+    const id = z.uuid().safeParse(req.params.runId);
+    const run = id.success
+      ? await prisma.syncRun.findFirst({
+          where: { id: id.data, ...JOURNAL_METRICS },
+          select: {
+            ...journalRunSelect,
+            tasks: {
+              select: {
+                id: true,
+                status: true,
+                recordsFetched: true,
+                snapshotsAdded: true,
+                warnings: true,
+                errorMessage: true,
+                startedAt: true,
+                finishedAt: true,
+                journal: { select: { id: true, jcrId: true, name: true } },
+              },
+              orderBy: [{ startedAt: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
+            },
+          },
+        })
+      : null;
+    if (!run) throw new HttpError(404, 'SYNC_RUN_NOT_FOUND', 'Journal metrics run not found');
+    res.json({ run });
   });
 
   return router;

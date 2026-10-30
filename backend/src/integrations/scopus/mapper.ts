@@ -39,8 +39,15 @@ export function mapScopusDocument(entry: ScopusSearchEntry): PublicationInput {
       dois: normalizeDois(rawDois),
     }),
     authorNamesDisplay: authorNames.length > 0 ? authorNames.join(', ') : null,
+    issns: scopusIssns(entry),
     rawMetadata: entry,
   };
+}
+
+/** The source's print and electronic ISSNs (`prism:issn`, `prism:eIssn`; Scopus omits the hyphen). */
+export function scopusIssns(entry: unknown): string[] {
+  const record = (entry ?? {}) as Record<string, unknown>;
+  return [record['prism:issn'], record['prism:eIssn']].filter((value): value is string => typeof value === 'string');
 }
 
 function coverYear(coverDate: string | null | undefined): number | null {

@@ -39,8 +39,16 @@ export function mapWosDocument(document: WosDocument): PublicationInput {
       dois: normalizeDois(rawDois),
     }),
     authorNamesDisplay: authorNames.length > 0 ? authorNames.join('; ') : null,
+    issns: wosIssns(document),
     rawMetadata: document,
   };
+}
+
+/** The source's ISSN and eISSN (`identifiers.issn`, `identifiers.eissn`). */
+export function wosIssns(document: unknown): string[] {
+  const identifiers = (document as { identifiers?: Record<string, unknown> | null } | null)?.identifiers;
+  if (!identifiers || typeof identifiers !== 'object') return [];
+  return [identifiers.issn, identifiers.eissn].filter((value): value is string => typeof value === 'string');
 }
 
 /**

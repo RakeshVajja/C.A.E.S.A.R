@@ -30,6 +30,18 @@ export function mapOpenAlexWork(work: OpenAlexWork): PublicationInput {
       dois: normalizeDois(rawDois),
     }),
     authorNamesDisplay: authorNames.length > 0 ? authorNames.join(', ') : null,
+    issns: openAlexIssns(work),
     rawMetadata: work,
   };
+}
+
+/**
+ * The journal ISSNs of a work (stage 15.6): `primary_location.source.issn` and `issn_l`. Reads a raw
+ * work or its stored raw_metadata defensively; unnormalized values (normalization happens later).
+ */
+export function openAlexIssns(work: unknown): string[] {
+  const source = (work as { primary_location?: { source?: { issn?: unknown; issn_l?: unknown } | null } | null } | null)?.primary_location?.source;
+  if (!source || typeof source !== 'object') return [];
+  const list = Array.isArray(source.issn) ? source.issn : [];
+  return [...list, source.issn_l].filter((value): value is string => typeof value === 'string');
 }

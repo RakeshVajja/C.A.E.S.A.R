@@ -420,6 +420,7 @@ function sourceRecordFields(record: NormalizedPublication) {
     venue: record.venue,
     typeFamily: record.typeFamily,
     authorNamesDisplay: record.authorNamesDisplay,
+    issns: record.issns,
     rawMetadata: rawMetadataWithDois(record),
   };
 }
