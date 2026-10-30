@@ -8,7 +8,9 @@ import { evaluateDoiMatch, evaluateTitleMatch, PublicationSnapshot } from './rul
  * Matching & deduplication engine (Project_plan.md §8). Ingests one NormalizedPublication in
  * one transaction:
  *   1. same source + external ID   → update that source record
- *   2. normalized DOI match        → attach, unless a contradiction applies
+ *   2. normalized DOI match        → attach, unless a contradiction applies (if the canonical DOI
+ *                                    owner is refused, a publication carrying the DOI only on a
+ *                                    source record may still qualify — decision #27 exception, #136)
  *   3. exact title + year ±1       → attach only when rules.evaluateTitleMatch allows it
  *   4. otherwise                   → new Publication, plus DuplicateCandidates for possible matches
  *
@@ -201,6 +203,36 @@ async function decide(tx: Tx, record: NormalizedPublication): Promise<Decision> 
       const shared = record.dois.find((doi) => owner.dois.includes(doi));
       return { kind: 'attach', publicationId: owner.id, method: 'DOI', detail: `Matched on DOI ${shared}` };
     }
+
+    // Decision #27 exception (#136): the canonical owner was refused by the #22 checks. Publications
+    // that carry the DOI only on a source record are evaluated with the same checks; exactly one that
+    // passes takes the record (otherwise a record of the real paper would be split off on every
+    // ingest after a wrong-DOI record claimed the DOI first). Several → no merge, candidates (#24).
+    const recordOwners = await loadSnapshots(tx, (await findRecordDoiOwners(tx, record.dois)).filter((id) => id !== owner.id));
+    const qualifying = recordOwners.filter((snapshot) => evaluateDoiMatch(record, snapshot).kind === 'match');
+    if (qualifying.length === 1) {
+      const [target] = qualifying;
+      const shared = record.dois.find((doi) => target.dois.includes(doi));
+      return {
+        kind: 'attach',
+        publicationId: target.id,
+        method: 'DOI',
+        detail: `Matched on DOI ${shared} carried by a source record (the DOI's canonical publication was refused: ${evaluation.reason})`,
+      };
+    }
+    if (qualifying.length > 1) {
+      const reason = `DOI(s) ${record.dois.join(', ')} match ${qualifying.length} publications through their source records`;
+      const excluded = [owner.id, ...qualifying.map((snapshot) => snapshot.id)];
+      return {
+        kind: 'new',
+        possibleDuplicates: [
+          { publicationId: owner.id, reason: `DOI match blocked: ${evaluation.reason}` },
+          ...qualifying.map((snapshot) => ({ publicationId: snapshot.id, reason })),
+          ...(await exactTitleCandidates(tx, record, excluded)),
+        ],
+        detail: `No automatic match: DOI match blocked (${evaluation.reason}) and ${reason}`,
+      };
+    }
     return {
       kind: 'new',
       possibleDuplicates: [
@@ -285,7 +317,12 @@ async function findDoiOwners(tx: Tx, dois: readonly string[]): Promise<string[]>
     orderBy: { id: 'asc' },
   });
   if (canonicalOwners.length > 0) return canonicalOwners.map((p) => p.id);
+  return findRecordDoiOwners(tx, dois);
+}
 
+/** Publications with a source record carrying any of the DOIs (primary or secondary, §6.5). */
+async function findRecordDoiOwners(tx: Tx, dois: readonly string[]): Promise<string[]> {
+  if (dois.length === 0) return [];
   const recordOwners = await tx.publicationSourceRecord.findMany({
     where: {
       OR: [
