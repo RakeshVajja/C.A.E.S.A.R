@@ -118,7 +118,7 @@ export function createAdminProfessorsRouter(deps: { identityClients: IdentityCli
 
   router.post('/:professorId/identities', async (req, res) => {
     const body = parseBody(saveBody, req.body);
-    const identity = await saveIdentity(professorId(req.params.professorId), body.previewToken, { now: deps.now });
+    const identity = await saveIdentity(professorId(req.params.professorId), body.previewToken, { now: deps.now, verifiedByUserId: req.auth!.user.id });
     res.status(201).json({ identity });
   });
 

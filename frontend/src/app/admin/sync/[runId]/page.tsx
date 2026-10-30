@@ -53,7 +53,7 @@ export default function SyncRunPage() {
       </div>
     );
   }
-  const finished = data.tasks.filter((t) => t.status === "SUCCESS" || t.status === "FAILED").length;
+  const finished = data.tasks.filter((t) => t.status === "SUCCESS" || t.status === "FAILED" || t.status === "NOT_CONFIGURED").length;
 
   return (
     <>

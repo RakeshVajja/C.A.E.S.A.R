@@ -1,4 +1,4 @@
-import { CircleCheck, CircleX, Clock, EyeOff, LoaderCircle, TriangleAlert, Circle, GitMerge, Ban } from "lucide-react";
+import { CircleCheck, CircleX, Clock, EyeOff, LoaderCircle, TriangleAlert, Circle, GitMerge, Ban, KeyRound } from "lucide-react";
 import { SOURCE_LABEL } from "@/lib/format";
 import type { CandidateStatus, PublicationStatus, Source, SyncRunStatus, SyncTaskStatus, VerificationStatus } from "@/lib/types";
 
@@ -17,6 +17,7 @@ const STATUS: Record<string, { label: string; tone: string; Icon: typeof Clock }
   SUCCESS: { label: "Success", tone: "bg-success-bg text-success", Icon: CircleCheck },
   PARTIAL_SUCCESS: { label: "Partial success", tone: "bg-warning-bg text-warning", Icon: TriangleAlert },
   FAILED: { label: "Failed", tone: "bg-danger-bg text-danger", Icon: CircleX },
+  NOT_CONFIGURED: { label: "Not configured", tone: "bg-neutral-bg text-neutral", Icon: KeyRound },
   OPEN: { label: "Open", tone: "bg-warning-bg text-warning", Icon: Clock },
   MERGED: { label: "Merged", tone: "bg-success-bg text-success", Icon: GitMerge },
   DISMISSED: { label: "Dismissed", tone: "bg-neutral-bg text-neutral", Icon: Ban },
@@ -39,6 +40,9 @@ const SOURCE_TONE: Record<Source, string> = {
   OPENALEX: "border-src-openalex text-src-openalex",
   DBLP: "border-src-dblp text-src-dblp",
   ORCID: "border-src-orcid text-src-orcid",
+  // Neutral until the Phase 15 interface stage gives these providers their own marks.
+  SCOPUS: "border-border-strong text-text-muted",
+  WOS: "border-border-strong text-text-muted",
   MANUAL: "border-src-manual text-src-manual",
 };
 

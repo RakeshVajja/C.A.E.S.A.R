@@ -13,7 +13,7 @@ import { prisma as defaultClient } from '../../config/database';
  *   - source records     provenance rows (one paper reported by three sources is three records).
  */
 
-const SOURCE_ORDER: readonly PublicationSource[] = ['OPENALEX', 'DBLP', 'ORCID', 'MANUAL'];
+const SOURCE_ORDER: readonly PublicationSource[] = ['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS', 'WOS', 'MANUAL'];
 const TYPE_ORDER: readonly TypeFamily[] = ['JOURNAL', 'CONFERENCE', 'BOOK_CHAPTER', 'BOOK', 'OTHER'];
 
 /** Canonical publications that research analytics may count at all. */
@@ -30,6 +30,9 @@ const countedPublications = {
 
 const runSummarySelect = { id: true, trigger: true, status: true, startedAt: true, finishedAt: true } as const;
 
+/** Synchronization figures describe publication-discovery runs only; JCR runs are reported separately (#123). */
+const DISCOVERY = { kind: 'PUBLICATION_DISCOVERY' } as const;
+
 export async function overview(client: PrismaClient = defaultClient) {
   const [professorsTotal, professorsActive, uniquePublications, byType, pendingVerifications, lastSync, running] = await client.$transaction([
     client.professor.count(),
@@ -39,8 +42,8 @@ export async function overview(client: PrismaClient = defaultClient) {
     // The outstanding verification backlog: every PENDING relationship to a non-suppressed
     // publication, whether or not the professor is active, preprints included (#88).
     client.professorPublication.count({ where: { status: 'PENDING', publication: { status: 'ACTIVE' } } }),
-    client.syncRun.findFirst({ where: { status: { not: 'RUNNING' } }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
-    client.syncRun.count({ where: { status: 'RUNNING' } }),
+    client.syncRun.findFirst({ where: { ...DISCOVERY, status: { not: 'RUNNING' } }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
+    client.syncRun.count({ where: { ...DISCOVERY, status: 'RUNNING' } }),
   ]);
   const typeCount = new Map(byType.map((row) => [row.typeFamily, countOf(row._count)]));
   return {
@@ -128,16 +131,16 @@ export async function sourceStatistics(client: PrismaClient = defaultClient) {
  * `recordsAdded` = new source records, `recordsUpdated` = existing source records seen again.
  */
 export async function syncStatistics(client: PrismaClient = defaultClient) {
-  const finished = { status: { not: 'RUNNING' } } satisfies Prisma.SyncRunWhereInput;
+  const finished = { ...DISCOVERY, status: { not: 'RUNNING' } } satisfies Prisma.SyncRunWhereInput;
   const [runGroups, taskGroups, totals, lastRun, lastSuccessfulRun] = await client.$transaction([
-    client.syncRun.groupBy({ by: ['status'], _count: { _all: true }, orderBy: { status: 'asc' } }),
+    client.syncRun.groupBy({ by: ['status'], where: DISCOVERY, _count: { _all: true }, orderBy: { status: 'asc' } }),
     client.syncTask.groupBy({ by: ['status'], where: { syncRun: finished }, _count: { _all: true }, orderBy: { status: 'asc' } }),
     client.syncRun.aggregate({
       where: finished,
       _sum: { recordsFetched: true, recordsNew: true, recordsUpdated: true, linksCreated: true, candidatesCreated: true },
     }),
     client.syncRun.findFirst({ where: finished, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
-    client.syncRun.findFirst({ where: { status: 'SUCCESS' }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
+    client.syncRun.findFirst({ where: { ...DISCOVERY, status: 'SUCCESS' }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
   ]);
   const runs = new Map(runGroups.map((row) => [row.status, countOf(row._count)]));
   const tasks = new Map(taskGroups.map((row) => [row.status, countOf(row._count)]));
@@ -150,7 +153,7 @@ export async function syncStatistics(client: PrismaClient = defaultClient) {
       failed: run('FAILED'),
       running: run('RUNNING'),
     },
-    tasks: { success: tasks.get('SUCCESS') ?? 0, failed: tasks.get('FAILED') ?? 0 },
+    tasks: { success: tasks.get('SUCCESS') ?? 0, failed: tasks.get('FAILED') ?? 0, notConfigured: tasks.get('NOT_CONFIGURED') ?? 0 },
     records: {
       fetched: totals._sum.recordsFetched ?? 0,
       added: totals._sum.recordsNew ?? 0,

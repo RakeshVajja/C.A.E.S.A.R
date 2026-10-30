@@ -46,6 +46,9 @@ const DISCOVER: Record<IdentitySource, (identityId: string) => Promise<Discovery
   OPENALEX: (id) => discoverOpenAlexIdentity(id),
   DBLP: (id) => discoverDblpIdentity(id),
   ORCID: (id) => discoverOrcidIdentity(id),
+  // Scopus and Web of Science discovery arrive in Phase 15.3/15.4.
+  SCOPUS: () => Promise.reject(new Error('Scopus discovery is not available yet (Phase 15.3)')),
+  WOS: () => Promise.reject(new Error('Web of Science discovery is not available yet (Phase 15.4)')),
 };
 
 const METHOD_LABEL: Record<string, string> = {

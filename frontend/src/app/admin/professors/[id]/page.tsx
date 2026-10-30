@@ -327,6 +327,9 @@ const SOURCE_HINT: Record<IdentitySource, string> = {
   OPENALEX: "OpenAlex author ID, e.g. A5023888391 or https://openalex.org/A5023888391",
   DBLP: "DBLP person ID (PID), e.g. v/MosheYVardi or https://dblp.org/pid/v/MosheYVardi",
   ORCID: "ORCID iD, e.g. 0000-0002-0661-5773",
+  // Not offered in the form until their integrations exist (Phase 15.3 / 15.4).
+  SCOPUS: "Scopus Author ID",
+  WOS: "Web of Science ResearcherID, e.g. A-1009-2008",
 };
 
 function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetail; onChanged: () => void }) {

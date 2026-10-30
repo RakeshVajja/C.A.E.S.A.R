@@ -27,7 +27,7 @@ You are the implementation engineer. The project architect decides architecture.
 
 * Do not change frozen architectural decisions silently. Any change needs approval and a Decision Log entry.
 * If a genuine architectural blocker appears, **stop and report it** rather than redesigning.
-* Exactly 9 core tables. Do not add `SourceRecordProfessor`, `Author`, citation, embedding/ML, queue or audit/history tables.
+* The approved schema has exactly 14 tables: the 9 core tables and the 5 Phase 15 tables (`citation_observations`, `journals`, `journal_issns`, `journal_metric_snapshots`, `journal_category_metrics`; `Project_plan.md` §6). Any additional table requires documented justification and the owner's explicit approval. Do not add `SourceRecordProfessor`, `Author`, citation-graph/reference, embedding/ML, queue or audit/history tables.
 * Keep source-specific API logic isolated in `integrations/<source>/`.
 * Services use Prisma directly; no repository abstraction layer.
 * The sync engine must stay independent of the scheduler.
@@ -40,6 +40,7 @@ You are the implementation engineer. The project architect decides architecture.
 * Do not introduce AI/ML/LLM/embedding-based matching or fuzzy auto-merging.
 * Do not replace PostgreSQL or Prisma.
 * Do not add dependencies that are not required by the current phase.
+* Institutional purchases, paid API subscriptions, licences and provider agreements are outside the implementation engineer's authority. Entitlements may be researched and information or quotations requested, but no purchase or contractual commitment may be initiated.
 
 ## Data rules
 
@@ -51,6 +52,11 @@ You are the implementation engineer. The project architect decides architecture.
 * Use the single shared DOI and title normalization functions everywhere.
 * Approval/rejection applies to the professor–publication relationship, never globally.
 * Synchronization never changes an existing relationship status; rejected stays rejected.
+* Licensed provider data (`Project_plan.md` §13.6–§13.10, §22):
+  * Scopus live ingestion requires a confirmed institutional API entitlement and use permitted under the Elsevier agreement.
+  * Live Web of Science and JCR ingestion is blocked until the provider-data removal tool is complete and all required written Clarivate confirmations (retention, deletion, backups, display) are on record.
+  * Web of Science citation counts and JCR metrics are displayed only as their respective written permissions allow, with the required attribution.
+* Manual entries and administrator edits record their basis; provider-derived values keep their actual provider and are removed with that provider's data. Retyping never makes provider data independent.
 
 ## Reliability rules
 
@@ -64,6 +70,7 @@ You are the implementation engineer. The project architect decides architecture.
 * Professor identity always comes from the authenticated token, never from URL or request parameters.
 * JWT only in an HTTP-only cookie; never in `localStorage`.
 * Never commit secrets; configuration comes from environment variables.
+* Provider credentials come only from environment variables, are sent only in request headers, and never appear in URLs, logs, responses, error messages, frontend code or Git.
 
 ## Working rules
 
@@ -72,4 +79,4 @@ You are the implementation engineer. The project architect decides architecture.
 * Frontend work must also follow `frontend/AGENTS.md` (read the docs shipped with the installed Next.js version first).
 * Keep changes focused on the current task.
 * Run type checking, linting and relevant tests after implementation; report results honestly.
-* Automated tests must not call live external APIs; use recorded fixtures.
+* Automated tests must not call live external APIs. Only synthetic fixtures may be committed to Git (decision #119); real recorded API responses — including OpenAlex, DBLP and ORCID responses — stay local and uncommitted.

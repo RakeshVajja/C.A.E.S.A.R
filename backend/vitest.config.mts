@@ -48,6 +48,12 @@ export default defineConfig({
       TRUST_PROXY: '',
       SYNC_CRON: '',
       SYNC_TIMEZONE: '',
+      // Licensed provider credentials stay unset in tests: the providers are NOT_CONFIGURED and no
+      // real key from backend/.env can ever reach a test (§13.9, decision #119).
+      SCOPUS_API_KEY: '',
+      SCOPUS_INST_TOKEN: '',
+      WOS_STARTER_API_KEY: '',
+      WOS_JOURNALS_API_KEY: '',
     },
   },
 });

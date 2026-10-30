@@ -1,4 +1,5 @@
-// CSE_Research_Hub data model — exactly 9 core tables (Project_plan.md §6).
+// CSE_Research_Hub data model — 14 tables: the 9 core tables and the 5 Phase 15 tables
+// (Project_plan.md §6, §22.5; decisions #107–#125). Any other table needs the owner's approval.
 // Conventions (decision log #19): UUID primary keys, timestamptz columns,
 // snake_case table/column names in PostgreSQL, camelCase in TypeScript.
 
@@ -25,6 +26,8 @@ enum IdentitySource {
   OPENALEX
   DBLP
   ORCID
+  SCOPUS
+  WOS
 
   @@map("identity_source")
 }
@@ -34,6 +37,8 @@ enum PublicationSource {
   OPENALEX
   DBLP
   ORCID
+  SCOPUS
+  WOS
   MANUAL
 
   @@map("publication_source")
@@ -112,8 +117,51 @@ enum SyncTaskStatus {
   RUNNING
   SUCCESS
   FAILED
+  /// The task's provider has no credentials configured (§13.9); nothing was fetched or written.
+  NOT_CONFIGURED
 
   @@map("sync_task_status")
+}
+
+/// Publication discovery runs and JCR journal-metrics runs share the engine (decision #123).
+enum SyncRunKind {
+  PUBLICATION_DISCOVERY
+  JOURNAL_METRICS
+
+  @@map("sync_run_kind")
+}
+
+enum SyncTaskKind {
+  IDENTITY_DISCOVERY
+  JOURNAL_METRICS
+
+  @@map("sync_task_kind")
+}
+
+/// How an external identity was verified (decision #118). PRE_PHASE15 = not recorded: identities
+/// created before Phase 15 (seed, demo script or the #68 preview flow) — provenance is not invented.
+enum IdentityVerificationMethod {
+  API_PREVIEW
+  MANUAL_PROFILE
+  PRE_PHASE15
+
+  @@map("identity_verification_method")
+}
+
+enum JournalIssnKind {
+  PRINT
+  ELECTRONIC
+  PREVIOUS
+
+  @@map("journal_issn_kind")
+}
+
+/// JCR metric a category rank belongs to.
+enum JcrRankMetric {
+  JIF
+  JCI
+
+  @@map("jcr_rank_metric")
 }
 
 // ─── 1. User ───────────────────────────────────────────────────────────────
@@ -144,6 +192,7 @@ model User {
   decidedRelationships ProfessorPublication[]    @relation("RelationshipDecidedBy")
   resolvedDuplicates   DuplicateCandidate[]      @relation("DuplicateResolvedBy")
   triggeredSyncRuns    SyncRun[]                 @relation("SyncRunTriggeredBy")
+  verifiedIdentities   ExternalIdentity[]        @relation("IdentityVerifiedBy")
 
   @@map("users")
 }
@@ -172,22 +221,28 @@ model Professor {
 /// A professor may have zero, one or several identities per source,
 /// but one identity can never belong to two professors.
 model ExternalIdentity {
-  id          String         @id @default(uuid()) @db.Uuid
-  professorId String         @map("professor_id") @db.Uuid
-  source      IdentitySource
-  externalId  String         @map("external_id")
-  isActive    Boolean        @default(true) @map("is_active")
-  verifiedAt  DateTime?      @map("verified_at") @db.Timestamptz(3)
-  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                      String                     @id @default(uuid()) @db.Uuid
+  professorId             String                     @map("professor_id") @db.Uuid
+  source                  IdentitySource
+  externalId              String                     @map("external_id")
+  isActive                Boolean                    @default(true) @map("is_active")
+  verifiedAt              DateTime?                  @map("verified_at") @db.Timestamptz(3)
+  /// API preview (#68) or, for Scopus/WoS without credentials, the provider's public profile (#118).
+  verificationMethod      IdentityVerificationMethod @default(PRE_PHASE15) @map("verification_method")
+  verificationEvidenceUrl String?                    @map("verification_evidence_url")
+  verifiedByUserId        String?                    @map("verified_by_user_id") @db.Uuid
+  createdAt               DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   // Professors are deactivated, never hard-deleted, so deletion is restricted.
   professor               Professor              @relation(fields: [professorId], references: [id], onDelete: Restrict)
+  verifiedBy              User?                  @relation("IdentityVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
   discoveredRelationships ProfessorPublication[]
   syncTasks               SyncTask[]
 
   @@unique([source, externalId])
   @@index([professorId])
+  @@index([verifiedByUserId])
   @@map("external_identities")
 }
 
@@ -205,9 +260,15 @@ model Publication {
   doi                String?           @unique
   status             PublicationStatus @default(ACTIVE)
   isCurated          Boolean           @default(false) @map("is_curated")
+  /// Per administrator-edited canonical field: { basis: INDEPENDENT | <provider> | PRE_PHASE15, evidence }
+  /// (decision #125). Current state only, no history.
+  curation           Json              @default("{}")
+  /// Set only when the publication's ISSNs identify exactly one journal (decision #116).
+  journalId          String?           @map("journal_id") @db.Uuid
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  journal              Journal?                  @relation(fields: [journalId], references: [id], onDelete: SetNull)
   sourceRecords        PublicationSourceRecord[]
   professors           ProfessorPublication[]
   duplicateCandidatesA DuplicateCandidate[]      @relation("DuplicateCandidateA")
@@ -215,6 +276,7 @@ model Publication {
 
   @@index([normalizedTitle])
   @@index([year])
+  @@index([journalId])
   @@map("publications")
 }
 
@@ -226,7 +288,7 @@ model PublicationSourceRecord {
   id                 String            @id @default(uuid()) @db.Uuid
   publicationId      String            @map("publication_id") @db.Uuid
   source             PublicationSource
-  /// OpenAlex W-id, DBLP record key, "{orcid}:{put-code}", or UUID for MANUAL.
+  /// OpenAlex W-id, DBLP record key, "{orcid}:{put-code}", Scopus EID, WoS accession number, or UUID for MANUAL.
   externalId         String            @map("external_id")
   title              String
   normalizedTitle    String            @map("normalized_title")
@@ -241,19 +303,27 @@ model PublicationSourceRecord {
   matchMethod        MatchMethod       @map("match_method")
   matchDetail        String?           @map("match_detail")
   createdByUserId    String?           @map("created_by_user_id") @db.Uuid
+  /// Normalized ISSNs ("NNNN-NNNX") reported by this record, for journal linking (Phase 15).
+  issns              String[]          @default([])
+  /// MANUAL only (decision #125): INDEPENDENT, the provider the entry was derived from, or PRE_PHASE15.
+  entryBasis         String?           @map("entry_basis")
+  /// MANUAL only: DOI, publisher or repository URL, or note supporting the entry.
+  entryEvidence      String?           @map("entry_evidence")
   firstSeenAt        DateTime          @default(now()) @map("first_seen_at") @db.Timestamptz(3)
   lastSeenAt         DateTime?         @map("last_seen_at") @db.Timestamptz(3)
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   // A publication cannot be deleted while source records reference it.
-  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Restrict)
-  createdBy   User?       @relation("SourceRecordCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  publication          Publication           @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  createdBy            User?                 @relation("SourceRecordCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  citationObservations CitationObservation[]
 
   @@unique([source, externalId])
   @@index([publicationId])
   @@index([doi])
   @@index([normalizedTitle])
+  @@index([issns], type: Gin)
   @@map("publication_source_records")
 }
 
@@ -315,6 +385,7 @@ model DuplicateCandidate {
 
 model SyncRun {
   id                String        @id @default(uuid()) @db.Uuid
+  kind              SyncRunKind   @default(PUBLICATION_DISCOVERY)
   trigger           SyncTrigger
   triggeredByUserId String?       @map("triggered_by_user_id") @db.Uuid
   status            SyncRunStatus @default(RUNNING)
@@ -326,6 +397,13 @@ model SyncRun {
   recordsUpdated    Int           @default(0) @map("records_updated")
   linksCreated      Int           @default(0) @map("links_created")
   candidatesCreated Int           @default(0) @map("candidates_created")
+  /// PUBLICATION_DISCOVERY runs: configuration state and identity count of the five mandatory
+  /// providers when the run started (runOutcome.ts). NULL for JCR runs and runs before Phase 15.
+  providerCoverage  Json?         @map("provider_coverage")
+  /// JOURNAL_METRICS runs: JCR's database-wide content date (`/last-updated`) and their own counters.
+  jcrDataUpdate     DateTime?     @map("jcr_data_update") @db.Date
+  journalsChecked   Int           @default(0) @map("journals_checked")
+  snapshotsAdded    Int           @default(0) @map("snapshots_added")
   startedAt         DateTime      @default(now()) @map("started_at") @db.Timestamptz(3)
   finishedAt        DateTime?     @map("finished_at") @db.Timestamptz(3)
 
@@ -333,32 +411,185 @@ model SyncRun {
   tasks       SyncTask[]
 
   @@index([startedAt])
+  @@index([kind, startedAt])
   @@map("sync_runs")
 }
 
 // ─── 9. SyncTask ───────────────────────────────────────────────────────────
 
-/// One task per external identity per run.
+/// One task per external identity per discovery run; one task per journal per JCR run.
+/// Hand-written CHECK (migration): IDENTITY_DISCOVERY tasks have a source and no journal;
+/// JOURNAL_METRICS tasks have neither a source nor an identity. identity_id and journal_id stay
+/// nullable so history outlives deleted identities and removed journals. UNIQUE(sync_run_id,
+/// journal_id) allows one task per journal per run (identity tasks have a NULL journal, and NULLs
+/// are distinct, so they are unaffected). New JOURNAL_METRICS tasks always reference a journal.
 model SyncTask {
-  id                String         @id @default(uuid()) @db.Uuid
-  syncRunId         String         @map("sync_run_id") @db.Uuid
-  identityId        String?        @map("identity_id") @db.Uuid
-  source            IdentitySource
-  status            SyncTaskStatus @default(PENDING)
-  recordsFetched    Int            @default(0) @map("records_fetched")
-  recordsNew        Int            @default(0) @map("records_new")
-  recordsUpdated    Int            @default(0) @map("records_updated")
-  linksCreated      Int            @default(0) @map("links_created")
-  candidatesCreated Int            @default(0) @map("candidates_created")
-  warnings          Int            @default(0)
-  errorMessage      String?        @map("error_message")
-  startedAt         DateTime?      @map("started_at") @db.Timestamptz(3)
-  finishedAt        DateTime?      @map("finished_at") @db.Timestamptz(3)
+  id                String          @id @default(uuid()) @db.Uuid
+  syncRunId         String          @map("sync_run_id") @db.Uuid
+  kind              SyncTaskKind    @default(IDENTITY_DISCOVERY)
+  identityId        String?         @map("identity_id") @db.Uuid
+  journalId         String?         @map("journal_id") @db.Uuid
+  source            IdentitySource?
+  status            SyncTaskStatus  @default(PENDING)
+  recordsFetched    Int             @default(0) @map("records_fetched")
+  recordsNew        Int             @default(0) @map("records_new")
+  recordsUpdated    Int             @default(0) @map("records_updated")
+  linksCreated      Int             @default(0) @map("links_created")
+  candidatesCreated Int             @default(0) @map("candidates_created")
+  snapshotsAdded    Int             @default(0) @map("snapshots_added")
+  warnings          Int             @default(0)
+  errorMessage      String?         @map("error_message")
+  startedAt         DateTime?       @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?       @map("finished_at") @db.Timestamptz(3)
 
-  syncRun  SyncRun           @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
-  identity ExternalIdentity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+  syncRun              SyncRun                 @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  identity             ExternalIdentity?       @relation(fields: [identityId], references: [id], onDelete: SetNull)
+  journal              Journal?                @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  citationObservations CitationObservation[]
+  metricSnapshots      JournalMetricSnapshot[]
 
+  @@unique([syncRunId, journalId])
   @@index([syncRunId])
   @@index([identityId])
+  @@index([journalId])
   @@map("sync_tasks")
+}
+
+// ─── 10. CitationObservation (Phase 15) ────────────────────────────────────
+
+/// One provider's citation count for one source record at one time (decisions #111, #112).
+/// Append-only; never updated. Hand-written CHECKs: provider is SCOPUS or WOS, count ≥ 0.
+model CitationObservation {
+  id             String            @id @default(uuid()) @db.Uuid
+  sourceRecordId String            @map("source_record_id") @db.Uuid
+  provider       PublicationSource
+  /// Provider database the count refers to (e.g. WoS "WOS"); NULL when the provider has one.
+  database       String?
+  count          Int
+  observedAt     DateTime          @map("observed_at") @db.Timestamptz(3)
+  syncTaskId     String?           @map("sync_task_id") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sourceRecord PublicationSourceRecord @relation(fields: [sourceRecordId], references: [id], onDelete: Cascade)
+  syncTask     SyncTask?               @relation(fields: [syncTaskId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceRecordId, syncTaskId])
+  @@index([sourceRecordId, observedAt])
+  @@index([provider, observedAt])
+  @@index([syncTaskId])
+  @@map("citation_observations")
+}
+
+// ─── 11. Journal (Phase 15) ────────────────────────────────────────────────
+
+/// JCR journal identity (decision #116). Profile fields may be refreshed; metrics live in snapshots.
+model Journal {
+  id             String   @id @default(uuid()) @db.Uuid
+  /// JCR journal id, e.g. "PLOS_ONE".
+  jcrId          String   @unique @map("jcr_id")
+  name           String
+  jcrTitle       String?  @map("jcr_title")
+  isoTitle       String?  @map("iso_title")
+  publisherName  String?  @map("publisher_name")
+  firstIssueYear Int?     @map("first_issue_year")
+  frequency      Int?
+  language       String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  issns        JournalIssn[]
+  snapshots    JournalMetricSnapshot[]
+  publications Publication[]
+  syncTasks    SyncTask[]
+
+  @@map("journals")
+}
+
+// ─── 12. JournalIssn (Phase 15) ────────────────────────────────────────────
+
+/// Print, electronic and previous ISSNs of a journal. An ISSN listed for two journals is
+/// ambiguous and never used for linking (hence no global uniqueness on issn).
+model JournalIssn {
+  id            String          @id @default(uuid()) @db.Uuid
+  journalId     String          @map("journal_id") @db.Uuid
+  issn          String          @db.Char(9)
+  kind          JournalIssnKind
+  validFromYear Int?            @map("valid_from_year")
+  validToYear   Int?            @map("valid_to_year")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  journal Journal @relation(fields: [journalId], references: [id], onDelete: Cascade)
+
+  @@unique([journalId, issn])
+  @@index([issn])
+  @@map("journal_issns")
+}
+
+// ─── 13. JournalMetricSnapshot (Phase 15) ──────────────────────────────────
+
+/// One revision of one journal's JCR report for one JCR year (decision #122). Insert-only: a new
+/// revision is added only when the normalized payload hash differs from the latest revision.
+/// Published values are kept as returned; numeric parses are stored separately (#114).
+model JournalMetricSnapshot {
+  id                   String    @id @default(uuid()) @db.Uuid
+  journalId            String    @map("journal_id") @db.Uuid
+  jcrYear              Int       @map("jcr_year")
+  revision             Int
+  /// SHA-256 (hex) of the normalized report.
+  payloadHash          String    @map("payload_hash") @db.Char(64)
+  /// JCR's database-wide content date at retrieval (`/last-updated`), when available.
+  jcrDataUpdate        DateTime? @map("jcr_data_update") @db.Date
+  retrievedAt          DateTime  @map("retrieved_at") @db.Timestamptz(3)
+  syncTaskId           String?   @map("sync_task_id") @db.Uuid
+  // Returned directly by the API.
+  totalCites           Int?      @map("total_cites")
+  jifText              String?   @map("jif_text")
+  jifWithoutSelfText   String?   @map("jif_without_self_text")
+  jif5Years            Float?    @map("jif_5_years")
+  immediacyIndex       Float?    @map("immediacy_index")
+  jci                  Float?
+  averageJifPercentile Float?    @map("average_jif_percentile")
+  suppressed           Boolean?
+  onHold               Boolean?  @map("on_hold")
+  delisted             Boolean?
+  // Derived: numeric parses of the published text values (NULL when not numeric, e.g. "N/A").
+  jifValue             Float?    @map("jif_value")
+  jifWithoutSelfValue  Float?    @map("jif_without_self_value")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  journal         Journal                 @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  syncTask        SyncTask?               @relation(fields: [syncTaskId], references: [id], onDelete: SetNull)
+  categoryMetrics JournalCategoryMetric[]
+
+  @@unique([journalId, jcrYear, revision])
+  @@index([journalId, jcrYear, retrievedAt])
+  @@index([syncTaskId])
+  @@map("journal_metric_snapshots")
+}
+
+// ─── 14. JournalCategoryMetric (Phase 15) ──────────────────────────────────
+
+/// Per-category rank, quartile and percentile within a snapshot. `edition` is never NULL ('' when
+/// the API gives none), so the unique constraint also prevents duplicates of edition-less rows.
+/// Unfamiliar edition identifiers are stored as returned (no allowlist). Hand-written CHECKs:
+/// quartile Q1–Q4, rank and rank_total positive.
+model JournalCategoryMetric {
+  id           String        @id @default(uuid()) @db.Uuid
+  snapshotId   String        @map("snapshot_id") @db.Uuid
+  metric       JcrRankMetric
+  /// Trimmed, whitespace-collapsed, upper-case.
+  categoryName String        @map("category_name")
+  /// From the rank's `self` link, e.g. "RO_SCIE".
+  categoryCode String?       @map("category_code")
+  edition      String        @default("")
+  rankText     String?       @map("rank_text")
+  rank         Int?
+  rankTotal    Int?          @map("rank_total")
+  quartile     String?
+  percentile   Float?
+
+  snapshot JournalMetricSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, metric, categoryName, edition])
+  @@map("journal_category_metrics")
 }

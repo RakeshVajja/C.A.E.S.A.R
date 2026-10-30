@@ -49,6 +49,14 @@ const envSchema = z
     SMTP_USER: optionalText,
     SMTP_PASSWORD: optionalText,
     MAIL_FROM: optionalText,
+    // Licensed providers (Project_plan.md §13.6–§13.9, Phase 15). Unset → that provider is
+    // NOT_CONFIGURED; there are no enable/disable switches. Never logged or returned.
+    SCOPUS_API_KEY: optionalText,
+    // Elsevier institutional token, needed outside the institution's IP range.
+    SCOPUS_INST_TOKEN: optionalText,
+    WOS_STARTER_API_KEY: optionalText,
+    // Web of Science Journals API (Journal Citation Reports).
+    WOS_JOURNALS_API_KEY: optionalText,
     // Monthly synchronization (§14, decision #81): node-cron expression and IANA time zone.
     SYNC_CRON: optionalText
       .transform((value) => value ?? DEFAULT_SYNC_CRON)
@@ -95,6 +103,25 @@ export interface Env {
   smtp: SmtpConfig | null;
   syncCron: string;
   syncTimezone: string;
+  /** Licensed provider credentials; null = that provider is NOT_CONFIGURED (§13.9). */
+  providerCredentials: ProviderCredentials;
+}
+
+export interface ProviderCredentials {
+  scopus: { apiKey: string; instToken: string | null } | null;
+  wosStarter: { apiKey: string } | null;
+  wosJournals: { apiKey: string } | null;
+  /**
+   * Incomplete provider configuration (e.g. a Scopus institutional token without an API key). It
+   * never stops startup: the provider is reported as incompletely configured and not used, and the
+   * other providers are unaffected (§13.9). Messages name variables only, never values.
+   */
+  issues: ProviderConfigurationIssue[];
+}
+
+export interface ProviderConfigurationIssue {
+  provider: 'SCOPUS' | 'WOS' | 'JCR';
+  message: string;
 }
 
 export function loadEnv(source: NodeJS.ProcessEnv): Env {
@@ -129,6 +156,15 @@ export function loadEnv(source: NodeJS.ProcessEnv): Env {
         : null,
     syncCron: data.SYNC_CRON,
     syncTimezone: data.SYNC_TIMEZONE,
+    providerCredentials: {
+      scopus: data.SCOPUS_API_KEY ? { apiKey: data.SCOPUS_API_KEY, instToken: data.SCOPUS_INST_TOKEN } : null,
+      wosStarter: data.WOS_STARTER_API_KEY ? { apiKey: data.WOS_STARTER_API_KEY } : null,
+      wosJournals: data.WOS_JOURNALS_API_KEY ? { apiKey: data.WOS_JOURNALS_API_KEY } : null,
+      issues:
+        data.SCOPUS_INST_TOKEN && !data.SCOPUS_API_KEY
+          ? [{ provider: 'SCOPUS', message: 'SCOPUS_INST_TOKEN is set but SCOPUS_API_KEY is not' }]
+          : [],
+    },
   };
 }
 

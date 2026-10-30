@@ -11,6 +11,7 @@ import { SyncService } from '../../src/services/sync/syncService';
 import { cookiePair, createUser, PASSWORD, testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch, Route } from '../helpers/fixtures';
+import { allProvidersPresent } from '../helpers/providers';
 import { adminCookie, tableCounts } from '../professors/helpers';
 
 /* Administrator analytics (Project_plan.md §16; Phase 13, decisions #86–#89). Real test database, no network. */
@@ -115,14 +116,14 @@ describe('empty database', () => {
     expect(await publicationsByYear()).toEqual({ years: [], unknownYear: 0, total: 0 });
     const sources = await sourceStatistics();
     expect(sources.counted).toEqual({
-      sources: ['OPENALEX', 'DBLP', 'ORCID', 'MANUAL'].map((source) => ({ source, sourceRecords: 0, publications: 0 })),
+      sources: ['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS', 'WOS', 'MANUAL'].map((source) => ({ source, sourceRecords: 0, publications: 0 })),
       sourceRecords: 0,
       uniquePublications: 0,
     });
     expect(sources.stored).toMatchObject({ sourceRecords: 0, publications: 0 });
     expect(await syncStatistics()).toEqual({
       runs: { total: 0, success: 0, partialSuccess: 0, failed: 0, running: 0 },
-      tasks: { success: 0, failed: 0 },
+      tasks: { success: 0, failed: 0, notConfigured: 0 },
       records: { fetched: 0, added: 0, updated: 0, linksCreated: 0, candidatesCreated: 0 },
       lastRun: null,
       lastSuccessfulRun: null,
@@ -185,6 +186,8 @@ describe('the default policy (APPROVED relationships to ACTIVE, non-preprint pub
         { source: 'OPENALEX', sourceRecords: 3, publications: 2 }, // p1, and p2 twice from OpenAlex
         { source: 'DBLP', sourceRecords: 3, publications: 3 }, // p1, p8, p9
         { source: 'ORCID', sourceRecords: 1, publications: 1 }, // p1
+        { source: 'SCOPUS', sourceRecords: 0, publications: 0 },
+        { source: 'WOS', sourceRecords: 0, publications: 0 },
         { source: 'MANUAL', sourceRecords: 1, publications: 1 }, // p5
       ],
       sourceRecords: 8,
@@ -195,6 +198,8 @@ describe('the default policy (APPROVED relationships to ACTIVE, non-preprint pub
         { source: 'OPENALEX', sourceRecords: 4 },
         { source: 'DBLP', sourceRecords: 5 },
         { source: 'ORCID', sourceRecords: 2 },
+        { source: 'SCOPUS', sourceRecords: 0 },
+        { source: 'WOS', sourceRecords: 0 },
         { source: 'MANUAL', sourceRecords: 1 },
       ],
       sourceRecords: 12,
@@ -293,7 +298,7 @@ describe('synchronization statistics', () => {
 
     const s = await syncStatistics();
     expect(s.runs).toEqual({ total: 4, success: 1, partialSuccess: 1, failed: 1, running: 1 });
-    expect(s.tasks).toEqual({ success: 3, failed: 3 });
+    expect(s.tasks).toEqual({ success: 3, failed: 3, notConfigured: 0 });
     expect(s.records).toEqual({ fetched: 180, added: 65, updated: 115, linksCreated: 53, candidatesCreated: 2 });
     expect(s.lastRun).toMatchObject({ id: failed.id, status: 'FAILED' });
     expect(s.lastSuccessfulRun).toMatchObject({ id: ok.id, status: 'SUCCESS' });
@@ -322,7 +327,7 @@ describe('consistency with a real synchronized database (recorded fixtures)', ()
       dblp: new DblpClient({ deps, http: { maxRetries: 0 } }),
       orcid: new OrcidClient({ deps, http: { maxRetries: 0 } }),
     };
-    return new SyncService({ clients, now: testClock(start).now });
+    return new SyncService({ clients, now: testClock(start).now, providers: allProvidersPresent() });
   }
 
   it('analytics equal totals computed independently from the stored rows', async () => {
@@ -388,7 +393,7 @@ describe('consistency with a real synchronized database (recorded fixtures)', ()
     const runs = await prisma.syncRun.findMany({ orderBy: { startedAt: 'asc' } });
     expect(runs.map((r) => r.status)).toEqual(['PARTIAL_SUCCESS', 'PARTIAL_SUCCESS']);
     expect(s.runs).toEqual({ total: 2, success: 0, partialSuccess: 2, failed: 0, running: 0 });
-    expect(s.tasks).toEqual({ success: 5, failed: 3 });
+    expect(s.tasks).toEqual({ success: 5, failed: 3, notConfigured: 0 });
     expect(s.records).toEqual({
       fetched: runs[0].recordsFetched + runs[1].recordsFetched,
       added: runs[0].recordsNew + runs[1].recordsNew,

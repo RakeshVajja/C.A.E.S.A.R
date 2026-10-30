@@ -3,11 +3,12 @@ import { normalizeTitle } from '../normalization/title';
 
 /**
  * Canonical metadata selection (Project_plan.md §9):
- *   CURATED → OpenAlex → DBLP → ORCID → MANUAL
- * CURATED is handled by the caller (curated publications are never recomputed).
+ *   CURATED → OpenAlex → DBLP → ORCID → Scopus → Web of Science → MANUAL
+ * CURATED is handled by the caller (curated publications are never recomputed). Scopus and Web of
+ * Science come after ORCID so existing canonical values do not change (decision #110).
  * For each field the first non-empty value in source priority order wins.
  */
-export const SOURCE_PRIORITY: readonly PublicationSource[] = ['OPENALEX', 'DBLP', 'ORCID', 'MANUAL'];
+export const SOURCE_PRIORITY: readonly PublicationSource[] = ['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS', 'WOS', 'MANUAL'];
 
 export interface SourceRecordMetadata {
   id: string;

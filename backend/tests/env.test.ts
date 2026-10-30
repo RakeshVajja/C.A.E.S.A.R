@@ -22,7 +22,39 @@ describe('loadEnv', () => {
       smtp: null,
       syncCron: '0 2 1 * *',
       syncTimezone: 'Asia/Kolkata',
+      providerCredentials: { scopus: null, wosStarter: null, wosJournals: null, issues: [] },
     });
+  });
+
+  it('reads licensed provider credentials; empty values leave the provider not configured (§13.9)', () => {
+    const configured = loadEnv({
+      ...validSource,
+      SCOPUS_API_KEY: ' scopus-key ',
+      SCOPUS_INST_TOKEN: 'inst-token',
+      WOS_STARTER_API_KEY: 'wos-key',
+      WOS_JOURNALS_API_KEY: 'jcr-key',
+    }).providerCredentials;
+    expect(configured).toEqual({
+      scopus: { apiKey: 'scopus-key', instToken: 'inst-token' },
+      wosStarter: { apiKey: 'wos-key' },
+      wosJournals: { apiKey: 'jcr-key' },
+      issues: [],
+    });
+    expect(loadEnv({ ...validSource, SCOPUS_API_KEY: 'k' }).providerCredentials.scopus).toEqual({ apiKey: 'k', instToken: null });
+    expect(loadEnv({ ...validSource, SCOPUS_API_KEY: '', WOS_STARTER_API_KEY: ' ', WOS_JOURNALS_API_KEY: '' }).providerCredentials).toEqual({
+      scopus: null,
+      wosStarter: null,
+      wosJournals: null,
+      issues: [],
+    });
+  });
+
+  it('starts with a Scopus institutional token but no API key: Scopus is incompletely configured, the rest unaffected', () => {
+    const env = loadEnv({ ...validSource, SCOPUS_INST_TOKEN: 'secret-token-value', WOS_STARTER_API_KEY: 'wos-key' });
+    expect(env.providerCredentials.scopus).toBeNull();
+    expect(env.providerCredentials.wosStarter).toEqual({ apiKey: 'wos-key' });
+    expect(env.providerCredentials.issues).toEqual([{ provider: 'SCOPUS', message: 'SCOPUS_INST_TOKEN is set but SCOPUS_API_KEY is not' }]);
+    expect(JSON.stringify(env.providerCredentials.issues)).not.toContain('secret-token-value');
   });
 
   it('reads an optional OpenAlex API key, treating an empty value as absent', () => {

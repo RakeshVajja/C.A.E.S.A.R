@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
+import { parseCoverageSnapshot, providerCoverage } from '../services/sync/runOutcome';
 import { SyncService } from '../services/sync/syncService';
 import { HttpError } from '../utils/httpError';
 
@@ -10,8 +11,13 @@ import { HttpError } from '../utils/httpError';
  *
  *   POST /             start a manual run (202; 409 SYNC_ALREADY_RUNNING while one runs)
  *   GET  /runs         run history, newest first (limit/offset)
- *   GET  /runs/:runId  one run with its tasks
+ *   GET  /runs/:runId  one run with its tasks and per-provider coverage
+ *
+ * These endpoints cover publication-discovery runs only (decision #123); journal-metrics (JCR) runs
+ * are reported separately, so their status never appears here.
  */
+
+const DISCOVERY = { kind: 'PUBLICATION_DISCOVERY' } as const;
 
 const listQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -56,8 +62,8 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
       );
     }
     const [runs, total] = await prisma.$transaction([
-      prisma.syncRun.findMany({ select: runSelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], take: parsed.data.limit, skip: parsed.data.offset }),
-      prisma.syncRun.count(),
+      prisma.syncRun.findMany({ where: DISCOVERY, select: runSelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], take: parsed.data.limit, skip: parsed.data.offset }),
+      prisma.syncRun.count({ where: DISCOVERY }),
     ]);
     res.json({ runs, total, limit: parsed.data.limit, offset: parsed.data.offset, running: deps.sync.running });
   });
@@ -65,10 +71,11 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
   router.get('/runs/:runId', async (req, res) => {
     const id = z.uuid().safeParse(req.params.runId);
     const run = id.success
-      ? await prisma.syncRun.findUnique({
-          where: { id: id.data },
+      ? await prisma.syncRun.findFirst({
+          where: { id: id.data, ...DISCOVERY },
           select: {
             ...runSelect,
+            providerCoverage: true,
             tasks: {
               select: {
                 id: true,
@@ -91,7 +98,10 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
         })
       : null;
     if (!run) throw new HttpError(404, 'SYNC_RUN_NOT_FOUND', 'Synchronization run not found');
-    res.json({ run });
+    // Coverage comes from the snapshot stored at run start (null for runs before Phase 15).
+    const { providerCoverage: stored, ...rest } = run;
+    const snapshot = parseCoverageSnapshot(stored);
+    res.json({ run: { ...rest, coverage: snapshot ? providerCoverage(snapshot, run.tasks) : null } });
   });
 
   return router;

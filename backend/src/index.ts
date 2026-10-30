@@ -1,4 +1,5 @@
 import { createApp } from './app';
+import { configurationWarnings, providerConfiguration } from './services/providers/providerStatus';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { env } from './config/env';
 import { startSyncScheduler } from './services/sync/scheduler';
@@ -17,6 +18,11 @@ async function startServer(): Promise<void> {
   }
   if (!env.smtp && env.nodeEnv !== 'test') {
     console.warn('SMTP is not configured: professor password recovery is unavailable');
+  }
+  // Licensed providers: missing or incomplete credentials are reported, never fatal, and present
+  // credentials are not claimed to work (§13.9). No credential value is ever printed.
+  if (env.nodeEnv !== 'test') {
+    for (const warning of configurationWarnings(providerConfiguration(env.providerCredentials))) console.warn(warning);
   }
 
   // Runs left RUNNING by a crash or restart are marked failed before anything else (§14).

@@ -41,6 +41,8 @@ export const SOURCE_LABEL: Record<Source, string> = {
   OPENALEX: "OpenAlex",
   DBLP: "DBLP",
   ORCID: "ORCID",
+  SCOPUS: "Scopus",
+  WOS: "Web of Science",
   MANUAL: "Manual",
 };
 

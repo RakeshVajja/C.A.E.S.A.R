@@ -2,13 +2,13 @@
 
 export type Role = "ADMIN" | "PROFESSOR";
 export type TypeFamily = "PREPRINT" | "CONFERENCE" | "JOURNAL" | "BOOK_CHAPTER" | "BOOK" | "OTHER";
-export type Source = "OPENALEX" | "DBLP" | "ORCID" | "MANUAL";
-export type IdentitySource = "OPENALEX" | "DBLP" | "ORCID";
+export type Source = "OPENALEX" | "DBLP" | "ORCID" | "SCOPUS" | "WOS" | "MANUAL";
+export type IdentitySource = "OPENALEX" | "DBLP" | "ORCID" | "SCOPUS" | "WOS";
 export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type PublicationStatus = "ACTIVE" | "SUPPRESSED";
 export type CandidateStatus = "OPEN" | "MERGED" | "DISMISSED";
 export type SyncRunStatus = "RUNNING" | "SUCCESS" | "PARTIAL_SUCCESS" | "FAILED";
-export type SyncTaskStatus = "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";
+export type SyncTaskStatus = "PENDING" | "RUNNING" | "SUCCESS" | "FAILED" | "NOT_CONFIGURED";
 /** Emailed sign-in details for a professor account (decision #102). */
 export type InvitationStatus = "SENT" | "FAILED" | "NOT_CONFIGURED";
 

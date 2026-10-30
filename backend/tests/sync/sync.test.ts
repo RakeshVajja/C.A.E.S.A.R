@@ -15,6 +15,8 @@ import { cookiePair, createUser, PASSWORD, testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch, Route, toResponse } from '../helpers/fixtures';
 import { adminCookie, tableCounts } from '../professors/helpers';
+import { allProvidersPresent, noLicensedProviders } from '../helpers/providers';
+import type { ProviderConfiguration } from '../../src/services/providers/providerStatus';
 
 /* Synchronization (Project_plan.md §14; Phase 12). Recorded fixtures only — no network. */
 
@@ -68,8 +70,8 @@ async function world() {
   return { a, openAlex, orcid, inactiveIdentity, ofInactiveProf };
 }
 
-function service(overrides: Record<string, Route> = {}, now = testClock(T1).now) {
-  return new SyncService({ clients: syncClients(overrides), now });
+function service(overrides: Record<string, Route> = {}, now = testClock(T1).now, providers: ProviderConfiguration = allProvidersPresent()) {
+  return new SyncService({ clients: syncClients(overrides), now, providers });
 }
 
 async function runToEnd(sync: SyncService, trigger: 'MANUAL' | 'SCHEDULED' = 'MANUAL', by: string | null = null) {
@@ -86,7 +88,8 @@ describe('a synchronization run', () => {
     const { a, openAlex, orcid, inactiveIdentity, ofInactiveProf } = await world();
     const run = await runToEnd(service());
 
-    expect(run).toMatchObject({ trigger: 'MANUAL', status: 'SUCCESS', tasksTotal: 2, tasksSucceeded: 2, tasksFailed: 0, startedAt: new Date(T1), finishedAt: new Date(T1) });
+    // Scopus and WoS have credentials but no identities, so their access is unverified: never plain SUCCESS (#129, #130).
+    expect(run).toMatchObject({ trigger: 'MANUAL', status: 'PARTIAL_SUCCESS', tasksTotal: 2, tasksSucceeded: 2, tasksFailed: 0, startedAt: new Date(T1), finishedAt: new Date(T1) });
     expect(run.tasks.map((t) => t.identityId).sort()).toEqual([openAlex.id, orcid.id].sort()); // not the inactive ones
     expect(run.tasks.some((t) => [inactiveIdentity.id, ofInactiveProf.id].includes(t.identityId!))).toBe(false);
 
@@ -107,13 +110,78 @@ describe('a synchronization run', () => {
     const { inactiveIdentity } = await world();
     await prisma.externalIdentity.update({ where: { id: inactiveIdentity.id }, data: { isActive: true } });
     const run = await runToEnd(service());
-    expect(run).toMatchObject({ status: 'SUCCESS', tasksTotal: 3, tasksSucceeded: 3 });
+    expect(run).toMatchObject({ status: 'PARTIAL_SUCCESS', tasksTotal: 3, tasksSucceeded: 3 }); // Scopus/WoS not accessed
     expect(taskOf(run, inactiveIdentity.id)).toMatchObject({ source: 'DBLP', status: 'SUCCESS', recordsFetched: 830 });
   });
 
-  it('with no active identities the run succeeds with zero tasks', async () => {
+  it('with no active identities the run has zero tasks and, with no licensed provider accessed, is partial', async () => {
     const run = await runToEnd(service());
-    expect(run).toMatchObject({ status: 'SUCCESS', tasksTotal: 0, tasksSucceeded: 0, tasksFailed: 0, recordsFetched: 0 });
+    expect(run).toMatchObject({ status: 'PARTIAL_SUCCESS', tasksTotal: 0, tasksSucceeded: 0, tasksFailed: 0, recordsFetched: 0 });
+  });
+});
+
+describe('mandatory provider coverage (Phase 15.2, decision #117)', () => {
+  it('Scopus and WoS without credentials keep a run without their identities from SUCCESS, and the snapshot is stored', async () => {
+    await world();
+    const run = await runToEnd(service({}, testClock(T1).now, noLicensedProviders()));
+    expect(run).toMatchObject({ kind: 'PUBLICATION_DISCOVERY', status: 'PARTIAL_SUCCESS', tasksTotal: 2, tasksSucceeded: 2, tasksFailed: 0 });
+    expect(run.providerCoverage).toEqual({
+      version: 1,
+      providers: {
+        OPENALEX: { credentials: 'NOT_REQUIRED', identities: 1 },
+        DBLP: { credentials: 'NOT_REQUIRED', identities: 0 },
+        ORCID: { credentials: 'NOT_REQUIRED', identities: 1 },
+        SCOPUS: { credentials: 'NOT_CONFIGURED', identities: 0 },
+        WOS: { credentials: 'NOT_CONFIGURED', identities: 0 },
+      },
+    });
+  });
+
+  it('an identity of an unconfigured provider gets a NOT_CONFIGURED task that never runs', async () => {
+    const { a } = await world();
+    const wos = await prisma.externalIdentity.create({ data: { professorId: a.id, source: 'WOS', externalId: 'A-1009-2008' } });
+    const run = await runToEnd(service({}, testClock(T1).now, noLicensedProviders()));
+    expect(run).toMatchObject({ status: 'PARTIAL_SUCCESS', tasksTotal: 3, tasksSucceeded: 2, tasksFailed: 0 });
+    expect(taskOf(run, wos.id)).toMatchObject({
+      kind: 'IDENTITY_DISCOVERY',
+      source: 'WOS',
+      status: 'NOT_CONFIGURED',
+      errorMessage: 'Web of Science is not configured: no API credentials are set',
+      recordsFetched: 0,
+    });
+    expect(await prisma.publicationSourceRecord.count({ where: { source: 'WOS' } })).toBe(0);
+  });
+
+  it('Scopus and WoS credentials present without identities: stored as PRESENT, access unverified, run partial', async () => {
+    await world();
+    const sync = service();
+    const run = await runToEnd(sync);
+    expect(run.status).toBe('PARTIAL_SUCCESS');
+    expect(run.providerCoverage).toMatchObject({ providers: { SCOPUS: { credentials: 'PRESENT', identities: 0 }, WOS: { credentials: 'PRESENT', identities: 0 } } });
+    const server = createApp({ mailer: null, sync });
+    const detail = await request(server).get(`/api/admin/sync/runs/${run.id}`).set('Cookie', await adminCookie(server));
+    const licensed = detail.body.run.coverage.filter((c: { provider: string }) => ['SCOPUS', 'WOS'].includes(c.provider));
+    expect(licensed).toEqual([
+      expect.objectContaining({ provider: 'SCOPUS', credentials: 'PRESENT', available: true, accessConfirmed: false, complete: false }),
+      expect.objectContaining({ provider: 'WOS', credentials: 'PRESENT', available: true, accessConfirmed: false, complete: false }),
+    ]);
+  });
+
+  it('the run detail reports coverage of all five providers from the stored snapshot', async () => {
+    await world();
+    const sync = service({}, testClock(T1).now, noLicensedProviders());
+    const run = await runToEnd(sync);
+    const server = createApp({ mailer: null, sync });
+    const admin = await adminCookie(server);
+    const detail = await request(server).get(`/api/admin/sync/runs/${run.id}`).set('Cookie', admin);
+    expect(detail.body.run.providerCoverage).toBeUndefined();
+    expect(detail.body.run.coverage.map((c: { provider: string; available: boolean }) => [c.provider, c.available])).toEqual([
+      ['OPENALEX', true],
+      ['DBLP', true],
+      ['ORCID', true],
+      ['SCOPUS', false],
+      ['WOS', false],
+    ]);
   });
 });
 
@@ -135,7 +203,7 @@ describe('reruns', () => {
 
     clock.advance(new Date(T2).getTime() - new Date(T1).getTime());
     const rerun = await runToEnd(sync);
-    expect(rerun).toMatchObject({ status: 'SUCCESS', recordsNew: 0, linksCreated: 0, candidatesCreated: 0 });
+    expect(rerun).toMatchObject({ status: 'PARTIAL_SUCCESS', recordsNew: 0, linksCreated: 0, candidatesCreated: 0 });
     expect(rerun.recordsUpdated).toBe(72);
     expect(await tableCounts()).toEqual({ ...before, syncRuns: before.syncRuns + 1, syncTasks: before.syncTasks + 2 });
     expect(await prisma.professorPublication.findMany({ orderBy: { id: 'asc' } })).toEqual(relationships); // incl. no link to the suppressed one
@@ -279,7 +347,7 @@ describe('single-run guard and startup recovery', () => {
     await sync.idle();
     expect(sync.running).toBe(false);
     expect(await prisma.syncRun.count()).toBe(1);
-    expect((await runToEnd(sync)).status).toBe('SUCCESS'); // a new run is possible afterwards
+    expect((await runToEnd(sync)).status).toBe('PARTIAL_SUCCESS'); // a new run is possible afterwards (partial: Scopus/WoS not accessed)
   });
 
   it('a RUNNING run recorded by another process blocks a new run', async () => {
@@ -368,7 +436,7 @@ describe('a run that stops unexpectedly (L1)', () => {
     expect(await prisma.publicationSourceRecord.count({ where: { source: 'OPENALEX' } })).toBe(67); // completed work kept
     expect(logged[0]).toMatch(/^Synchronization run .* stopped unexpectedly \(Database error while writing records/);
     expect(sync.running).toBe(false);
-    expect((await runToEnd(sync)).status).toBe('SUCCESS'); // the guard was released; nothing blocks now
+    expect((await runToEnd(sync)).status).toBe('PARTIAL_SUCCESS'); // the guard was released; nothing blocks now
   });
 
   it('if recording the failure also fails, the original error is still logged and startup recovery closes the run', async () => {
@@ -421,7 +489,7 @@ describe('scheduling (node-cron)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     await tick!();
     await sync.idle();
-    expect(await prisma.syncRun.findFirstOrThrow()).toMatchObject({ trigger: 'SCHEDULED', triggeredByUserId: null, status: 'SUCCESS' });
+    expect(await prisma.syncRun.findFirstOrThrow()).toMatchObject({ trigger: 'SCHEDULED', triggeredByUserId: null, status: 'PARTIAL_SUCCESS' });
     await scheduler.stop();
   });
 
@@ -492,7 +560,7 @@ describe('admin routes', () => {
     release();
     await sync.idle();
     const detail = await request(server).get(`/api/admin/sync/runs/${started.body.run.id}`).set('Cookie', admin);
-    expect(detail.body.run).toMatchObject({ status: 'SUCCESS', tasksSucceeded: 2 });
+    expect(detail.body.run).toMatchObject({ status: 'PARTIAL_SUCCESS', tasksSucceeded: 2 });
     expect(detail.body.run.tasks).toHaveLength(2);
     expect(detail.body.run.tasks[0]).toMatchObject({ status: 'SUCCESS', identity: { externalId: expect.any(String), professor: { name: 'Prof A' } } });
   });

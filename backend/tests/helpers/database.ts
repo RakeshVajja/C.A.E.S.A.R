@@ -1,6 +1,12 @@
 import { prisma } from '../../src/config/database';
 
 const TABLES = [
+  // Phase 15 tables (14 in total).
+  'citation_observations',
+  'journal_category_metrics',
+  'journal_metric_snapshots',
+  'journal_issns',
+  'journals',
   'sync_tasks',
   'sync_runs',
   'duplicate_candidates',

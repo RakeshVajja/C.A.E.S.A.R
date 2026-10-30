@@ -14,6 +14,7 @@ import { SyncAlreadyRunningError, SyncService } from '../../src/services/sync/sy
 import { cookiePair, createUser, PASSWORD, testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch, Route, toResponse } from '../helpers/fixtures';
+import { allProvidersPresent } from '../helpers/providers';
 import { adminCookie } from '../professors/helpers';
 
 /* Administrator publication and duplicate management (Project_plan.md §8.5, §15.1; Phase 13B, #90–#95). No network. */
@@ -47,6 +48,7 @@ function syncService(overrides: Record<string, Route> = {}) {
       orcid: new OrcidClient({ deps, http: { maxRetries: 0 } }),
     },
     now: testClock(NOW).now,
+    providers: allProvidersPresent(),
   });
 }
 

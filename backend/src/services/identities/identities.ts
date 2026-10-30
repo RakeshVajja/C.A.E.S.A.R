@@ -39,14 +39,29 @@ export function createPreviewClients(): IdentityClients {
   };
 }
 
-const SOURCE_LABEL: Record<IdentitySource, string> = { OPENALEX: 'OpenAlex author ID', DBLP: 'DBLP PID', ORCID: 'ORCID iD' };
+const SOURCE_LABEL: Record<IdentitySource, string> = {
+  OPENALEX: 'OpenAlex author ID',
+  DBLP: 'DBLP PID',
+  ORCID: 'ORCID iD',
+  SCOPUS: 'Scopus Author ID',
+  WOS: 'Web of Science ResearcherID',
+};
+
+/** Sources whose identities can be previewed and saved today; Scopus and WoS follow in Phase 15.3/15.4. */
+type PreviewableSource = 'OPENALEX' | 'DBLP' | 'ORCID';
+
+function previewableSource(source: IdentitySource): PreviewableSource {
+  if (source === 'OPENALEX' || source === 'DBLP' || source === 'ORCID') return source;
+  throw new HttpError(400, 'SOURCE_NOT_AVAILABLE', `${SOURCE_LABEL[source]} identities cannot be added yet`);
+}
 const RECENT_WORKS = 5;
 
 /** The normalized identifier, using the source's own normalizer (and ORCID checksum). */
 export function normalizeIdentifier(source: IdentitySource, value: string): string {
+  const previewable = previewableSource(source);
   try {
-    if (source === 'OPENALEX') return normalizeOpenAlexAuthorId(value);
-    if (source === 'DBLP') return normalizeDblpPid(value);
+    if (previewable === 'OPENALEX') return normalizeOpenAlexAuthorId(value);
+    if (previewable === 'DBLP') return normalizeDblpPid(value);
     return normalizeOrcidId(value);
   } catch (error) {
     if (error instanceof FetchError) {
@@ -85,7 +100,7 @@ function invalidIdentityMessage(source: IdentitySource, status: number | undefin
   return `This ${SOURCE_LABEL[source]} cannot be used`;
 }
 
-async function sourceDetails(source: IdentitySource, externalId: string, clients: IdentityClients) {
+async function sourceDetails(source: PreviewableSource, externalId: string, clients: IdentityClients) {
   try {
     if (source === 'OPENALEX') {
       const author = await clients.openAlex.validateAuthor(externalId);
@@ -141,10 +156,11 @@ export async function previewIdentity(
   deps: { clients: IdentityClients; now: () => Date; client?: PrismaClient },
 ) {
   const client = deps.client ?? defaultClient;
-  const externalId = normalizeIdentifier(source, submitted);
+  const previewable = previewableSource(source);
+  const externalId = normalizeIdentifier(previewable, submitted);
   await requireProfessor(client, professorId);
 
-  const details = await sourceDetails(source, externalId, deps.clients);
+  const details = await sourceDetails(previewable, externalId, deps.clients);
   const existing = await client.externalIdentity.findUnique({
     where: { source_externalId: { source, externalId } },
     select: { id: true, professorId: true, isActive: true },
@@ -155,7 +171,7 @@ export async function previewIdentity(
     alreadyAssigned: existing
       ? { identityId: existing.id, professorId: existing.professorId, sameProfessor: existing.professorId === professorId, isActive: existing.isActive }
       : null,
-    previewToken: signIdentityPreviewToken({ professorId, source, externalId }, now),
+    previewToken: signIdentityPreviewToken({ professorId, source: previewable, externalId }, now),
     previewExpiresAt: new Date(now.getTime() + IDENTITY_PREVIEW_TTL_SECONDS * 1000),
   };
 }
@@ -164,7 +180,7 @@ export async function previewIdentity(
 export async function saveIdentity(
   professorId: string,
   previewToken: string,
-  deps: { now: () => Date; client?: PrismaClient },
+  deps: { now: () => Date; client?: PrismaClient; verifiedByUserId?: string | null },
 ) {
   const client = deps.client ?? defaultClient;
   const claims = verifyIdentityPreviewToken(previewToken, deps.now());
@@ -174,7 +190,15 @@ export async function saveIdentity(
   await requireProfessor(client, professorId);
   try {
     return await client.externalIdentity.create({
-      data: { professorId, source: claims.source, externalId: claims.externalId, verifiedAt: claims.previewedAt },
+      data: {
+        professorId,
+        source: claims.source,
+        externalId: claims.externalId,
+        verifiedAt: claims.previewedAt,
+        // Saved only after a successful API preview (#68); the administrator is recorded (#118).
+        verificationMethod: 'API_PREVIEW',
+        verifiedByUserId: deps.verifiedByUserId ?? null,
+      },
       select: { id: true, source: true, externalId: true, isActive: true, verifiedAt: true, createdAt: true },
     });
   } catch (error) {

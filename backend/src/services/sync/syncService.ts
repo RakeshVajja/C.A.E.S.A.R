@@ -6,6 +6,8 @@ import { FetchError } from '../../integrations/http/httpClient';
 import { OpenAlexClient } from '../../integrations/openalex/client';
 import { OrcidClient } from '../../integrations/orcid/client';
 import { HttpError } from '../../utils/httpError';
+import { canAttempt, providerConfiguration, PROVIDER_LABEL, unavailableMessage, type ProviderConfiguration } from '../providers/providerStatus';
+import { countOutcomes, coverageSnapshot, parseCoverageSnapshot, runStatus } from './runOutcome';
 import { discoverDblpIdentity } from '../discovery/dblpDiscovery';
 import { discoverOpenAlexIdentity } from '../discovery/openAlexDiscovery';
 import { discoverOrcidIdentity } from '../discovery/orcidDiscovery';
@@ -19,7 +21,16 @@ import type { DiscoverySummary } from '../discovery/ingestDiscoveredRecords';
  *   SyncRun (RUNNING) → one SyncTask per active identity of an active professor
  *   → per task, sequentially: the existing discovery service (validate identity → fetch everything
  *     → validate → normalize → match → write) → SUCCESS with counters, or FAILED with a safe message
- *   → run SUCCESS (no task failed), PARTIAL_SUCCESS (some failed), FAILED (all failed)
+ *   → run SUCCESS only when every task succeeded, every mandatory provider could be attempted, and
+ *     Scopus and WoS each had a successful fetch in this run; FAILED when none succeeded and some
+ *     failed; PARTIAL_SUCCESS otherwise (runOutcome.ts)
+ *
+ * Phase 15 (decisions #117, #123, #129, #130): runs and tasks have kinds; this engine creates
+ * PUBLICATION_DISCOVERY runs with IDENTITY_DISCOVERY tasks. Each run stores a coverage snapshot of
+ * all five mandatory providers at start (runOutcome.ts). A provider that cannot be attempted (no or
+ * incomplete credentials) makes the run PARTIAL_SUCCESS even without identities, and each of its
+ * identities gets a NOT_CONFIGURED task that is never executed. Present Scopus/WoS credentials do not
+ * prove access: without a successful fetch from that provider in the run, it stays PARTIAL_SUCCESS.
  *
  * A failed or incomplete fetch writes nothing (the discovery services fetch and validate before
  * writing) and never deletes or unlinks anything. Retries are those of the source HTTP clients
@@ -44,6 +55,8 @@ export interface SyncServiceOptions {
   clients: SyncClients;
   now: () => Date;
   client?: PrismaClient;
+  /** Which licensed providers have credentials; defaults to the environment's (§13.9). */
+  providers?: ProviderConfiguration;
 }
 
 const MESSAGE_LIMIT = 500;
@@ -60,8 +73,11 @@ export class SyncService {
   /** Settles when every queued `exclusive` operation has finished; never rejects. */
   private exclusiveQueue: Promise<void> = Promise.resolve();
 
+  private readonly providers: ProviderConfiguration;
+
   constructor(private readonly options: SyncServiceOptions) {
     this.client = options.client ?? defaultClient;
+    this.providers = options.providers ?? providerConfiguration(env.providerCredentials);
   }
 
   /** True while a run started by this process is executing. */
@@ -96,14 +112,18 @@ export class SyncService {
         select: { id: true, source: true },
         orderBy: [{ professorId: 'asc' }, { source: 'asc' }, { externalId: 'asc' }],
       });
+      const startedAt = this.options.now();
       const run = await this.client.syncRun.create({
         data: {
+          kind: 'PUBLICATION_DISCOVERY',
           trigger,
           triggeredByUserId,
           status: 'RUNNING',
-          startedAt: this.options.now(),
+          startedAt,
+          // Configuration at start, so the outcome stays correct if credentials change later.
+          providerCoverage: coverageSnapshot(this.providers, identities),
           tasksTotal: identities.length,
-          tasks: { create: identities.map((i) => ({ identityId: i.id, source: i.source, status: 'PENDING' as const })) },
+          tasks: { create: identities.map((i) => this.planTask(i, startedAt)) },
         },
       });
       void this.execute(run.id).finally(() => {
@@ -144,12 +164,25 @@ export class SyncService {
     }
   }
 
+  /**
+   * The task for one identity: PENDING when its provider can run, NOT_CONFIGURED (finished at once,
+   * never executed, nothing fetched or written) when the provider has no credentials.
+   */
+  private planTask(identity: { id: string; source: IdentitySource }, now: Date) {
+    const { credentials } = this.providers[identity.source];
+    const base = { kind: 'IDENTITY_DISCOVERY' as const, identityId: identity.id, source: identity.source };
+    if (!canAttempt(credentials)) {
+      return { ...base, status: 'NOT_CONFIGURED' as const, errorMessage: unavailableMessage(identity.source, credentials), startedAt: now, finishedAt: now };
+    }
+    return { ...base, status: 'PENDING' as const };
+  }
+
   /** Runs the tasks one after another, then sets the run outcome. Never throws. */
   private async execute(runId: string): Promise<void> {
     try {
       // Deterministic order: professor, source, external ID (PostgreSQL sorts a removed identity's NULL last).
       const tasks = await this.client.syncTask.findMany({
-        where: { syncRunId: runId, status: 'PENDING' },
+        where: { syncRunId: runId, kind: 'IDENTITY_DISCOVERY', status: 'PENDING' },
         select: { id: true, identityId: true, source: true },
         orderBy: [
           { identity: { professorId: 'asc' } },
@@ -173,9 +206,9 @@ export class SyncService {
     }
   }
 
-  private async runTask(task: { id: string; identityId: string | null; source: IdentitySource }): Promise<void> {
+  private async runTask(task: { id: string; identityId: string | null; source: IdentitySource | null }): Promise<void> {
     await this.client.syncTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: this.options.now() } });
-    if (!task.identityId) {
+    if (!task.identityId || !task.source) {
       await this.failTask(task.id, 'The identity was removed before its task ran');
       return;
     }
@@ -204,12 +237,21 @@ export class SyncService {
     }
   }
 
-  private discover(source: IdentitySource, identityId: string): Promise<DiscoverySummary> {
+  private async discover(source: IdentitySource, identityId: string): Promise<DiscoverySummary> {
     const { clients, now } = this.options;
     const client = this.client;
-    if (source === 'OPENALEX') return discoverOpenAlexIdentity(identityId, { client, openAlex: clients.openAlex, now });
-    if (source === 'DBLP') return discoverDblpIdentity(identityId, { client, dblp: clients.dblp, now });
-    return discoverOrcidIdentity(identityId, { client, orcid: clients.orcid, now });
+    switch (source) {
+      case 'OPENALEX':
+        return discoverOpenAlexIdentity(identityId, { client, openAlex: clients.openAlex, now });
+      case 'DBLP':
+        return discoverDblpIdentity(identityId, { client, dblp: clients.dblp, now });
+      case 'ORCID':
+        return discoverOrcidIdentity(identityId, { client, orcid: clients.orcid, now });
+      case 'SCOPUS':
+      case 'WOS':
+        // Adapters arrive in Phase 15.3 / 15.4; until then a configured provider fails safely.
+        throw new DiscoveryPreconditionError(`${PROVIDER_LABEL[source]} synchronization is not available in this version`);
+    }
   }
 
   private async failTask(taskId: string, message: string): Promise<void> {
@@ -232,27 +274,42 @@ export class SyncService {
   }
 
   private async finishRun(runId: string): Promise<void> {
-    const summary = await summarizeTasks(this.client, runId);
-    const status: SyncRunStatus = summary.tasksFailed === 0 ? 'SUCCESS' : summary.tasksSucceeded === 0 ? 'FAILED' : 'PARTIAL_SUCCESS';
-    await this.client.syncRun.update({ where: { id: runId }, data: { status, ...summary, finishedAt: this.options.now() } });
+    const { counters, tasks } = await summarizeTasks(this.client, runId);
+    const run = await this.client.syncRun.findUniqueOrThrow({ where: { id: runId }, select: { providerCoverage: true } });
+    const snapshot = parseCoverageSnapshot(run.providerCoverage);
+    // Every run started by this engine stores a snapshot; a missing or invalid one is treated as
+    // incomplete coverage rather than as success.
+    const status: SyncRunStatus = snapshot
+      ? runStatus(snapshot, tasks)
+      : counters.tasksSucceeded === 0 && counters.tasksFailed > 0
+        ? 'FAILED'
+        : 'PARTIAL_SUCCESS';
+    await this.client.syncRun.update({ where: { id: runId }, data: { status, ...counters, finishedAt: this.options.now() } });
   }
 }
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-/** Run counters derived from its tasks: task outcomes and summed record counters. */
+/**
+ * Run counters derived from its tasks (task outcomes and summed record counters), plus the tasks
+ * themselves, from which the outcome is decided together with the run's coverage snapshot.
+ */
 async function summarizeTasks(db: Db, runId: string) {
   const tasks = await db.syncTask.findMany({ where: { syncRunId: runId } });
   const sum = (key: 'recordsFetched' | 'recordsNew' | 'recordsUpdated' | 'linksCreated' | 'candidatesCreated') =>
     tasks.reduce((n, t) => n + t[key], 0);
+  const outcomes = countOutcomes(tasks);
   return {
-    tasksSucceeded: tasks.filter((t) => t.status === 'SUCCESS').length,
-    tasksFailed: tasks.filter((t) => t.status === 'FAILED').length,
-    recordsFetched: sum('recordsFetched'),
-    recordsNew: sum('recordsNew'),
-    recordsUpdated: sum('recordsUpdated'),
-    linksCreated: sum('linksCreated'),
-    candidatesCreated: sum('candidatesCreated'),
+    counters: {
+      tasksSucceeded: outcomes.succeeded,
+      tasksFailed: outcomes.failed,
+      recordsFetched: sum('recordsFetched'),
+      recordsNew: sum('recordsNew'),
+      recordsUpdated: sum('recordsUpdated'),
+      linksCreated: sum('linksCreated'),
+      candidatesCreated: sum('candidatesCreated'),
+    },
+    tasks,
   };
 }
 
@@ -270,7 +327,9 @@ async function closeFailedRunIn(tx: Prisma.TransactionClient, runId: string, now
     where: { syncRunId: runId, status: { in: ['PENDING', 'RUNNING'] } },
     data: { status: 'FAILED', errorMessage: message, finishedAt: now },
   });
-  await tx.syncRun.update({ where: { id: runId }, data: { status: 'FAILED', ...(await summarizeTasks(tx, runId)), finishedAt: now } });
+  // NOT_CONFIGURED tasks are already finished and keep their status; the run itself failed.
+  const { counters } = await summarizeTasks(tx, runId);
+  await tx.syncRun.update({ where: { id: runId }, data: { status: 'FAILED', ...counters, finishedAt: now } });
 }
 
 /**
