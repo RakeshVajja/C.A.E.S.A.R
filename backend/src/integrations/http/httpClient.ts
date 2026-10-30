@@ -21,7 +21,13 @@ export type FetchErrorKind =
   | 'IDENTITY_NOT_FOUND'
   /** The identity exists but must not be used (e.g. a DBLP disambiguation page). */
   | 'IDENTITY_INVALID'
-  | 'INCOMPLETE';
+  | 'INCOMPLETE'
+  /** Licensed providers (Phase 15, §13.9): 401 — the credentials were refused. */
+  | 'AUTH_FAILED'
+  /** 403 — the credentials are valid but not entitled to the data (e.g. no institutional access). */
+  | 'NOT_ENTITLED'
+  /** 429 — the quota or rate limit is exhausted. */
+  | 'QUOTA_EXCEEDED';
 
 /** Any failure to obtain a complete, valid response. Never to be read as "no publications". */
 export class FetchError extends Error {
@@ -76,6 +82,11 @@ export interface JsonRequestOptions {
   passThroughStatuses?: readonly number[];
   /** Follow redirects (default). With false, a 3xx is returned or raised like any other status. */
   followRedirects?: boolean;
+  /**
+   * For a 429 response: return true to fail at once instead of retrying (e.g. a provider's weekly
+   * quota is exhausted, which no backoff within a run can fix). Default: every 429 is retried.
+   */
+  isFinal429?: (headers: Headers) => boolean;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -162,6 +173,9 @@ export class SourceHttpClient {
     clearTimeout(timer);
 
     const status = response.status;
+    if (status === 429 && options.isFinal429?.(response.headers)) {
+      return { kind: 'fail', error: new FetchError('HTTP_STATUS', `${name}: HTTP 429 (quota exhausted)`, { url, status }) };
+    }
     if (status === 429 || status >= 500) {
       return {
         kind: 'retry',

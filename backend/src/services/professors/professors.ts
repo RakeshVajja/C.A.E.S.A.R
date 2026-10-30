@@ -23,7 +23,16 @@ const accountSelect = { id: true, email: true, mustChangePassword: true, tempora
 const detailInclude = {
   user: { select: accountSelect },
   identities: {
-    select: { id: true, source: true, externalId: true, isActive: true, verifiedAt: true, createdAt: true },
+    select: {
+      id: true,
+      source: true,
+      externalId: true,
+      isActive: true,
+      verifiedAt: true,
+      verificationMethod: true,
+      verificationEvidenceUrl: true,
+      createdAt: true,
+    },
     orderBy: [{ source: 'asc' }, { externalId: 'asc' }],
   },
 } satisfies Prisma.ProfessorInclude;

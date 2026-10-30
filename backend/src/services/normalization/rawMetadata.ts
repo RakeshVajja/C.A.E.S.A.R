@@ -9,6 +9,7 @@ const EXCLUDED_KEYS = new Set([
   'abstract',
   'abstract_inverted_index',
   'short-description', // ORCID abstract field
+  'dc:description', // Scopus abstract field (COMPLETE view; never requested, removed defensively)
   'referenced_works',
   'references',
   'fulltext',

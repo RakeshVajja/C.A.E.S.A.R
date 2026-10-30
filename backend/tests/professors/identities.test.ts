@@ -195,7 +195,8 @@ describe('preview: validation through the existing source clients, without write
       expect(res.body.error.code).toBe('INVALID_IDENTIFIER');
     }
     expect(calls.length).toBe(callsBefore);
-    expect((await preview('SCOPUS', '123')).body.error.code).toBe('VALIDATION_ERROR');
+    expect((await preview('WOS', 'A-1009-2008')).body.error.code).toBe('VALIDATION_ERROR'); // WoS identities arrive in stage 15.4
+    expect((await preview('SCOPUS', '57-000-001')).body.error.code).toBe('INVALID_IDENTIFIER'); // Scopus accepted since stage 15.3
   });
 
   it('source failures (HTML with 200, 5xx, malformed JSON, network error, timeout) answer 502 without upstream text or writes', async () => {

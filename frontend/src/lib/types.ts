@@ -71,12 +71,15 @@ export interface ProfessorRow {
   account: { email: string; mustChangePassword: boolean; activated: boolean; temporaryPasswordExpiresAt: string | null } | null;
   identityCount: number;
 }
+export type IdentityVerificationMethod = "API_PREVIEW" | "MANUAL_PROFILE" | "PRE_PHASE15";
 export interface Identity {
   id: string;
   source: IdentitySource;
   externalId: string;
   isActive: boolean;
   verifiedAt: string | null;
+  verificationMethod: IdentityVerificationMethod;
+  verificationEvidenceUrl: string | null;
   createdAt: string;
 }
 export interface ProfessorDetail {
@@ -109,6 +112,9 @@ export interface IdentityPreview {
     // DBLP / ORCID
     pid?: string;
     name?: string | null;
+    // Scopus
+    authorId?: string;
+    documentCount?: number | null;
     recentWorks?: { title: string | null; year: number | null }[];
     profileUrl: string;
   };

@@ -5,12 +5,14 @@ import { DblpClient } from '../../integrations/dblp/client';
 import { FetchError } from '../../integrations/http/httpClient';
 import { OpenAlexClient } from '../../integrations/openalex/client';
 import { OrcidClient } from '../../integrations/orcid/client';
+import { ScopusClient } from '../../integrations/scopus/client';
 import { HttpError } from '../../utils/httpError';
 import { canAttempt, providerConfiguration, PROVIDER_LABEL, unavailableMessage, type ProviderConfiguration } from '../providers/providerStatus';
 import { countOutcomes, coverageSnapshot, parseCoverageSnapshot, runStatus } from './runOutcome';
 import { discoverDblpIdentity } from '../discovery/dblpDiscovery';
 import { discoverOpenAlexIdentity } from '../discovery/openAlexDiscovery';
 import { discoverOrcidIdentity } from '../discovery/orcidDiscovery';
+import { discoverScopusIdentity } from '../discovery/scopusDiscovery';
 import { DiscoveryPreconditionError } from '../discovery/discoveryIdentity';
 import type { DiscoverySummary } from '../discovery/ingestDiscoveredRecords';
 
@@ -45,10 +47,18 @@ export interface SyncClients {
   openAlex: OpenAlexClient;
   dblp: DblpClient;
   orcid: OrcidClient;
+  /** Present only when Scopus credentials are configured (§13.9); otherwise its tasks are NOT_CONFIGURED. */
+  scopus?: ScopusClient | null;
 }
 
 export function createSyncClients(): SyncClients {
-  return { openAlex: new OpenAlexClient({ apiKey: env.openAlexApiKey }), dblp: new DblpClient(), orcid: new OrcidClient() };
+  const scopus = env.providerCredentials.scopus;
+  return {
+    openAlex: new OpenAlexClient({ apiKey: env.openAlexApiKey }),
+    dblp: new DblpClient(),
+    orcid: new OrcidClient(),
+    scopus: scopus ? new ScopusClient({ apiKey: scopus.apiKey, instToken: scopus.instToken }) : null,
+  };
 }
 
 export interface SyncServiceOptions {
@@ -213,7 +223,7 @@ export class SyncService {
       return;
     }
     try {
-      const summary = await this.discover(task.source, task.identityId);
+      const summary = await this.discover(task.source, task.identityId, task.id);
       await this.client.syncTask.update({
         where: { id: task.id },
         data: {
@@ -237,7 +247,7 @@ export class SyncService {
     }
   }
 
-  private async discover(source: IdentitySource, identityId: string): Promise<DiscoverySummary> {
+  private async discover(source: IdentitySource, identityId: string, taskId: string): Promise<DiscoverySummary> {
     const { clients, now } = this.options;
     const client = this.client;
     switch (source) {
@@ -248,8 +258,9 @@ export class SyncService {
       case 'ORCID':
         return discoverOrcidIdentity(identityId, { client, orcid: clients.orcid, now });
       case 'SCOPUS':
+        return discoverScopusIdentity(identityId, { client, scopus: clients.scopus ?? null, now, syncTaskId: taskId });
       case 'WOS':
-        // Adapters arrive in Phase 15.3 / 15.4; until then a configured provider fails safely.
+        // The adapter arrives in Phase 15.4; until then a configured provider fails safely.
         throw new DiscoveryPreconditionError(`${PROVIDER_LABEL[source]} synchronization is not available in this version`);
     }
   }

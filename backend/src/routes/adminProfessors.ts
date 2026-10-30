@@ -6,6 +6,7 @@ import {
   deleteIdentity,
   IdentityClients,
   previewIdentity,
+  registerManualIdentity,
   saveIdentity,
   setIdentityActive,
 } from '../services/identities/identities';
@@ -35,7 +36,7 @@ const RESEND_RULE: RateLimitRule = { windowMs: 10 * 60 * 1000, max: 3 };
 const name = z.string().trim().min(1).max(200);
 const optionalText = z.string().trim().max(200).nullable().optional().transform((v) => (v === '' ? null : v));
 const email = z.string().trim().toLowerCase().max(254).pipe(z.email());
-const source = z.enum(['OPENALEX', 'DBLP', 'ORCID']);
+const source = z.enum(['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS']);
 
 const createBody = z.strictObject({ name, department: optionalText, designation: optionalText, email });
 const updateBody = z
@@ -45,6 +46,12 @@ const statusBody = z.strictObject({ isActive: z.boolean() });
 const accountBody = z.strictObject({ email });
 const previewBody = z.strictObject({ source, externalId: z.string().trim().min(1).max(200) });
 const saveBody = z.strictObject({ previewToken: z.string().min(1).max(4096) });
+/** Manual verification from public profile evidence (decision #118): Scopus only in stage 15.3. */
+const manualBody = z.strictObject({
+  source: z.enum(['SCOPUS']),
+  externalId: z.string().trim().min(1).max(200),
+  evidenceUrl: z.string().trim().min(1).max(500),
+});
 
 /** A malformed ID cannot name an existing row. */
 function uuidParam(value: unknown, notFound: () => HttpError): string {
@@ -119,6 +126,15 @@ export function createAdminProfessorsRouter(deps: { identityClients: IdentityCli
   router.post('/:professorId/identities', async (req, res) => {
     const body = parseBody(saveBody, req.body);
     const identity = await saveIdentity(professorId(req.params.professorId), body.previewToken, { now: deps.now, verifiedByUserId: req.auth!.user.id });
+    res.status(201).json({ identity });
+  });
+
+  router.post('/:professorId/identities/manual', async (req, res) => {
+    const body = parseBody(manualBody, req.body);
+    const identity = await registerManualIdentity(professorId(req.params.professorId), body, {
+      now: deps.now,
+      verifiedByUserId: req.auth!.user.id,
+    });
     res.status(201).json({ identity });
   });
 

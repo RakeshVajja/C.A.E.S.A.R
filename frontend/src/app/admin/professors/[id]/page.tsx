@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Mail, Plus, Power, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Copy, Mail, Plus, Power, Trash2 } from "lucide-react";
 import { StatusChip } from "@/components/chips";
 import { ConfirmDialog } from "@/components/dialog";
 import { ErrorSummary, Field, useFormErrors } from "@/components/form";
@@ -327,8 +327,8 @@ const SOURCE_HINT: Record<IdentitySource, string> = {
   OPENALEX: "OpenAlex author ID, e.g. A5023888391 or https://openalex.org/A5023888391",
   DBLP: "DBLP person ID (PID), e.g. v/MosheYVardi or https://dblp.org/pid/v/MosheYVardi",
   ORCID: "ORCID iD, e.g. 0000-0002-0661-5773",
-  // Not offered in the form until their integrations exist (Phase 15.3 / 15.4).
-  SCOPUS: "Scopus Author ID",
+  SCOPUS: "Scopus Author ID, e.g. 7004212771, or the author’s Scopus profile URL",
+  // Not offered in the form until its integration exists (Phase 15.4).
   WOS: "Web of Science ResearcherID, e.g. A-1009-2008",
 };
 
@@ -376,8 +376,9 @@ function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetai
         External identities
       </SectionTitle>
       <p className="mb-3 max-w-[72ch] text-[13px] leading-5 text-text-muted">
-        Synchronization collects publications through these identities. A professor may have several per source. Each identity is checked with its source before
-        it is saved.
+        Synchronization collects publications through these identities. A professor may have several per source. An identity is saved after it is checked
+        with its source, or — for Scopus without API access — after an administrator verifies it from the author’s Scopus profile. Synchronization checks each
+        identity with its source again before accepting publications.
       </p>
       <div className="flex flex-col gap-4">
         {adding && (
@@ -393,7 +394,7 @@ function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetai
         )}
         <Panel>
           {professor.identities.length === 0 ? (
-            <EmptyState>No identities yet. Add an OpenAlex, DBLP or ORCID identity so this professor’s publications can be collected.</EmptyState>
+            <EmptyState>No identities yet. Add an OpenAlex, DBLP, ORCID or Scopus identity so this professor’s publications can be collected.</EmptyState>
           ) : (
             <div className="overflow-x-auto">
               <table className="data-table">
@@ -413,17 +414,27 @@ function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetai
                   {professor.identities.map((identity) => (
                     <tr key={identity.id}>
                       <td data-label="Source">{SOURCE_LABEL[identity.source]}</td>
-                      <td data-label="Identifier" className="font-mono text-[13px] [overflow-wrap:anywhere]">
-                        {identity.externalId}
+                      <td data-label="Identifier">
+                        <IdentifierCell value={identity.externalId} />
                       </td>
                       <td data-label="Verified" className="text-[13px]">
-                        {formatDateTime(identity.verifiedAt)}
+                        <DateTimeLines value={identity.verifiedAt} />
+                        {identity.verificationMethod === "MANUAL_PROFILE" && (
+                          <span className="block text-text-muted">
+                            Manually, from the{" "}
+                            {identity.verificationEvidenceUrl ? (
+                              <ExternalProfileLink href={identity.verificationEvidenceUrl}>profile</ExternalProfileLink>
+                            ) : (
+                              "profile"
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td data-label="Status">
                         <StatusChip status={identity.isActive ? "ACTIVE" : "INACTIVE"} />
                       </td>
                       <td className="no-label md:w-px">
-                        <div className="flex gap-1 whitespace-nowrap md:justify-end">
+                        <div className="flex flex-wrap gap-1 md:justify-end">
                           <Button variant="quiet" compact icon={<Power aria-hidden size={16} />} onClick={() => setAction({ identity, kind: "toggle" })}>
                             {identity.isActive ? "Deactivate" : "Reactivate"}
                           </Button>
@@ -484,9 +495,27 @@ function IdentitiesSection({ professor, onChanged }: { professor: ProfessorDetai
 function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; onCancel: () => void; onSaved: () => void }) {
   const [source, setSource] = useState<IdentitySource>("OPENALEX");
   const [externalId, setExternalId] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
   const [preview, setPreview] = useState<IdentityPreview | null>(null);
-  const [busy, setBusy] = useState<"preview" | "save" | null>(null);
+  const [busy, setBusy] = useState<"preview" | "save" | "manual" | null>(null);
   const errors = useFormErrors();
+
+  /** Scopus without API credentials: the administrator verifies from the public profile (decision #118). */
+  async function saveManually() {
+    const local: Record<string, string> = {};
+    if (!externalId.trim()) local.externalId = "Enter the Scopus Author ID";
+    if (!evidenceUrl.trim()) local.evidenceUrl = "Enter the author’s Scopus profile URL";
+    if (Object.keys(local).length > 0) return errors.setLocal(local);
+    errors.clear();
+    setBusy("manual");
+    try {
+      await api(`/admin/professors/${professorId}/identities/manual`, { method: "POST", body: { source, externalId, evidenceUrl } });
+      onSaved();
+    } catch (error) {
+      errors.fromError(error, { INVALID_IDENTIFIER: "externalId", INVALID_EVIDENCE: "evidenceUrl", EVIDENCE_MISMATCH: "evidenceUrl" });
+      setBusy(null);
+    }
+  }
 
   async function runPreview(e: React.FormEvent) {
     e.preventDefault();
@@ -524,8 +553,8 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
         <ErrorSummary
           errors={errors.fields}
           formError={errors.form}
-          labels={{ externalId: "Identifier", source: "Source" }}
-          fieldIds={{ externalId: "id-value", source: "id-source" }}
+          labels={{ externalId: "Identifier", source: "Source", evidenceUrl: "Scopus profile URL" }}
+          fieldIds={{ externalId: "id-value", source: "id-source", evidenceUrl: "id-evidence" }}
           summaryRef={errors.summaryRef}
         />
         <div className="grid gap-4 md:grid-cols-[12rem_1fr]">
@@ -543,6 +572,7 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
                 <option value="OPENALEX">OpenAlex</option>
                 <option value="DBLP">DBLP</option>
                 <option value="ORCID">ORCID</option>
+                <option value="SCOPUS">Scopus</option>
               </select>
             )}
           </Field>
@@ -562,10 +592,37 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
             )}
           </Field>
         </div>
+        {source === "SCOPUS" && (
+          <Field
+            id="id-evidence"
+            label="Scopus profile URL"
+            hint="Needed to save without the Scopus API: open the author’s Scopus profile, confirm it is this professor, and paste its URL. The next synchronization checks the Author ID with Scopus before accepting any publication."
+            error={errors.fields.evidenceUrl}
+          >
+            {(f) => (
+              <input
+                {...f}
+                className="input"
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="https://www.scopus.com/authid/detail.uri?authorId=…"
+                value={evidenceUrl}
+                onChange={(e) => setEvidenceUrl(e.target.value)}
+              />
+            )}
+          </Field>
+        )}
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" loading={busy === "preview"} loadingLabel="Checking with the source…" disabled={busy === "save"}>
+          <Button type="submit" loading={busy === "preview"} loadingLabel="Checking with the source…" disabled={busy === "save" || busy === "manual"}>
             Check identity
           </Button>
+          {source === "SCOPUS" && (
+            <Button onClick={() => void saveManually()} loading={busy === "manual"} loadingLabel="Saving…" disabled={busy === "preview" || busy === "save"}>
+              Save as verified from profile
+            </Button>
+          )}
           <Button variant="quiet" onClick={onCancel} disabled={busy !== null}>
             Cancel
           </Button>
@@ -584,6 +641,12 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
               <>
                 <dt className="text-text-muted">Works at source</dt>
                 <dd className="tabular-nums">{formatNumber(p.worksCount)}</dd>
+              </>
+            )}
+            {p.documentCount !== undefined && p.documentCount !== null && (
+              <>
+                <dt className="text-text-muted">Documents at source</dt>
+                <dd className="tabular-nums">{formatNumber(p.documentCount)}</dd>
               </>
             )}
             {p.orcid && (
@@ -626,5 +689,63 @@ function AddIdentity({ professorId, onCancel, onSaved }: { professorId: string; 
         </div>
       )}
     </Panel>
+  );
+}
+
+/** "30 Oct 2026, 22:46 IST" that may break only between the date and the time, never inside either. */
+function DateTimeLines({ value }: { value: string | null }) {
+  const text = formatDateTime(value);
+  const comma = text.indexOf(", ");
+  if (comma < 0) return <span className="whitespace-nowrap">{text}</span>;
+  return (
+    <>
+      <span className="whitespace-nowrap">{text.slice(0, comma + 1)}</span> <span className="whitespace-nowrap">{text.slice(comma + 2)}</span>
+    </>
+  );
+}
+
+/**
+ * An identifier kept on one line (long numeric IDs never break mid-number), with a quiet copy
+ * control. Success and failure are both reported visibly; when the browser refuses clipboard
+ * access, the identifier is selected so it can be copied with the keyboard.
+ */
+function IdentifierCell({ value }: { value: string }) {
+  const toast = useToast();
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  async function copy() {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      toast("Identifier copied.");
+    } catch {
+      const selection = window.getSelection();
+      if (textRef.current && selection) selection.selectAllChildren(textRef.current);
+      toast("The browser did not allow copying. The identifier is selected: press Ctrl+C (⌘C on a Mac) to copy it.", "danger");
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span ref={textRef} className="font-mono text-[13px] whitespace-nowrap tabular-nums select-all">
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={`Copy identifier ${value}`}
+        title="Copy identifier"
+        className="-my-2 inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-muted transition-colors duration-150 hover:bg-surface-sunken hover:text-text active:bg-surface-sunken"
+      >
+        {copied ? <Check aria-hidden size={15} /> : <Copy aria-hidden size={15} />}
+      </button>
+    </span>
   );
 }

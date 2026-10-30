@@ -5,6 +5,7 @@ import { DblpClient, normalizeDblpPid } from '../../integrations/dblp/client';
 import { FetchError, SourceHttpConfig } from '../../integrations/http/httpClient';
 import { normalizeOpenAlexAuthorId, OpenAlexClient } from '../../integrations/openalex/client';
 import { normalizeOrcidId, OrcidClient } from '../../integrations/orcid/client';
+import { normalizeScopusAuthorId, ScopusClient, scopusAuthorIdFromUrl, scopusProfileUrl } from '../../integrations/scopus/client';
 import { HttpError } from '../../utils/httpError';
 import { IDENTITY_PREVIEW_TTL_SECONDS, signIdentityPreviewToken, verifyIdentityPreviewToken } from '../auth/tokens';
 
@@ -20,12 +21,20 @@ import { IDENTITY_PREVIEW_TTL_SECONDS, signIdentityPreviewToken, verifyIdentityP
  *
  * The stored identifier is the normalized identifier the administrator submitted. For a merged
  * OpenAlex author it is not replaced by the resolved ID (#33): discovery resolves it when fetching.
+ *
+ * Scopus (stage 15.3, decision #118): an Author ID is verified either by the API preview above
+ * (only when Scopus credentials are configured) or manually — the administrator checks the author's
+ * public Scopus profile and submits its URL as evidence (`registerManualIdentity`). The method,
+ * evidence URL and administrator are recorded. Every synchronization revalidates the identity with
+ * the Scopus API before accepting any record. Identities are never transferred between professors.
  */
 
 export interface IdentityClients {
   openAlex: OpenAlexClient;
   dblp: DblpClient;
   orcid: OrcidClient;
+  /** Only when Scopus credentials are configured; without it, Scopus identities are verified manually. */
+  scopus?: ScopusClient | null;
 }
 
 /** Interactive previews fail fast instead of using the synchronization retry budget (#68). */
@@ -36,6 +45,9 @@ export function createPreviewClients(): IdentityClients {
     openAlex: new OpenAlexClient({ apiKey: env.openAlexApiKey, http: PREVIEW_HTTP }),
     dblp: new DblpClient({ http: PREVIEW_HTTP }),
     orcid: new OrcidClient({ http: PREVIEW_HTTP }),
+    scopus: env.providerCredentials.scopus
+      ? new ScopusClient({ apiKey: env.providerCredentials.scopus.apiKey, instToken: env.providerCredentials.scopus.instToken, http: PREVIEW_HTTP })
+      : null,
   };
 }
 
@@ -47,11 +59,11 @@ const SOURCE_LABEL: Record<IdentitySource, string> = {
   WOS: 'Web of Science ResearcherID',
 };
 
-/** Sources whose identities can be previewed and saved today; Scopus and WoS follow in Phase 15.3/15.4. */
-type PreviewableSource = 'OPENALEX' | 'DBLP' | 'ORCID';
+/** Sources whose identities can be previewed and saved today; WoS follows in Phase 15.4. */
+type PreviewableSource = 'OPENALEX' | 'DBLP' | 'ORCID' | 'SCOPUS';
 
 function previewableSource(source: IdentitySource): PreviewableSource {
-  if (source === 'OPENALEX' || source === 'DBLP' || source === 'ORCID') return source;
+  if (source === 'OPENALEX' || source === 'DBLP' || source === 'ORCID' || source === 'SCOPUS') return source;
   throw new HttpError(400, 'SOURCE_NOT_AVAILABLE', `${SOURCE_LABEL[source]} identities cannot be added yet`);
 }
 const RECENT_WORKS = 5;
@@ -62,6 +74,7 @@ export function normalizeIdentifier(source: IdentitySource, value: string): stri
   try {
     if (previewable === 'OPENALEX') return normalizeOpenAlexAuthorId(value);
     if (previewable === 'DBLP') return normalizeDblpPid(value);
+    if (previewable === 'SCOPUS') return normalizeScopusAuthorId(value);
     return normalizeOrcidId(value);
   } catch (error) {
     if (error instanceof FetchError) {
@@ -83,6 +96,16 @@ function sourceFailure(source: IdentitySource, error: unknown): never {
     }
     console.warn(`Identity preview: ${source} ${error.kind}${error.details.status ? ` (HTTP ${error.details.status})` : ''}: ${error.message}`);
     if (error.kind === 'IDENTITY_INVALID') throw new HttpError(422, 'IDENTITY_INVALID', invalidIdentityMessage(source, error.details.status));
+    // Licensed providers (§13.9): fixed messages that never echo credentials or provider text.
+    if (error.kind === 'AUTH_FAILED') {
+      throw new HttpError(502, 'PROVIDER_AUTH_FAILED', `The ${SOURCE_LABEL[source]} could not be checked: the provider refused the configured API credentials`);
+    }
+    if (error.kind === 'NOT_ENTITLED') {
+      throw new HttpError(502, 'PROVIDER_NOT_ENTITLED', `The ${SOURCE_LABEL[source]} could not be checked: the configured credentials are not entitled to this data`);
+    }
+    if (error.kind === 'QUOTA_EXCEEDED') {
+      throw new HttpError(503, 'PROVIDER_QUOTA_EXCEEDED', `The ${SOURCE_LABEL[source]} could not be checked: the provider's request quota is exhausted; try again later`);
+    }
     throw new HttpError(502, 'IDENTITY_SOURCE_UNAVAILABLE', `Could not verify the ${SOURCE_LABEL[source]} right now; try again later`);
   }
   throw error;
@@ -96,6 +119,9 @@ function invalidIdentityMessage(source: IdentitySource, status: number | undefin
   if (source === 'ORCID' && status === 409) return 'This ORCID record is deactivated or locked and cannot be used';
   if (source === 'ORCID' && status !== undefined && status >= 300 && status < 400) {
     return 'This ORCID iD is deprecated (merged into another record); use the record\'s current iD';
+  }
+  if (source === 'SCOPUS' && (status === 300 || status === 301)) {
+    return 'Scopus has replaced this Author ID (the profile was merged); check the author\'s current Scopus profile and use its Author ID';
   }
   return `This ${SOURCE_LABEL[source]} cannot be used`;
 }
@@ -121,6 +147,18 @@ async function sourceDetails(source: PreviewableSource, externalId: string, clie
     if (source === 'DBLP') {
       const person = await clients.dblp.validatePerson(externalId);
       return { pid: person.pid, name: person.name, profileUrl: `https://dblp.org/pid/${person.pid}.html` };
+    }
+    if (source === 'SCOPUS') {
+      if (!clients.scopus) {
+        throw new HttpError(
+          409,
+          'PROVIDER_NOT_CONFIGURED',
+          'Scopus API credentials are not configured, so this Author ID cannot be checked automatically; verify it manually from the author\'s Scopus profile',
+        );
+      }
+      // Author name and document count only: nothing is stored by a preview.
+      const author = await clients.scopus.validateAuthor(externalId);
+      return { authorId: author.authorId, name: author.name, documentCount: author.documentCount, profileUrl: author.profileUrl };
     }
     const works = await clients.orcid.fetchWorks(externalId);
     const person = await clients.orcid.fetchPersonName(externalId);
@@ -176,6 +214,68 @@ export async function previewIdentity(
   };
 }
 
+/** Sources that may be verified manually from public profile evidence (decision #118). */
+const MANUALLY_VERIFIABLE = new Set<IdentitySource>(['SCOPUS']);
+
+const identityOutput = {
+  id: true,
+  source: true,
+  externalId: true,
+  isActive: true,
+  verifiedAt: true,
+  verificationMethod: true,
+  verificationEvidenceUrl: true,
+  createdAt: true,
+} as const;
+
+/**
+ * Registers an identity verified manually by the administrator from the provider's public profile
+ * (decision #118; Scopus only in stage 15.3). The evidence must be the author's profile URL on
+ * scopus.com naming the same Author ID. Records MANUAL_PROFILE, the evidence URL, the administrator
+ * and the time. No external request is made here; the first synchronization revalidates the
+ * identity with the Scopus API before accepting any record. An identity already assigned (to this
+ * or another professor) is refused, never transferred.
+ */
+export async function registerManualIdentity(
+  professorId: string,
+  input: { source: IdentitySource; externalId: string; evidenceUrl: string },
+  deps: { now: () => Date; client?: PrismaClient; verifiedByUserId: string },
+) {
+  const client = deps.client ?? defaultClient;
+  if (!MANUALLY_VERIFIABLE.has(input.source)) {
+    throw new HttpError(400, 'SOURCE_NOT_AVAILABLE', `${SOURCE_LABEL[input.source]} identities cannot be verified manually`);
+  }
+  const externalId = normalizeIdentifier(input.source, input.externalId);
+  const evidenceId = scopusAuthorIdFromUrl(input.evidenceUrl);
+  if (evidenceId === null) {
+    throw new HttpError(400, 'INVALID_EVIDENCE', 'The evidence must be the author\'s Scopus profile URL, e.g. https://www.scopus.com/authid/detail.uri?authorId=…');
+  }
+  if (evidenceId !== externalId) {
+    throw new HttpError(400, 'EVIDENCE_MISMATCH', 'The Scopus profile URL names a different Author ID than the one entered');
+  }
+  await requireProfessor(client, professorId);
+  try {
+    return await client.externalIdentity.create({
+      data: {
+        professorId,
+        source: input.source,
+        externalId,
+        verifiedAt: deps.now(),
+        verificationMethod: 'MANUAL_PROFILE',
+        // Stored in canonical form, so the evidence always names exactly the stored identifier.
+        verificationEvidenceUrl: scopusProfileUrl(externalId),
+        verifiedByUserId: deps.verifiedByUserId,
+      },
+      select: identityOutput,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new HttpError(409, 'IDENTITY_IN_USE', 'This identity is already assigned to a professor');
+    }
+    throw error;
+  }
+}
+
 /** Saves a previewed identity (no external request). verified_at is the preview time. */
 export async function saveIdentity(
   professorId: string,
@@ -199,7 +299,7 @@ export async function saveIdentity(
         verificationMethod: 'API_PREVIEW',
         verifiedByUserId: deps.verifiedByUserId ?? null,
       },
-      select: { id: true, source: true, externalId: true, isActive: true, verifiedAt: true, createdAt: true },
+      select: identityOutput,
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -233,10 +333,7 @@ export async function setIdentityActive(
     // the transaction rolls back (including the link removal) and the answer is 404, not a 500.
     const { count } = await tx.externalIdentity.updateMany({ where: { id: identityId, professorId }, data: { isActive } });
     if (count !== 1) throw identityNotFound();
-    const updated = await tx.externalIdentity.findUniqueOrThrow({
-      where: { id: identityId },
-      select: { id: true, source: true, externalId: true, isActive: true, verifiedAt: true, createdAt: true },
-    });
+    const updated = await tx.externalIdentity.findUniqueOrThrow({ where: { id: identityId }, select: identityOutput });
     return { identity: updated, pendingLinksRemoved: removed };
   });
 }

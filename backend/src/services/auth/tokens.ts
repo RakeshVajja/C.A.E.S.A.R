@@ -89,7 +89,7 @@ export const IDENTITY_PREVIEW_TTL_SECONDS = 15 * 60;
 
 export interface IdentityPreviewClaims {
   professorId: string;
-  source: 'OPENALEX' | 'DBLP' | 'ORCID';
+  source: 'OPENALEX' | 'DBLP' | 'ORCID' | 'SCOPUS';
   /** The normalized identifier the administrator submitted (what is stored). */
   externalId: string;
   previewedAt: Date;
@@ -117,7 +117,7 @@ export function verifyIdentityPreviewToken(token: string, now = new Date()): Ide
     });
     if (typeof claims === 'string' || typeof claims.exp !== 'number' || typeof claims.iat !== 'number') return null;
     const { pid, src, xid } = claims as Record<string, unknown>;
-    if (typeof pid !== 'string' || typeof xid !== 'string' || (src !== 'OPENALEX' && src !== 'DBLP' && src !== 'ORCID')) return null;
+    if (typeof pid !== 'string' || typeof xid !== 'string' || (src !== 'OPENALEX' && src !== 'DBLP' && src !== 'ORCID' && src !== 'SCOPUS')) return null;
     return { professorId: pid, source: src, externalId: xid, previewedAt: new Date(claims.iat * 1000) };
   } catch {
     return null;
