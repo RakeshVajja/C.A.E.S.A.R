@@ -105,7 +105,7 @@ function sourceFailure(source: IdentitySource, error: unknown): never {
       throw new HttpError(
         409,
         'PROVIDER_BLOCKED',
-        `The ${SOURCE_LABEL[source]} cannot be checked through the API while live Clarivate data is blocked (stage 15.8 and Clarivate's written confirmations pending); verify it manually from the author's public profile`,
+        `The ${SOURCE_LABEL[source]} cannot be checked through the API while live Clarivate data is blocked (Clarivate's written confirmations are not yet on record); verify it manually from the author's public profile`,
       );
     }
     if (error.kind === 'IDENTITY_NOT_FOUND') {

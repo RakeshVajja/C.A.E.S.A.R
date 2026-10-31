@@ -21,8 +21,9 @@ import { adminCookie, replayIdentityClients } from '../professors/helpers';
 import { RID } from '../fixtures/wos/synthetic';
 
 /*
- * The Clarivate ingestion gate (§22.6, stage 15.7 safety audit): while it is closed — as it is in this
- * version — no Web of Science or JCR request can be made by any path. Every Clarivate client below
+ * The Clarivate ingestion gate (§22.6, stage 15.7 safety audit; #148): while it is closed — as it is in
+ * this version, with the removal tooling complete but no written Clarivate confirmation on record — no
+ * Web of Science or JCR request can be made by any path. Every Clarivate client below
  * records any attempted request; none may occur.
  */
 
@@ -66,13 +67,18 @@ function clients(spy = spyFetch()) {
 const engine = (c: SyncClients, extra: { journalMetricsAfterDiscovery?: boolean } = {}) => new SyncService({ clients: c, now: testClock(T1).now, providers: allProvidersPresent(), ...extra });
 
 describe('the gate itself', () => {
-  it('is closed in this version, and opens only when both conditions hold', () => {
-    expect(CLARIVATE_GATE).toEqual({ removalToolingComplete: false, writtenConfirmationsOnRecord: false });
+  it('is closed in this version — removal tooling complete, written confirmations not on record — and opens only when both hold', () => {
+    expect(CLARIVATE_GATE).toEqual({ removalToolingComplete: true, writtenConfirmationsOnRecord: false });
     expect(Object.isFrozen(CLARIVATE_GATE)).toBe(true);
     expect(isClarivateGateOpen()).toBe(false);
     expect(isClarivateGateOpen({ removalToolingComplete: true, writtenConfirmationsOnRecord: false })).toBe(false);
     expect(isClarivateGateOpen({ removalToolingComplete: false, writtenConfirmationsOnRecord: true })).toBe(false);
     expect(isClarivateGateOpen({ removalToolingComplete: true, writtenConfirmationsOnRecord: true })).toBe(true);
+  });
+
+  it('names the outstanding condition: written confirmations, not the completed removal tool', () => {
+    expect(CLARIVATE_GATE_MESSAGE).toMatch(/until Clarivate's written confirmations on retention, deletion, backups and display are on record/);
+    expect(CLARIVATE_GATE_MESSAGE).toMatch(/stage 15\.8, is complete/);
   });
 
   it('is not opened by the environment: credentials present leave it closed', () => {
@@ -86,7 +92,8 @@ describe('the gate itself', () => {
 describe('the Clarivate clients refuse every request while closed (any path)', () => {
   it('Web of Science: search and preview fail with BLOCKED before reaching the network', async () => {
     const spy = spyFetch();
-    for (const gate of [undefined, { removalToolingComplete: true, writtenConfirmationsOnRecord: false }]) {
+    // The default gate (removal tooling complete, confirmations missing) and the other closed states.
+    for (const gate of [undefined, CLARIVATE_GATE, { removalToolingComplete: false, writtenConfirmationsOnRecord: true }]) {
       const wos = new WosStarterClient({ apiKey: 'synthetic', gate, deps: spy.deps });
       for (const call of [() => wos.fetchResearcherDocuments(RID), () => wos.previewResearcher(RID)]) {
         const error = await call().catch((e: unknown) => e);
@@ -99,9 +106,11 @@ describe('the Clarivate clients refuse every request while closed (any path)', (
 
   it('JCR: every endpoint fails with BLOCKED before reaching the network', async () => {
     const spy = spyFetch();
-    const jcr = new JcrClient({ apiKey: 'synthetic', deps: spy.deps });
-    const calls = [() => jcr.lastUpdated(), () => jcr.searchByIssn('9999-0016'), () => jcr.journal('SYNTH_A'), () => jcr.history('SYNTH_A'), () => jcr.report('SYNTH_A', 2021)];
-    for (const call of calls) await expect(call()).rejects.toMatchObject({ kind: 'BLOCKED', message: `JCR: ${CLARIVATE_GATE_MESSAGE}` });
+    for (const gate of [undefined, CLARIVATE_GATE, { removalToolingComplete: false, writtenConfirmationsOnRecord: true }]) {
+      const jcr = new JcrClient({ apiKey: 'synthetic', gate, deps: spy.deps });
+      const calls = [() => jcr.lastUpdated(), () => jcr.searchByIssn('9999-0016'), () => jcr.journal('SYNTH_A'), () => jcr.history('SYNTH_A'), () => jcr.report('SYNTH_A', 2021)];
+      for (const call of calls) await expect(call()).rejects.toMatchObject({ kind: 'BLOCKED', message: `JCR: ${CLARIVATE_GATE_MESSAGE}` });
+    }
     expect(spy.urls).toEqual([]);
   });
 });

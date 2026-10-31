@@ -74,8 +74,8 @@ function Runs() {
       <div className="flex flex-col gap-4">
         {blocked && (
           <Alert tone="warning" title="Refreshing journal metrics is not available yet">
-            Live Journal Citation Reports data may only be requested once the provider-data removal tool (stage 15.8) is complete and Clarivate&apos;s written
-            confirmations on retention, deletion, backups and display are on record. Until then the server refuses every refresh — manual, scheduled or after a
+            Live Journal Citation Reports data may only be requested once Clarivate&apos;s written confirmations on retention, deletion, backups and display
+            are on record (the provider-data removal tool is complete). Until then the server refuses every refresh — manual, scheduled or after a
             synchronization — and sends no request to Clarivate.
           </Alert>
         )}

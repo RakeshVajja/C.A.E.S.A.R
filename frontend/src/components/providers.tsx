@@ -59,7 +59,7 @@ export function ProviderConfigurationPanel({ purpose }: { purpose: ProviderStatu
                   <span className={CREDENTIAL_TONE[p.credentials]}>{CREDENTIAL_LABEL[p.credentials]}</span>
                   {p.issue && <p className="text-[13px] text-text-muted">{p.issue}</p>}
                   {blocked && CLARIVATE.has(p.provider) && (
-                    <p className="text-[13px] text-warning">Blocked: no live Clarivate data until provider-data removal (stage 15.8) and Clarivate&apos;s written confirmations are in place.</p>
+                    <p className="text-[13px] text-warning">Blocked: no live Clarivate data until Clarivate&apos;s written confirmations on retention, deletion, backups and display are on record.</p>
                   )}
                 </td>
               </tr>
@@ -110,7 +110,7 @@ export function CoverageTable({ coverage }: { coverage: ProviderCoverage[] | nul
                     {c.blocked ? (
                       <>
                         <span className="text-warning">Blocked by Clarivate policy</span>
-                        <p className="text-[13px] text-text-muted">Credentials were set; no live Clarivate data until stage 15.8 and the written confirmations.</p>
+                        <p className="text-[13px] text-text-muted">Credentials were set; no live Clarivate data until Clarivate&apos;s written confirmations are on record.</p>
                       </>
                     ) : (
                       <span className={CREDENTIAL_TONE[c.credentials]}>{CREDENTIAL_LABEL[c.credentials]}</span>

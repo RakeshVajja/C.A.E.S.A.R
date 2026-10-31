@@ -45,7 +45,7 @@ export async function runScheduledJournalMetrics(service: SyncService): Promise<
       return 'skipped';
     }
     if (error instanceof ClarivateGateClosedError) {
-      console.warn('Scheduled journal metrics refresh skipped: live Clarivate data is blocked (stage 15.8 and written confirmations pending)');
+      console.warn("Scheduled journal metrics refresh skipped: live Clarivate data is blocked (Clarivate's written confirmations are not yet on record)");
       return 'skipped';
     }
     console.error(`Scheduled journal metrics refresh could not start (${describeFailure(error)})`);
