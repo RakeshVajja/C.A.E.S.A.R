@@ -3,12 +3,13 @@ import { FetchError } from '../../src/integrations/http/httpClient';
 import { isJcrJournalId, JcrClient } from '../../src/integrations/jcr/client';
 import { noSleep, replayFetch, Route } from '../helpers/fixtures';
 import { API_KEY, history, historyUrl, ISSN, journalRecord, journalUrl, lastUpdated, lastUpdatedUrl, report, reportUrl, search, searchUrl, status } from '../fixtures/jcr/synthetic';
+import { OPEN_CLARIVATE_GATE } from '../helpers/providers';
 
 /* Web of Science Journals API (JCR) client (stage 15.6) — synthetic responses only; no network, no real credentials. */
 
 function jcr(recorded: ReturnType<typeof search>[] = [], overrides: Record<string, Route> = {}, maxRetries = 0) {
   const replay = replayFetch(recorded, overrides);
-  const client = new JcrClient({ apiKey: API_KEY, http: { maxRetries, timeoutMs: 1_000 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
+  const client = new JcrClient({ gate: OPEN_CLARIVATE_GATE, apiKey: API_KEY, http: { maxRetries, timeoutMs: 1_000 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
   return { client, calls: replay.calls };
 }
 

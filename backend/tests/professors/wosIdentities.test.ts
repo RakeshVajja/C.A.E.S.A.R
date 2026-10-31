@@ -8,6 +8,7 @@ import { resetDatabase } from '../helpers/database';
 import { noSleep, replayFetch, Route } from '../helpers/fixtures';
 import { adminCookie, replayIdentityClients } from './helpers';
 import { API_KEY, documentsPage, OTHER_RID, RID, searchUrl, status, wosDocument } from '../fixtures/wos/synthetic';
+import { OPEN_CLARIVATE_GATE } from '../helpers/providers';
 
 /* Web of Science ResearcherID registration and verification (stage 15.4, decision #118) — synthetic responses only. */
 
@@ -34,7 +35,7 @@ async function setup(wos?: { recorded?: ReturnType<typeof firstPage>[]; override
     now: testClock(NOW).now,
     identityClients: {
       ...clients,
-      wos: replay ? new WosStarterClient({ apiKey: API_KEY, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } }) : null,
+      wos: replay ? new WosStarterClient({ gate: OPEN_CLARIVATE_GATE, apiKey: API_KEY, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } }) : null,
     },
   });
   const cookie = await adminCookie(server);

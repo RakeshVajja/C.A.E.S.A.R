@@ -5,6 +5,7 @@ import { ingestPublication } from '../../src/services/matching/engine';
 import { buildNormalizedPublication } from '../../src/services/normalization/normalizedPublication';
 import { noSleep, replayFetch, type RecordedResponse, type Route } from '../helpers/fixtures';
 import * as jcr from '../fixtures/jcr/synthetic';
+import { OPEN_CLARIVATE_GATE } from '../helpers/providers';
 
 /**
  * A synthetic JCR world for stage 15.6 tests: three journals (A with print, electronic and previous
@@ -37,7 +38,7 @@ export function jcrResponses(options: { a2021Jif?: string } = {}): RecordedRespo
 
 export function jcrClient(recorded: RecordedResponse[] = jcrResponses(), overrides: Record<string, Route> = {}) {
   const replay = replayFetch(recorded, overrides);
-  return { client: new JcrClient({ apiKey: jcr.API_KEY, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } }), calls: replay.calls };
+  return { client: new JcrClient({ gate: OPEN_CLARIVATE_GATE, apiKey: jcr.API_KEY, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } }), calls: replay.calls };
 }
 
 /** A publication from one source record with these ISSNs. */

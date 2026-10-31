@@ -27,7 +27,9 @@ export type FetchErrorKind =
   /** 403 — the credentials are valid but not entitled to the data (e.g. no institutional access). */
   | 'NOT_ENTITLED'
   /** 429 — the quota or rate limit is exhausted. */
-  | 'QUOTA_EXCEEDED';
+  | 'QUOTA_EXCEEDED'
+  /** No request was sent: the provider is blocked by a compliance gate (the Clarivate gate, §22.6). */
+  | 'BLOCKED';
 
 /** Any failure to obtain a complete, valid response. Never to be read as "no publications". */
 export class FetchError extends Error {

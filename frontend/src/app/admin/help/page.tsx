@@ -17,8 +17,9 @@ export default function AdminHelpPage() {
                 password expired, open the professor and use “Resend sign-in email”.
               </li>
               <li>
-                Open the professor and add their OpenAlex, DBLP or ORCID identities. Each identifier is checked with its source first — confirm the name and
-                works before saving.
+                Open the professor and add their OpenAlex, DBLP, ORCID, Scopus or Web of Science identities. Each identifier is checked with its source first
+                — confirm the name and works before saving. Without Scopus or Web of Science API access, verify the identifier on the author&apos;s public
+                profile and save it with that profile&apos;s address.
               </li>
               <li>
                 Deactivating or removing an identity removes the pending publications found only through it; approved and rejected ones are kept. Deactivating a

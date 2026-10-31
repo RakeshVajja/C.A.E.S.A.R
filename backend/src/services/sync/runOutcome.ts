@@ -23,7 +23,12 @@ import { canAttempt, DISCOVERY_PROVIDERS, type CredentialState, type DiscoveryPr
 
 const CREDENTIAL_STATES = ['NOT_REQUIRED', 'PRESENT', 'NOT_CONFIGURED', 'INCOMPLETE'] as const satisfies readonly CredentialState[];
 
-const providerEntry = z.strictObject({ credentials: z.enum(CREDENTIAL_STATES), identities: z.number().int().min(0) });
+/**
+ * `blocked` (stage 15.7, #141): the provider had credentials but could not be attempted because a
+ * policy gate was closed at run start — the Clarivate gate for Web of Science (§22.6). Optional, so
+ * snapshots stored before it parse unchanged (absent = not blocked).
+ */
+const providerEntry = z.strictObject({ credentials: z.enum(CREDENTIAL_STATES), identities: z.number().int().min(0), blocked: z.literal(true).optional() });
 
 export const coverageSnapshotSchema = z.strictObject({
   version: z.literal(1),
@@ -38,11 +43,20 @@ export const coverageSnapshotSchema = z.strictObject({
 
 export type CoverageSnapshot = z.infer<typeof coverageSnapshotSchema>;
 
-/** The snapshot stored with a new discovery run: configuration at start and identities planned. */
-export function coverageSnapshot(configuration: ProviderConfiguration, identities: readonly { source: IdentitySource }[]): CoverageSnapshot {
+/**
+ * The snapshot stored with a new discovery run: configuration at start and identities planned, and
+ * whether Web of Science was blocked by the Clarivate gate (only recorded when its credentials
+ * could otherwise have been used — missing credentials stay NOT_CONFIGURED/INCOMPLETE).
+ */
+export function coverageSnapshot(
+  configuration: ProviderConfiguration,
+  identities: readonly { source: IdentitySource }[],
+  options: { clarivateBlocked?: boolean } = {},
+): CoverageSnapshot {
   const entry = (provider: DiscoveryProvider) => ({
     credentials: configuration[provider].credentials,
     identities: identities.filter((i) => i.source === provider).length,
+    ...(provider === 'WOS' && options.clarivateBlocked && canAttempt(configuration.WOS.credentials) ? { blocked: true as const } : {}),
   });
   return {
     version: 1,
@@ -70,9 +84,9 @@ export function countOutcomes(tasks: readonly { status: SyncTaskStatus }[]): Tas
   };
 }
 
-/** Mandatory providers that could not be attempted in this run, whatever their identity count. */
+/** Mandatory providers that could not be attempted in this run (no credentials, or blocked by policy). */
 export function unavailableProviders(snapshot: CoverageSnapshot): DiscoveryProvider[] {
-  return DISCOVERY_PROVIDERS.filter((provider) => !canAttempt(snapshot.providers[provider].credentials));
+  return DISCOVERY_PROVIDERS.filter((provider) => !canAttempt(snapshot.providers[provider].credentials) || snapshot.providers[provider].blocked === true);
 }
 
 type TaskLike = { source: IdentitySource | null; status: SyncTaskStatus };
@@ -102,10 +116,15 @@ export interface ProviderCoverage {
   credentials: CredentialState;
   /** Whether the provider could be attempted; says nothing about whether access works. */
   available: boolean;
+  /** Credentials were present but a policy gate (the Clarivate gate, §22.6) kept it from being attempted. */
+  blocked: boolean;
   identities: number;
   succeeded: number;
   failed: number;
+  /** Tasks not executed because credentials were missing or incomplete. */
   notConfigured: number;
+  /** Tasks not executed because the provider was blocked by policy (not a credential problem). */
+  blockedTasks: number;
   /** PENDING or RUNNING. */
   unfinished: number;
   /** At least one fetch succeeded, so access worked in this run. */
@@ -124,18 +143,22 @@ export function providerCoverage(
 ): ProviderCoverage[] {
   return DISCOVERY_PROVIDERS.map((provider) => {
     const own = tasks.filter((t) => t.source === provider);
-    const { succeeded, failed, notConfigured } = countOutcomes(own);
-    const unfinished = own.length - succeeded - failed - notConfigured;
+    const { succeeded, failed, notConfigured: notExecuted } = countOutcomes(own);
+    const unfinished = own.length - succeeded - failed - notExecuted;
     const { credentials, identities } = snapshot.providers[provider];
-    const available = canAttempt(credentials);
+    const blocked = snapshot.providers[provider].blocked === true;
+    const available = canAttempt(credentials) && !blocked;
     return {
       provider,
       credentials,
       available,
+      blocked,
       identities,
       succeeded,
       failed,
-      notConfigured,
+      // A task that was not executed is "not configured" or "blocked", by its provider's state at start.
+      notConfigured: blocked ? 0 : notExecuted,
+      blockedTasks: blocked ? notExecuted : 0,
       unfinished,
       accessConfirmed: succeeded > 0,
       complete: available && succeeded === own.length && (credentials !== 'PRESENT' || succeeded > 0),

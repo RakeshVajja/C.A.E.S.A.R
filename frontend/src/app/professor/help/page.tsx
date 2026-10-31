@@ -12,7 +12,8 @@ export default function ProfessorHelpPage() {
           body: (
             <>
               <p>
-                Once a month the system collects publication metadata from OpenAlex, DBLP and ORCID through the identities the administrator verified for you.
+                Once a month the system collects publication metadata from OpenAlex, DBLP, ORCID, Scopus and Web of Science through the identities the
+                administrator verified for you. Where Scopus reports a citation count, it is shown with the publication, with links to Scopus.
                 Records that describe the same paper are combined into one publication, so a paper reported by several sources appears once, with every source
                 shown.
               </p>

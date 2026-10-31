@@ -1,10 +1,11 @@
-import { CircleCheck, CircleX, Clock, EyeOff, LoaderCircle, TriangleAlert, Circle, GitMerge, Ban, KeyRound } from "lucide-react";
+import { CircleCheck, CircleX, Clock, EyeOff, LoaderCircle, TriangleAlert, Circle, GitMerge, Ban, KeyRound, ShieldOff } from "lucide-react";
 import { SOURCE_LABEL } from "@/lib/format";
 import type { CandidateStatus, PublicationStatus, Source, SyncRunStatus, SyncTaskStatus, VerificationStatus } from "@/lib/types";
 
 /** Status chips: icon + word + tint, never colour alone (design system §6.2). */
 
-type ChipStatus = VerificationStatus | PublicationStatus | SyncRunStatus | SyncTaskStatus | CandidateStatus | "INACTIVE";
+/** BLOCKED: a task not executed because a policy gate (the Clarivate gate) kept its provider from running. */
+type ChipStatus = VerificationStatus | PublicationStatus | SyncRunStatus | SyncTaskStatus | CandidateStatus | "INACTIVE" | "BLOCKED";
 
 const STATUS: Record<string, { label: string; tone: string; Icon: typeof Clock }> = {
   PENDING: { label: "Pending", tone: "bg-warning-bg text-warning", Icon: Clock },
@@ -18,6 +19,7 @@ const STATUS: Record<string, { label: string; tone: string; Icon: typeof Clock }
   PARTIAL_SUCCESS: { label: "Partial success", tone: "bg-warning-bg text-warning", Icon: TriangleAlert },
   FAILED: { label: "Failed", tone: "bg-danger-bg text-danger", Icon: CircleX },
   NOT_CONFIGURED: { label: "Not configured", tone: "bg-neutral-bg text-neutral", Icon: KeyRound },
+  BLOCKED: { label: "Blocked (policy)", tone: "bg-neutral-bg text-neutral", Icon: ShieldOff },
   OPEN: { label: "Open", tone: "bg-warning-bg text-warning", Icon: Clock },
   MERGED: { label: "Merged", tone: "bg-success-bg text-success", Icon: GitMerge },
   DISMISSED: { label: "Dismissed", tone: "bg-neutral-bg text-neutral", Icon: Ban },

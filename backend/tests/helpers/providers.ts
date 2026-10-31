@@ -1,3 +1,4 @@
+import type { ClarivateGate } from '../../src/services/providers/clarivateGate';
 import { providerConfiguration, type ProviderConfiguration } from '../../src/services/providers/providerStatus';
 
 /**
@@ -20,3 +21,10 @@ export function allProvidersPresent(): ProviderConfiguration {
 export function noLicensedProviders(): ProviderConfiguration {
   return providerConfiguration({ scopus: null, wosStarter: null, wosJournals: null, issues: [] });
 }
+
+/**
+ * An OPEN Clarivate gate, for tests of the Web of Science and JCR code paths with synthetic responses
+ * only. The application's own gate is closed (src/services/providers/clarivateGate.ts); tests that
+ * check the closed gate use the default.
+ */
+export const OPEN_CLARIVATE_GATE: ClarivateGate = Object.freeze({ removalToolingComplete: true, writtenConfirmationsOnRecord: true });

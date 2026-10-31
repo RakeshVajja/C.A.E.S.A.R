@@ -7,6 +7,7 @@ import {
   BookOpen,
   ChartColumn,
   FilePlus2,
+  Gauge,
   GitMerge,
   KeyRound,
   LayoutDashboard,
@@ -56,6 +57,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/admin/publications", label: "Publications", Icon: Library },
     { href: "/admin/duplicates", label: "Duplicates", Icon: GitMerge, badge: "candidates" },
     { href: "/admin/sync", label: "Synchronization", Icon: RefreshCw },
+    { href: "/admin/journal-metrics", label: "Journal metrics", Icon: Gauge },
     { href: "/admin/analytics", label: "Analytics", Icon: ChartColumn },
   ],
 };

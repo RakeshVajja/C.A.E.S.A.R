@@ -10,6 +10,7 @@ import { buildNormalizedPublication } from '../../src/services/normalization/nor
 import { resetDatabase } from '../helpers/database';
 import { noSleep, replayFetch, Route } from '../helpers/fixtures';
 import { API_KEY, documentsPage, OTHER_RID, RID, searchUrl, status, threeDocumentPages, wosDocument } from '../fixtures/wos/synthetic';
+import { OPEN_CLARIVATE_GATE } from '../helpers/providers';
 
 /* Web of Science discovery through the shared pipeline (stage 15.4) — synthetic responses, isolated test database. */
 
@@ -18,7 +19,7 @@ const T2 = new Date('2026-12-01T02:00:00.000Z');
 
 function wos(recorded = threeDocumentPages(), overrides: Record<string, Route> = {}) {
   const replay = replayFetch(recorded, overrides);
-  return new WosStarterClient({ apiKey: API_KEY, perPage: 2, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
+  return new WosStarterClient({ gate: OPEN_CLARIVATE_GATE, apiKey: API_KEY, perPage: 2, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
 }
 
 async function wosIdentity(professorName = 'Prof Web of Science') {
@@ -301,7 +302,7 @@ describe('failures write nothing', () => {
     await expect(discoverWosIdentity(identity.id, { wos: null })).rejects.toBeInstanceOf(DiscoveryPreconditionError);
     await prisma.externalIdentity.update({ where: { id: identity.id }, data: { isActive: false } });
     const replay = replayFetch(threeDocumentPages());
-    const client = new WosStarterClient({ apiKey: API_KEY, perPage: 2, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
+    const client = new WosStarterClient({ gate: OPEN_CLARIVATE_GATE, apiKey: API_KEY, perPage: 2, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
     await expect(discoverWosIdentity(identity.id, { wos: client })).rejects.toBeInstanceOf(DiscoveryPreconditionError);
     expect(replay.calls).toHaveLength(0);
     expect(await prisma.professorPublication.count({ where: { professorId: professor.id } })).toBe(0);

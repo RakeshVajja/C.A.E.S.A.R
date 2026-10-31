@@ -1,6 +1,8 @@
 import { Prisma, PrismaClient, PublicationSource, VerificationStatus } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
 import { HttpError } from '../../utils/httpError';
+import { scopusCitations, type ScopusCitation } from '../citations/scopusCitations';
+import { SOURCE_PRIORITY } from '../matching/canonical';
 
 /**
  * Professor verification of discovered publications (Project_plan.md §11, Phase 10; decisions
@@ -20,7 +22,8 @@ export const LIST_DEFAULT_LIMIT = 50;
 export const LIST_MAX_LIMIT = 200;
 export const BULK_APPROVE_MAX = 500;
 
-const SOURCE_ORDER: readonly PublicationSource[] = ['OPENALEX', 'DBLP', 'ORCID', 'MANUAL'];
+/** Every source of a publication, in canonical priority order (Scopus and Web of Science included). */
+const SOURCE_ORDER: readonly PublicationSource[] = SOURCE_PRIORITY;
 
 /** Relationships the professor may see: their own, to a visible (ACTIVE) publication. */
 function visible(professorId: string): Prisma.ProfessorPublicationWhereInput {
@@ -49,8 +52,11 @@ const itemSelect = {
 
 type ItemRow = Prisma.ProfessorPublicationGetPayload<{ select: typeof itemSelect }>;
 
-/** The response item: relationship fields plus public publication fields (decision #76). */
-function toItem(row: ItemRow) {
+/**
+ * The response item: relationship fields plus public publication fields (decision #76), and the
+ * publication's Scopus citation count with its attribution links (#112; no other provider's count).
+ */
+function toItem(row: ItemRow, citations: Map<string, ScopusCitation>) {
   const { sourceRecords, ...publication } = row.publication;
   const present = new Set(sourceRecords.map((r) => r.source));
   return {
@@ -59,7 +65,7 @@ function toItem(row: ItemRow) {
     origin: row.origin,
     decidedAt: row.decidedAt,
     createdAt: row.createdAt,
-    publication: { ...publication, sources: SOURCE_ORDER.filter((s) => present.has(s)) },
+    publication: { ...publication, sources: SOURCE_ORDER.filter((s) => present.has(s)), scopusCitation: citations.get(publication.id) ?? null },
   };
 }
 
@@ -67,7 +73,8 @@ const notFound = () => new HttpError(404, 'RELATIONSHIP_NOT_FOUND', 'Publication
 
 /** One relationship in the professor-facing item shape (also used for manual entries, Phase 11). */
 export async function readItem(relationshipId: string, client: PrismaClient = defaultClient) {
-  return toItem(await client.professorPublication.findUniqueOrThrow({ where: { id: relationshipId }, select: itemSelect }));
+  const row = await client.professorPublication.findUniqueOrThrow({ where: { id: relationshipId }, select: itemSelect });
+  return toItem(row, await scopusCitations([row.publication.id], client));
 }
 
 /**
@@ -100,7 +107,8 @@ export async function listOwnPublications(
   ]);
   const counts: Record<VerificationStatus, number> = { PENDING: 0, APPROVED: 0, REJECTED: 0 };
   for (const group of grouped) counts[group.status] = (group._count as { _all: number })._all;
-  return { items: rows.map(toItem), total, limit: query.limit, offset: query.offset, counts };
+  const citations = await scopusCitations(rows.map((row) => row.publication.id), client);
+  return { items: rows.map((row) => toItem(row, citations)), total, limit: query.limit, offset: query.offset, counts };
 }
 
 /**
@@ -128,7 +136,7 @@ export async function decide(
       data: { status, decidedAt: now, decidedByUserId: userId },
     });
     if (count === 1) {
-      return toItem(await client.professorPublication.findUniqueOrThrow({ where: { id: relationshipId }, select: itemSelect }));
+      return readItem(relationshipId, client);
     }
   }
 

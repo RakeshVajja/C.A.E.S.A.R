@@ -36,7 +36,18 @@ export interface OwnItem {
     doi: string | null;
     authorNamesDisplay: string | null;
     sources: Source[];
+    scopusCitation: ScopusCitation | null;
   };
+}
+/**
+ * A publication's Scopus citation count with the attribution links Scopus provided (decision #112).
+ * Web of Science Times Cited and JCR metrics are never sent to the frontend (#112, #114).
+ */
+export interface ScopusCitation {
+  count: number;
+  observedAt: string;
+  recordUrl: string | null;
+  citedByUrl: string | null;
 }
 export interface OwnList {
   items: OwnItem[];
@@ -159,6 +170,7 @@ export interface SourceRecordSummary {
 }
 export interface PublicationDetail extends PublicationSummary {
   sourceRecords: SourceRecordSummary[];
+  scopusCitation: ScopusCitation | null;
   relationships: {
     id: string;
     status: VerificationStatus;
@@ -224,6 +236,66 @@ export interface SyncTask {
   finishedAt: string | null;
   identity: { id: string; externalId: string; professor: { id: string; name: string } } | null;
 }
+/** Configuration state of a provider: credentials present or not — never whether access works (§13.9). */
+export type CredentialState = "NOT_REQUIRED" | "PRESENT" | "NOT_CONFIGURED" | "INCOMPLETE";
+export interface ProviderStatus {
+  provider: IdentitySource | "JCR";
+  label: string;
+  purpose: "PUBLICATION_DISCOVERY" | "JOURNAL_METRICS";
+  credentials: CredentialState;
+  issue: string | null;
+}
+/** The Clarivate ingestion gate (§22.6): while closed, no Web of Science or JCR request is made. */
+export interface ClarivateGateStatus {
+  open: boolean;
+  message: string | null;
+}
+export interface ProviderStatusResponse {
+  providers: ProviderStatus[];
+  clarivateGate: ClarivateGateStatus;
+}
+/** One discovery provider's coverage in a run, from the snapshot stored at its start (#117, #129, #130). */
+export interface ProviderCoverage {
+  provider: IdentitySource;
+  credentials: CredentialState;
+  available: boolean;
+  /** Credentials were present, but the Clarivate gate kept the provider from running (§22.6). */
+  blocked: boolean;
+  identities: number;
+  succeeded: number;
+  failed: number;
+  notConfigured: number;
+  blockedTasks: number;
+  unfinished: number;
+  accessConfirmed: boolean;
+  complete: boolean;
+}
+/* Journal metrics (JCR) runs (/api/admin/sync/journal-metrics) — status and counters only. */
+export interface JournalMetricsRun {
+  id: string;
+  trigger: "MANUAL" | "SCHEDULED";
+  triggeredByUserId: string | null;
+  status: SyncRunStatus;
+  tasksTotal: number;
+  tasksSucceeded: number;
+  tasksFailed: number;
+  journalsChecked: number;
+  snapshotsAdded: number;
+  jcrDataUpdate: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+export interface JournalMetricsTask {
+  id: string;
+  status: SyncTaskStatus;
+  recordsFetched: number;
+  snapshotsAdded: number;
+  warnings: number;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  journal: { id: string; jcrId: string; name: string } | null;
+}
 
 /* Analytics (/api/admin/analytics) */
 export interface RunSummary {
@@ -259,4 +331,14 @@ export interface SyncStats {
   records: { fetched: number; added: number; updated: number; linksCreated: number; candidatesCreated: number };
   lastRun: RunSummary | null;
   lastSuccessfulRun: RunSummary | null;
+}
+/** Internal Scopus citation aggregates (§16, #112); Web of Science and JCR figures are not provided. */
+export interface CitationStats {
+  scopus: {
+    countedPublications: number;
+    publicationsWithCount: number;
+    totalCitations: number;
+    latestObservation: string | null;
+    professors: { id: string; name: string; isActive: boolean; publicationsWithCount: number; citations: number }[];
+  };
 }

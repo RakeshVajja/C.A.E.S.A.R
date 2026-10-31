@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { describeFailure, SyncAlreadyRunningError, SyncService } from './syncService';
+import { ClarivateGateClosedError, describeFailure, SyncAlreadyRunningError, SyncService } from './syncService';
 
 /**
  * Monthly synchronization schedule (Project_plan.md §14, decision #81). node-cron only decides
@@ -42,6 +42,10 @@ export async function runScheduledJournalMetrics(service: SyncService): Promise<
   } catch (error) {
     if (error instanceof SyncAlreadyRunningError) {
       console.warn('Scheduled journal metrics refresh skipped: a run is already in progress');
+      return 'skipped';
+    }
+    if (error instanceof ClarivateGateClosedError) {
+      console.warn('Scheduled journal metrics refresh skipped: live Clarivate data is blocked (stage 15.8 and written confirmations pending)');
       return 'skipped';
     }
     console.error(`Scheduled journal metrics refresh could not start (${describeFailure(error)})`);

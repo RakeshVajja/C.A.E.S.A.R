@@ -100,6 +100,14 @@ export function normalizeIdentifier(source: IdentitySource, value: string): stri
  */
 function sourceFailure(source: IdentitySource, error: unknown): never {
   if (error instanceof FetchError) {
+    if (error.kind === 'BLOCKED') {
+      // The Clarivate gate (§22.6): no request was sent.
+      throw new HttpError(
+        409,
+        'PROVIDER_BLOCKED',
+        `The ${SOURCE_LABEL[source]} cannot be checked through the API while live Clarivate data is blocked (stage 15.8 and Clarivate's written confirmations pending); verify it manually from the author's public profile`,
+      );
+    }
     if (error.kind === 'IDENTITY_NOT_FOUND') {
       throw new HttpError(
         422,

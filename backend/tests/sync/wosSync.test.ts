@@ -13,7 +13,7 @@ import { SyncClients, SyncService } from '../../src/services/sync/syncService';
 import { testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch, Route } from '../helpers/fixtures';
-import { allProvidersPresent } from '../helpers/providers';
+import { allProvidersPresent, OPEN_CLARIVATE_GATE } from '../helpers/providers';
 import { adminCookie } from '../professors/helpers';
 import * as scopusFixtures from '../fixtures/scopus/synthetic';
 import { API_KEY, RID, searchUrl, status, threeDocumentPages } from '../fixtures/wos/synthetic';
@@ -43,7 +43,7 @@ function clients(wosOverrides: Record<string, Route> = {}, options: { withWos?: 
     dblp: new DblpClient({ deps: open, http: { maxRetries: 0 } }),
     orcid: new OrcidClient({ deps: open, http: { maxRetries: 0 } }),
     scopus: options.withScopus ? new ScopusClient({ apiKey: scopusFixtures.API_KEY, perPage: 2, http: { maxRetries: 0 }, deps: { fetchImpl: scopus.fetchImpl, sleep: noSleep } }) : null,
-    wos: options.withWos === false ? null : new WosStarterClient({ apiKey: API_KEY, perPage: 2, http: { maxRetries: 0 }, deps: { fetchImpl: wos.fetchImpl, sleep: noSleep } }),
+    wos: options.withWos === false ? null : new WosStarterClient({ gate: OPEN_CLARIVATE_GATE, apiKey: API_KEY, perPage: 2, http: { maxRetries: 0 }, deps: { fetchImpl: wos.fetchImpl, sleep: noSleep } }),
   };
 }
 
@@ -61,7 +61,7 @@ async function run(sync: SyncService) {
   return prisma.syncRun.findUniqueOrThrow({ where: { id: started.id }, include: { tasks: true } });
 }
 
-const service = (c: SyncClients, providers: ProviderConfiguration = allProvidersPresent()) => new SyncService({ clients: c, now: testClock(T1).now, providers });
+const service = (c: SyncClients, providers: ProviderConfiguration = allProvidersPresent()) => new SyncService({ clients: c, now: testClock(T1).now, providers, clarivateGate: OPEN_CLARIVATE_GATE });
 
 describe('Web of Science in a discovery run', () => {
   it('a successful WoS task writes records and observations linked to its task, and confirms WoS access', async () => {

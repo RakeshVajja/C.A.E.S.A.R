@@ -11,7 +11,7 @@ import { recoverInterruptedRuns, SyncClients, SyncService } from '../../src/serv
 import { testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch, type Route } from '../helpers/fixtures';
-import { allProvidersPresent } from '../helpers/providers';
+import { allProvidersPresent, OPEN_CLARIVATE_GATE } from '../helpers/providers';
 import { adminCookie } from '../professors/helpers';
 import * as jcr from '../fixtures/jcr/synthetic';
 import { ISSN, jcrClient, jcrResponses, publication, publications } from './jcrWorld';
@@ -45,7 +45,7 @@ function clients(jcrOverrides: Record<string, Route> = {}, withJcr = true) {
 }
 
 const service = (c: SyncClients, providers: ProviderConfiguration = allProvidersPresent(), extra: { journalMetricsAfterDiscovery?: boolean } = {}) =>
-  new SyncService({ clients: c, now: testClock(T1).now, providers, ...extra });
+  new SyncService({ clients: c, now: testClock(T1).now, providers, clarivateGate: OPEN_CLARIVATE_GATE, ...extra });
 
 async function journalRun(sync: SyncService) {
   const started = await sync.startJournalMetrics('MANUAL');

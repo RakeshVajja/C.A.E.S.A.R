@@ -14,13 +14,14 @@ import {
 import { WosDocumentSchema } from '../../src/integrations/wos/types';
 import { noSleep, replayFetch, Route } from '../helpers/fixtures';
 import { API_KEY, documentsPage, OTHER_RID, RID, searchUrl, status, threeDocumentPages, wosDocument } from '../fixtures/wos/synthetic';
+import { OPEN_CLARIVATE_GATE } from '../helpers/providers';
 
 /* Web of Science Starter client (stage 15.4) — synthetic responses only; no network, no real credentials. */
 
 function wos(recorded = threeDocumentPages(), overrides: Record<string, Route> = {}, options: { maxRetries?: number; maxResults?: number; sleeps?: number[] } = {}) {
   const replay = replayFetch(recorded, overrides);
   const sleeps = options.sleeps ?? [];
-  const client = new WosStarterClient({
+  const client = new WosStarterClient({ gate: OPEN_CLARIVATE_GATE,
     apiKey: API_KEY,
     perPage: 2,
     maxResults: options.maxResults,
@@ -86,7 +87,7 @@ describe('requests and authentication', () => {
     expect(WOS_PAGE_LIMIT).toBe(50);
     expect(WOS_SORT_FIELD).toBe('LD+A,PY+A');
     const replay = replayFetch([documentsPage(RID, 1, 50, 0, [])]);
-    const client = new WosStarterClient({ apiKey: API_KEY, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
+    const client = new WosStarterClient({ gate: OPEN_CLARIVATE_GATE, apiKey: API_KEY, http: { maxRetries: 0 }, deps: { fetchImpl: replay.fetchImpl, sleep: noSleep } });
     await client.fetchResearcherDocuments(RID);
     const url = new URL(replay.calls[0].url);
     expect(url.origin + url.pathname).toBe('https://api.clarivate.com/apis/wos-starter/v1/documents');
@@ -232,7 +233,7 @@ describe('failures, retries and rate limits', () => {
   });
 
   it('a request that never answers times out', async () => {
-    const hanging = new WosStarterClient({
+    const hanging = new WosStarterClient({ gate: OPEN_CLARIVATE_GATE,
       apiKey: API_KEY,
       http: { timeoutMs: 20, maxRetries: 0 },
       deps: {

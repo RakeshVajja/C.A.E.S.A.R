@@ -20,7 +20,7 @@ export default function ProfessorDashboard() {
     <>
       <PageHeader
         title={user?.professor ? `Welcome, ${user.professor.name}` : "Dashboard"}
-        description="Your publications collected from OpenAlex, DBLP and ORCID, and the ones you added yourself."
+        description="Your publications collected from OpenAlex, DBLP, ORCID, Scopus and Web of Science, and the ones you added yourself."
         actions={
           <>
             <ButtonLink href="/professor/add" icon={<FilePlus2 aria-hidden size={18} />}>

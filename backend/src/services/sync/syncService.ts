@@ -10,6 +10,7 @@ import { JcrClient } from '../../integrations/jcr/client';
 import { WosStarterClient } from '../../integrations/wos/client';
 import { HttpError } from '../../utils/httpError';
 import { canAttempt, providerConfiguration, unavailableMessage, type ProviderConfiguration } from '../providers/providerStatus';
+import { CLARIVATE_GATE, CLARIVATE_GATE_MESSAGE, ClarivateGate, isClarivateGateOpen } from '../providers/clarivateGate';
 import { countOutcomes, coverageSnapshot, parseCoverageSnapshot, runStatus } from './runOutcome';
 import { discoverDblpIdentity } from '../discovery/dblpDiscovery';
 import { discoverOpenAlexIdentity } from '../discovery/openAlexDiscovery';
@@ -53,6 +54,10 @@ import { backfillSourceRecordIssns, identifyJournals, isAccessFailure, linkPubli
  * publication (every task references its journal) that adds snapshot revisions (jcrRefresh.ts). Its
  * own counters are `journals_checked`, `snapshots_added` and `jcr_data_update`. Without JCR
  * credentials the tasks are NOT_CONFIGURED and never executed.
+ *
+ * The Clarivate gate (clarivateGate.ts, §22.6) is enforced here as well as in the clients: while it
+ * is closed, no JCR run can start (admin, schedule or after-discovery: CLARIVATE_GATE_CLOSED, no run
+ * created) and every Web of Science identity gets a NOT_CONFIGURED task that is never executed.
  */
 
 export interface SyncClients {
@@ -93,6 +98,15 @@ export interface SyncServiceOptions {
    * the application enables it.
    */
   journalMetricsAfterDiscovery?: boolean;
+  /** The Clarivate gate; the closed gate of this version by default (tests pass an open one). */
+  clarivateGate?: ClarivateGate;
+}
+
+/** A JCR run refused because live Clarivate data is blocked (§22.6). No run is created. */
+export class ClarivateGateClosedError extends HttpError {
+  constructor() {
+    super(409, 'CLARIVATE_GATE_CLOSED', CLARIVATE_GATE_MESSAGE);
+  }
 }
 
 const MESSAGE_LIMIT = 500;
@@ -114,6 +128,16 @@ export class SyncService {
   constructor(private readonly options: SyncServiceOptions) {
     this.client = options.client ?? defaultClient;
     this.providers = options.providers ?? providerConfiguration(env.providerCredentials);
+  }
+
+  /** The providers' configuration states this engine uses (credential presence only, never values). */
+  get providerConfiguration(): ProviderConfiguration {
+    return this.providers;
+  }
+
+  /** Whether live Clarivate (Web of Science, JCR) requests may be made — false in this version. */
+  get clarivateGateOpen(): boolean {
+    return isClarivateGateOpen(this.options.clarivateGate ?? CLARIVATE_GATE);
   }
 
   /** True while a run started by this process is executing. */
@@ -147,7 +171,7 @@ export class SyncService {
             status: 'RUNNING',
             startedAt,
             // Configuration at start, so the outcome stays correct if credentials change later.
-            providerCoverage: coverageSnapshot(this.providers, identities),
+            providerCoverage: coverageSnapshot(this.providers, identities, { clarivateBlocked: !this.clarivateGateOpen }),
             tasksTotal: identities.length,
             tasks: { create: identities.map((i) => this.planTask(i, startedAt)) },
           },
@@ -164,6 +188,8 @@ export class SyncService {
    * SYNC_ALREADY_RUNNING while any run executes.
    */
   async startJournalMetrics(trigger: SyncTrigger, triggeredByUserId: string | null = null) {
+    // Checked before the guard: a refused start creates no run and leaves the engine free.
+    if (!this.clarivateGateOpen) throw new ClarivateGateClosedError();
     return this.launch(
       () =>
         this.client.syncRun.create({
@@ -206,7 +232,7 @@ export class SyncService {
 
   /** Chains a JCR refresh after a discovery run that added records, when enabled and JCR can be attempted. */
   private afterDiscovery(runId: string): void {
-    if (!this.options.journalMetricsAfterDiscovery || !canAttempt(this.providers.JCR.credentials) || !this.options.clients.jcr) return;
+    if (!this.options.journalMetricsAfterDiscovery || !this.clarivateGateOpen || !canAttempt(this.providers.JCR.credentials) || !this.options.clients.jcr) return;
     void (async () => {
       const run = await this.client.syncRun.findUnique({ where: { id: runId }, select: { recordsNew: true } });
       if (!run || run.recordsNew === 0) return;
@@ -253,6 +279,10 @@ export class SyncService {
     const base = { kind: 'IDENTITY_DISCOVERY' as const, identityId: identity.id, source: identity.source };
     if (!canAttempt(credentials)) {
       return { ...base, status: 'NOT_CONFIGURED' as const, errorMessage: unavailableMessage(identity.source, credentials), startedAt: now, finishedAt: now };
+    }
+    // Credentials present, but live Clarivate data is blocked (§22.6): never executed, with the reason.
+    if (identity.source === 'WOS' && !this.clarivateGateOpen) {
+      return { ...base, status: 'NOT_CONFIGURED' as const, errorMessage: CLARIVATE_GATE_MESSAGE, startedAt: now, finishedAt: now };
     }
     return { ...base, status: 'PENDING' as const };
   }

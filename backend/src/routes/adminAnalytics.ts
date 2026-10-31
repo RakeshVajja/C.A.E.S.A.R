@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { approvedPerProfessor, overview, publicationsByYear, sourceStatistics, syncStatistics } from '../services/analytics/analytics';
+import { approvedPerProfessor, citationStatistics, overview, publicationsByYear, sourceStatistics, syncStatistics } from '../services/analytics/analytics';
 import { HttpError } from '../utils/httpError';
 
 /**
@@ -12,6 +12,7 @@ import { HttpError } from '../utils/httpError';
  *   GET /years         counted publications per year (unknown year separate)
  *   GET /sources       source records against unique canonical publications
  *   GET /sync          synchronization runs, tasks and record counters
+ *   GET /citations     internal Scopus citation aggregates (Web of Science and JCR are not shown, #112, #114)
  */
 
 const noQuery = z.strictObject({});
@@ -46,6 +47,9 @@ export function createAdminAnalyticsRouter(): Router {
   });
   router.get('/sync', async (_req, res) => {
     res.json(await syncStatistics());
+  });
+  router.get('/citations', async (_req, res) => {
+    res.json(await citationStatistics());
   });
 
   return router;

@@ -6,13 +6,17 @@ import { Suspense, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { StatusChip } from "@/components/chips";
 import { ConfirmDialog } from "@/components/dialog";
-import { Alert, Button, EmptyState, LoadError, PageHeader, Pagination, Panel, SkeletonRows } from "@/components/ui";
+import { ProviderConfigurationPanel } from "@/components/providers";
+import { Alert, Button, EmptyState, LoadError, PageHeader, Pagination, Panel, SectionTitle, SkeletonRows } from "@/components/ui";
 import { api, ApiError, errorMessage, query } from "@/lib/api";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
 import type { Paged, SyncRun } from "@/lib/types";
 
-/** Synchronization (Project_plan.md §14): manual trigger and run history. */
+/**
+ * Synchronization (Project_plan.md §14, §17): publication discovery — manual trigger, provider
+ * configuration and run history. Journal metrics (JCR) runs have their own page.
+ */
 
 const PAGE_SIZE = 20;
 
@@ -51,7 +55,7 @@ function Runs() {
     <>
       <PageHeader
         title="Synchronization"
-        description="Publications are collected monthly from OpenAlex, DBLP and ORCID for every active identity of active professors. A failed source never deletes or changes existing data."
+        description="Publications are collected monthly from OpenAlex, DBLP, ORCID, Scopus and Web of Science for every active identity of active professors. A failed source never deletes or changes existing data."
         actions={
           <Button variant="primary" icon={<RefreshCw aria-hidden size={18} />} onClick={() => setConfirming(true)} disabled={!!running}>
             Start synchronization
@@ -64,6 +68,15 @@ function Runs() {
             The history below refreshes every few seconds.
           </Alert>
         )}
+        <section aria-labelledby="providers-heading">
+          <SectionTitle id="providers-heading">Publication sources</SectionTitle>
+          <p className="mb-3 max-w-[72ch] text-[13px] leading-5 text-text-muted">
+            Whether each source can be used. Credentials being set does not show that institutional access works; a run shows that once it succeeds. Journal
+            metrics (JCR) are refreshed separately, under <Link href="/admin/journal-metrics" className="text-ink underline underline-offset-4">Journal metrics</Link>.
+          </p>
+          <ProviderConfigurationPanel purpose="PUBLICATION_DISCOVERY" />
+        </section>
+        <SectionTitle>Runs</SectionTitle>
         <Panel>
           {error && !data ? (
             <div className="p-4">
@@ -103,7 +116,7 @@ function Runs() {
                           <Link href={`/admin/sync/${r.id}`} className="font-medium text-ink hover:underline underline-offset-4">
                             {formatDateTime(r.startedAt)}
                           </Link>
-                          <p className="text-[13px] text-text-muted">{r.trigger === "MANUAL" ? "Manual run" : "Monthly schedule"}</p>
+                          <p className="text-[13px] text-text-muted">{r.trigger === "MANUAL" ? "Manual run" : "Scheduled"}</p>
                         </td>
                         <td data-label="Status">
                           <StatusChip status={r.status} />

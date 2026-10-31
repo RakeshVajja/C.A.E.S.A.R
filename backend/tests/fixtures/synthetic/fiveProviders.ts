@@ -7,6 +7,7 @@ import type { SyncClients } from '../../../src/services/sync/syncService';
 import { noSleep, replayFetch, type RecordedResponse, type Route } from '../../helpers/fixtures';
 import * as scopus from '../scopus/synthetic';
 import * as wos from '../wos/synthetic';
+import { OPEN_CLARIVATE_GATE } from '../../helpers/providers';
 
 /**
  * SYNTHETIC responses of all five discovery providers for cross-provider tests (stage 15.5,
@@ -236,7 +237,7 @@ export function fiveProviderClients(world: ProviderWorld, overrides: Record<stri
     dblp: new DblpClient({ deps: deps('DBLP'), http }),
     orcid: new OrcidClient({ deps: deps('ORCID'), http }),
     scopus: new ScopusClient({ apiKey: scopus.API_KEY, deps: deps('SCOPUS'), http }),
-    wos: new WosStarterClient({ apiKey: wos.API_KEY, deps: deps('WOS'), http }),
+    wos: new WosStarterClient({ gate: OPEN_CLARIVATE_GATE, apiKey: wos.API_KEY, deps: deps('WOS'), http }),
     calls: () => Object.values(replays).flatMap((replay) => replay.calls.map((call) => call.url)),
   };
 }

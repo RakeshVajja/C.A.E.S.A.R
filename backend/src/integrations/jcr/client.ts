@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { FetchError, HttpDependencies, JsonRequestOptions, SourceHttpClient, SourceHttpConfig } from '../http/httpClient';
 import { normalizeIssn } from '../../services/normalization/issn';
+import { CLARIVATE_GATE, CLARIVATE_GATE_MESSAGE, ClarivateGate, isClarivateGateOpen } from '../../services/providers/clarivateGate';
 import {
   JcrJournalHistory,
   JcrJournalHistorySchema,
@@ -26,7 +27,8 @@ import {
  *  - classifies 401 → AUTH_FAILED, 403 → NOT_ENTITLED, 429 → QUOTA_EXCEEDED (retried first,
  *    honouring Retry-After); every failure message is fixed text plus validated values.
  * Built against Clarivate's OpenAPI specification and synthetic fixtures only; not run against the
- * live API (stage 15.9, after the §22.6 Clarivate gate).
+ * live API (stage 15.9, after the §22.6 Clarivate gate). While that gate is closed
+ * (clarivateGate.ts) it sends no request at all: every call fails with BLOCKED.
  */
 
 export const JCR_BASE_URL = 'https://api.clarivate.com/apis/wos-journals/v1';
@@ -67,14 +69,18 @@ export interface JcrClientOptions {
   baseUrl?: string;
   http?: Partial<SourceHttpConfig>;
   deps?: HttpDependencies;
+  /** The Clarivate gate; the closed gate of this version by default (tests pass an open one). */
+  gate?: ClarivateGate;
 }
 
 export class JcrClient {
   private readonly http: SourceHttpClient;
   private readonly baseUrl: string;
   private readonly headers: Record<string, string>;
+  private readonly gate: ClarivateGate;
 
   constructor(options: JcrClientOptions) {
+    this.gate = options.gate ?? CLARIVATE_GATE;
     this.http = new SourceHttpClient({ ...JCR_HTTP_CONFIG, ...options.http }, options.deps);
     this.baseUrl = options.baseUrl ?? JCR_BASE_URL;
     this.headers = { 'X-ApiKey': options.apiKey };
@@ -161,6 +167,7 @@ export class JcrClient {
 
   /** GET with the API key header; failures re-issued with fixed messages (no provider text). */
   private async get(url: string, options: JsonRequestOptions = {}) {
+    if (!isClarivateGateOpen(this.gate)) throw new FetchError('BLOCKED', `JCR: ${CLARIVATE_GATE_MESSAGE}`);
     try {
       return await this.http.getJson(url, { ...options, headers: this.headers });
     } catch (error) {

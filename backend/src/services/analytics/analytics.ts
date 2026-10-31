@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient, PublicationSource, SyncRunStatus, TypeFamily } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
+import { scopusCitations } from '../citations/scopusCitations';
 
 /**
  * Administrator analytics (Project_plan.md §16; Phase 13, decisions #86–#89). Every figure is
@@ -163,6 +164,43 @@ export async function syncStatistics(client: PrismaClient = defaultClient) {
     },
     lastRun,
     lastSuccessfulRun,
+  };
+}
+
+/**
+ * Internal citation aggregates (§16; decision #112, stage 15.7) — Scopus only. Web of Science
+ * aggregates wait for Clarivate's written confirmation and JCR-based figures for the licence
+ * confirmation (#114), so neither is computed here. Counted publications follow the default
+ * policy; each contributes its Scopus count once (`scopusCitations`), so a co-authored paper is
+ * counted once in the total and once per professor in the per-professor rows.
+ */
+export async function citationStatistics(client: PrismaClient = defaultClient) {
+  const [publications, relationships] = await client.$transaction([
+    client.publication.findMany({ where: countedPublications, select: { id: true } }),
+    client.professorPublication.findMany({
+      where: { ...approved, publication: countablePublication },
+      select: { publicationId: true, professor: { select: { id: true, name: true, isActive: true } } },
+    }),
+  ]);
+  const citations = await scopusCitations(publications.map((p) => p.id), client);
+  const counted = [...citations.values()];
+  const perProfessor = new Map<string, { id: string; name: string; isActive: boolean; publicationsWithCount: number; citations: number }>();
+  for (const { publicationId, professor } of relationships) {
+    const citation = citations.get(publicationId);
+    if (!citation) continue;
+    const row = perProfessor.get(professor.id) ?? { ...professor, publicationsWithCount: 0, citations: 0 };
+    row.publicationsWithCount++;
+    row.citations += citation.count;
+    perProfessor.set(professor.id, row);
+  }
+  return {
+    scopus: {
+      countedPublications: publications.length,
+      publicationsWithCount: counted.length,
+      totalCitations: counted.reduce((n, c) => n + c.count, 0),
+      latestObservation: counted.reduce<Date | null>((latest, c) => (latest && latest > c.observedAt ? latest : c.observedAt), null),
+      professors: [...perProfessor.values()].sort((a, b) => b.citations - a.citations || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+    },
   };
 }
 

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, CircleX, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "./dialog";
 import { SourceChips, StatusChip } from "./chips";
+import { ScopusCitationNote } from "./citations";
 import { useToast } from "./toast";
 import { Button, ButtonLink, Doi, EmptyState, LoadError, Pagination, Panel, Segmented, SkeletonRows } from "./ui";
 import { api, ApiError, errorMessage, query } from "@/lib/api";
@@ -353,6 +354,11 @@ function Row({
           <p className="mt-1">
             <Doi doi={p.doi} />
           </p>
+        )}
+        {p.scopusCitation && (
+          <div className="mt-1">
+            <ScopusCitationNote citation={p.scopusCitation} />
+          </div>
         )}
         {item.origin === "MANUAL" && <p className="mt-1 text-[13px] text-text-muted">Added by you</p>}
         {note && (

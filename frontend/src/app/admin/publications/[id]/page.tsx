@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff, Pencil, Unlink } from "lucide-react";
 import { CuratedChip, SourceChip, SourceChips, StatusChip } from "@/components/chips";
+import { ScopusCitationNote } from "@/components/citations";
 import { ConfirmDialog } from "@/components/dialog";
 import { ErrorSummary, Field, useFormErrors } from "@/components/form";
 import { useToast } from "@/components/toast";
@@ -209,11 +210,13 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
             <dd>
               <SourceChips sources={publication.sources} />
             </dd>
+            <dt className="text-text-muted">Citations</dt>
+            <dd>{publication.scopusCitation ? <ScopusCitationNote citation={publication.scopusCitation} /> : <Missing />}</dd>
             <dt className="text-text-muted">Curation</dt>
             <dd>
               {publication.isCurated
                 ? "Curated: edited by the administrator; synchronization keeps these values."
-                : "Derived from the source records (OpenAlex, then DBLP, ORCID, manual)."}
+                : "Derived from the source records (OpenAlex, then DBLP, ORCID, Scopus, Web of Science, manual)."}
             </dd>
           </dl>
         </Panel>

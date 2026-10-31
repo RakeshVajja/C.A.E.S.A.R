@@ -5,9 +5,9 @@ import { useState } from "react";
 import { SourceChip, StatusChip } from "@/components/chips";
 import { EmptyState, Figures, LoadError, PageHeader, Panel, SectionTitle, Segmented, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatDateTime, formatNumber, SOURCE_LABEL, TYPE_LABEL } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, SOURCE_LABEL, TYPE_LABEL } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
-import type { ByYear, Overview, PerProfessor, SourceStats, SyncStats } from "@/lib/types";
+import type { ByYear, CitationStats, Overview, PerProfessor, SourceStats, SyncStats } from "@/lib/types";
 
 /**
  * Administrator analytics (Project_plan.md §16; pages/admin-analytics.md). Every figure comes from
@@ -21,17 +21,19 @@ interface Data {
   years: ByYear;
   sources: SourceStats;
   sync: SyncStats;
+  citations: CitationStats;
 }
 
 async function load(signal: AbortSignal): Promise<Data> {
-  const [overview, professors, years, sources, sync] = await Promise.all([
+  const [overview, professors, years, sources, sync, citations] = await Promise.all([
     api<{ overview: Overview }>("/admin/analytics/overview", { signal }).then((r) => r.overview),
     api<PerProfessor>("/admin/analytics/professors", { signal }),
     api<ByYear>("/admin/analytics/years", { signal }),
     api<SourceStats>("/admin/analytics/sources", { signal }),
     api<SyncStats>("/admin/analytics/sync", { signal }),
+    api<CitationStats>("/admin/analytics/citations", { signal }),
   ]);
-  return { overview, professors, years, sources, sync };
+  return { overview, professors, years, sources, sync, citations };
 }
 
 export default function AnalyticsPage() {
@@ -76,6 +78,7 @@ export default function AnalyticsPage() {
           <YearsSection years={data.years} />
           <ProfessorsSection data={data.professors} unique={data.overview.uniquePublications} />
           <SourcesSection sources={data.sources} />
+          <CitationsSection citations={data.citations} />
           <SyncSection sync={data.sync} />
         </div>
       )}
@@ -287,6 +290,74 @@ function ProfessorsSection({ data, unique }: { data: PerProfessor; unique: numbe
           </div>
         )}
       </Panel>
+    </section>
+  );
+}
+
+/**
+ * Internal Scopus citation aggregates (§16, decision #112): administrator only, never shown
+ * outside the portal. Web of Science and JCR figures wait for Clarivate's written confirmation.
+ */
+function CitationsSection({ citations }: { citations: CitationStats }) {
+  const scopus = citations.scopus;
+  return (
+    <section aria-labelledby="cit-heading">
+      <SectionTitle id="cit-heading">Citations (Scopus, internal)</SectionTitle>
+      <p className="mb-3 max-w-[72ch] text-[13px] leading-5 text-text-muted">
+        Citation counts from Scopus for the counted publications, each publication once. For internal use by the administrator only. Web of Science citation
+        counts and Journal Citation Reports metrics are not shown until Clarivate&apos;s written confirmation is on record.
+      </p>
+      <Figures
+        items={[
+          { label: "Scopus citations", value: formatNumber(scopus.totalCitations), note: "counted publications" },
+          {
+            label: "Publications with a count",
+            value: formatNumber(scopus.publicationsWithCount),
+            note: `of ${formatNumber(scopus.countedPublications)} counted`,
+          },
+          { label: "Latest count", value: <span className="text-[15px] leading-6 font-medium">{scopus.latestObservation ? formatDate(scopus.latestObservation) : "None yet"}</span> },
+        ]}
+      />
+      {scopus.professors.length > 0 && (
+        <Panel className="mt-4">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <caption className="px-4 pt-3 pb-2 text-left text-[13px] leading-5 text-text-muted">
+                A co-authored publication counts for each of its professors, so these rows can add up to more than the total.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Professor</th>
+                  <th scope="col" className="num">
+                    Publications with a count
+                  </th>
+                  <th scope="col" className="num">
+                    Scopus citations
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {scopus.professors.map((p) => (
+                  <tr key={p.id}>
+                    <td className="no-label">
+                      <Link href={`/admin/professors/${p.id}`} className="text-ink hover:underline underline-offset-4">
+                        {p.name}
+                      </Link>
+                      {!p.isActive && <p className="text-[13px] text-text-muted">Inactive</p>}
+                    </td>
+                    <td data-label="Publications with a count" className="num">
+                      {formatNumber(p.publicationsWithCount)}
+                    </td>
+                    <td data-label="Scopus citations" className="num">
+                      {formatNumber(p.citations)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
     </section>
   );
 }

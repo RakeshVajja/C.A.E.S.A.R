@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { FetchError, HttpDependencies, SourceHttpClient, SourceHttpConfig } from '../http/httpClient';
+import { CLARIVATE_GATE, CLARIVATE_GATE_MESSAGE, ClarivateGate, isClarivateGateOpen } from '../../services/providers/clarivateGate';
 import { WosAuthorNameSchema, WosDocument, WosDocumentSchema, WosDocumentsPageSchema } from './types';
 
 /**
@@ -17,7 +18,8 @@ import { WosAuthorNameSchema, WosDocument, WosDocumentSchema, WosDocumentsPageSc
  *    shared client first, honouring Retry-After); every failure message is fixed text plus
  *    validated values — no response body, header or free-text field is copied into an error.
  * Built against Clarivate's OpenAPI specification and synthetic fixtures only; it has not been run
- * against the live API (stage 15.9).
+ * against the live API (stage 15.9). While the Clarivate gate is closed (clarivateGate.ts) it sends
+ * no request at all: every call fails with BLOCKED before reaching the network.
  */
 
 export const WOS_STARTER_BASE_URL = 'https://api.clarivate.com/apis/wos-starter/v1';
@@ -60,6 +62,8 @@ export interface WosClientOptions {
   maxResults?: number;
   http?: Partial<SourceHttpConfig>;
   deps?: HttpDependencies;
+  /** The Clarivate gate; the closed gate of this version by default (tests pass an open one). */
+  gate?: ClarivateGate;
 }
 
 export interface WosResearcherPreview {
@@ -136,8 +140,10 @@ export class WosStarterClient {
   private readonly perPage: number;
   private readonly maxResults: number;
   private readonly headers: Record<string, string>;
+  private readonly gate: ClarivateGate;
 
   constructor(options: WosClientOptions) {
+    this.gate = options.gate ?? CLARIVATE_GATE;
     this.http = new SourceHttpClient({ ...WOS_HTTP_CONFIG, ...options.http }, options.deps);
     this.baseUrl = options.baseUrl ?? WOS_STARTER_BASE_URL;
     this.perPage = Math.min(Math.max(options.perPage ?? WOS_PAGE_LIMIT, 1), WOS_PAGE_LIMIT);
@@ -240,6 +246,7 @@ export class WosStarterClient {
    * client's behaviour for the other sources is unchanged.
    */
   private async get(url: string) {
+    if (!isClarivateGateOpen(this.gate)) throw new FetchError('BLOCKED', `Web of Science: ${CLARIVATE_GATE_MESSAGE}`);
     try {
       return await this.http.getJson(url, { headers: this.headers });
     } catch (error) {

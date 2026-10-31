@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
+import { CLARIVATE_GATE_MESSAGE } from '../services/providers/clarivateGate';
+import { DISCOVERY_PROVIDERS, PROVIDER_LABEL } from '../services/providers/providerStatus';
 import { parseCoverageSnapshot, providerCoverage } from '../services/sync/runOutcome';
 import { SyncService } from '../services/sync/syncService';
 import { HttpError } from '../utils/httpError';
@@ -16,7 +18,11 @@ import { HttpError } from '../utils/httpError';
  * These endpoints cover publication-discovery runs only (decision #123); journal-metrics (JCR) runs
  * are reported separately, so their status never appears here:
  *
- *   POST /journal-metrics             start a JCR refresh (202; 409 SYNC_ALREADY_RUNNING)
+ *   GET  /providers                   configuration state of the five discovery providers and JCR
+ *                                     (credentials present or not — never values, never "access works")
+ *                                     and whether the Clarivate gate is open (§22.6)
+ *   POST /journal-metrics             start a JCR refresh (202; 409 SYNC_ALREADY_RUNNING; 409
+ *                                     CLARIVATE_GATE_CLOSED while live Clarivate data is blocked)
  *   GET  /journal-metrics/runs        JCR run history, newest first (limit/offset)
  *   GET  /journal-metrics/runs/:runId one JCR run with its journal tasks
  *
@@ -125,6 +131,22 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
     const { providerCoverage: stored, ...rest } = run;
     const snapshot = parseCoverageSnapshot(stored);
     res.json({ run: { ...rest, coverage: snapshot ? providerCoverage(snapshot, run.tasks) : null } });
+  });
+
+  router.get('/providers', (_req, res) => {
+    const configuration = deps.sync.providerConfiguration;
+    const entry = (provider: keyof typeof configuration, purpose: 'PUBLICATION_DISCOVERY' | 'JOURNAL_METRICS') => ({
+      provider,
+      label: PROVIDER_LABEL[provider],
+      purpose,
+      credentials: configuration[provider].credentials,
+      issue: configuration[provider].issue,
+    });
+    res.json({
+      providers: [...DISCOVERY_PROVIDERS.map((p) => entry(p, 'PUBLICATION_DISCOVERY')), entry('JCR', 'JOURNAL_METRICS')],
+      // Web of Science and JCR stay blocked until this is open (§22.6), whatever their credentials.
+      clarivateGate: { open: deps.sync.clarivateGateOpen, message: deps.sync.clarivateGateOpen ? null : CLARIVATE_GATE_MESSAGE },
+    });
   });
 
   router.post('/journal-metrics', async (req, res) => {

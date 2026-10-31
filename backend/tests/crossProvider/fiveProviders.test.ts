@@ -13,7 +13,7 @@ import { detachSourceRecord, mergeCandidate } from '../../src/services/publicati
 import { SyncService } from '../../src/services/sync/syncService';
 import { createUser, testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
-import { allProvidersPresent } from '../helpers/providers';
+import { allProvidersPresent, OPEN_CLARIVATE_GATE } from '../helpers/providers';
 import { adminCookie } from '../professors/helpers';
 import { fiveProviderClients, IDS, ProviderRecord, ProviderWorld } from '../fixtures/synthetic/fiveProviders';
 import * as scopusFixtures from '../fixtures/scopus/synthetic';
@@ -111,7 +111,7 @@ async function professorWithFiveIdentities() {
 }
 
 async function syncRun(world: ProviderWorld, at: string, overrides = {}) {
-  const sync = new SyncService({ clients: fiveProviderClients(world, overrides), now: testClock(at).now, providers: allProvidersPresent() });
+  const sync = new SyncService({ clients: fiveProviderClients(world, overrides), now: testClock(at).now, providers: allProvidersPresent(), clarivateGate: OPEN_CLARIVATE_GATE });
   const started = await sync.start('MANUAL');
   await sync.idle();
   const run = await prisma.syncRun.findUniqueOrThrow({ where: { id: started.id }, include: { tasks: true } });
@@ -365,7 +365,7 @@ describe('citation observations', () => {
     expect(await prisma.citationObservation.count({ where: { count: 50 } })).toBe(0);
   });
 
-  it('counts never become canonical metadata and are not returned by the publication API', async () => {
+  it('counts never become canonical metadata; the publication API returns the Scopus count only, never the WoS count', async () => {
     await professorWithFiveIdentities();
     await syncRun(papers(), T1);
     const a = await publicationOf('OPENALEX', ext.OPENALEX(1));
@@ -381,14 +381,16 @@ describe('citation observations', () => {
     const detail = await request(server).get(`/api/admin/publications/${a.id}`).set('Cookie', await adminCookie(server));
     expect(detail.status).toBe(200);
     const body = JSON.stringify(detail.body);
-    expect(body).not.toMatch(/citedby|citations|Times Cited|1234|4321/i);
+    // Stage 15.7 (#112): the Scopus count is displayed with attribution; Web of Science Times Cited is not.
+    expect(detail.body.publication.scopusCitation).toMatchObject({ count: 1234 });
+    expect(body).not.toMatch(/4321|Times Cited|citedby-count|"citations"/);
     expect(detail.body.publication.sourceRecords.map((r: { source: string }) => r.source).sort()).toEqual(['DBLP', 'OPENALEX', 'ORCID', 'SCOPUS', 'WOS']);
   });
 
   it('observations follow their source record through an administrator merge and detach, and are removed only with it', async () => {
     const { user } = await professorWithFiveIdentities();
     await syncRun(papers(), T1);
-    const sync = new SyncService({ clients: fiveProviderClients({}), now: testClock(T2).now, providers: allProvidersPresent() });
+    const sync = new SyncService({ clients: fiveProviderClients({}), now: testClock(T2).now, providers: allProvidersPresent(), clarivateGate: OPEN_CLARIVATE_GATE });
 
     // Merge: Scopus's OTHER record of paper C (a candidate) into the main publication of C.
     const c = await publicationOf('OPENALEX', ext.OPENALEX(3));

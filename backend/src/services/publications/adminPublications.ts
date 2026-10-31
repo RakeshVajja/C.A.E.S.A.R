@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient, PublicationSource, PublicationStatus, TypeFamily } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
 import { HttpError } from '../../utils/httpError';
+import { scopusCitations } from '../citations/scopusCitations';
 import { SOURCE_PRIORITY } from '../matching/canonical';
 import { normalizeDoi } from '../normalization/doi';
 import { normalizeTitle } from '../normalization/title';
@@ -167,6 +168,8 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
     ...rest,
     sources: orderedSources(sourceRecords),
     sourceRecordCount: sourceRecords.length,
+    // Scopus only, with attribution links (#112); Web of Science and JCR values are never returned.
+    scopusCitation: (await scopusCitations([id], client)).get(id) ?? null,
     relationshipCounts: { pending: count('PENDING'), approved: count('APPROVED'), rejected: count('REJECTED') },
     sourceRecords,
     relationships: professors,

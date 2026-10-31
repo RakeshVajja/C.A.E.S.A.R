@@ -157,13 +157,14 @@ describe('mandatory provider coverage (Phase 15.2, decision #117)', () => {
     const sync = service();
     const run = await runToEnd(sync);
     expect(run.status).toBe('PARTIAL_SUCCESS');
-    expect(run.providerCoverage).toMatchObject({ providers: { SCOPUS: { credentials: 'PRESENT', identities: 0 }, WOS: { credentials: 'PRESENT', identities: 0 } } });
+    // WoS credentials are present, but the Clarivate gate (§22.6) blocks it in this version (#141).
+    expect(run.providerCoverage).toMatchObject({ providers: { SCOPUS: { credentials: 'PRESENT', identities: 0 }, WOS: { credentials: 'PRESENT', identities: 0, blocked: true } } });
     const server = createApp({ mailer: null, sync });
     const detail = await request(server).get(`/api/admin/sync/runs/${run.id}`).set('Cookie', await adminCookie(server));
     const licensed = detail.body.run.coverage.filter((c: { provider: string }) => ['SCOPUS', 'WOS'].includes(c.provider));
     expect(licensed).toEqual([
       expect.objectContaining({ provider: 'SCOPUS', credentials: 'PRESENT', available: true, accessConfirmed: false, complete: false }),
-      expect.objectContaining({ provider: 'WOS', credentials: 'PRESENT', available: true, accessConfirmed: false, complete: false }),
+      expect.objectContaining({ provider: 'WOS', credentials: 'PRESENT', available: false, blocked: true, accessConfirmed: false, complete: false }),
     ]);
   });
 

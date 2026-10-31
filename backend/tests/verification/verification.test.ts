@@ -141,6 +141,7 @@ describe('listing', () => {
             doi: shared.doi,
             authorNamesDisplay: 'A. Author',
             sources: ['OPENALEX', 'DBLP', 'ORCID'], // distinct, fixed order
+            scopusCitation: null, // no Scopus count observed
           },
         },
       ],

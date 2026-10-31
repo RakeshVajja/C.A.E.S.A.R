@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { StatusChip } from "@/components/chips";
+import { CoverageTable } from "@/components/providers";
 import { Alert, Figures, LoadError, PageHeader, Panel, SectionTitle, Skeleton } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { formatDateTime, formatNumber, SOURCE_LABEL } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
-import type { SyncRun, SyncTask } from "@/lib/types";
+import type { ProviderCoverage, SyncRun, SyncTask } from "@/lib/types";
 
 /** One synchronization run with its per-identity tasks; polls while the run is in progress. */
 
@@ -17,7 +18,9 @@ const STATUS_PHRASE: Record<SyncRun["status"], string> = { RUNNING: "running", S
 export default function SyncRunPage() {
   const { runId } = useParams<{ runId: string }>();
   const path = `/admin/sync/runs/${runId}`;
-  const { data, error, reload } = useResource(path, (signal) => api<{ run: SyncRun & { tasks: SyncTask[] } }>(path, { signal }).then((r) => r.run));
+  const { data, error, reload } = useResource(path, (signal) =>
+    api<{ run: SyncRun & { tasks: SyncTask[]; coverage: ProviderCoverage[] | null } }>(path, { signal }).then((r) => r.run),
+  );
   const [announcement, setAnnouncement] = useState("");
   const previous = useRef<SyncRun["status"] | null>(null);
   const running = data?.status === "RUNNING";
@@ -54,13 +57,15 @@ export default function SyncRunPage() {
     );
   }
   const finished = data.tasks.filter((t) => t.status === "SUCCESS" || t.status === "FAILED" || t.status === "NOT_CONFIGURED").length;
+  // Providers blocked by the Clarivate gate at run start: their unexecuted tasks are "blocked", not "not configured".
+  const blockedSources = new Set((data.coverage ?? []).filter((c) => c.blocked).map((c) => c.provider));
 
   return (
     <>
       <PageHeader
         title={`Run of ${formatDateTime(data.startedAt)}`}
         breadcrumbs={crumbs}
-        description={`${data.trigger === "MANUAL" ? "Started by the administrator" : "Monthly schedule"}${data.finishedAt ? ` · finished ${formatDateTime(data.finishedAt)}` : ""}`}
+        description={`${data.trigger === "MANUAL" ? "Started by the administrator" : "Scheduled"}${data.finishedAt ? ` · finished ${formatDateTime(data.finishedAt)}` : ""}`}
         actions={<StatusChip status={data.status} />}
       />
       <p aria-live="polite" className="sr-only">
@@ -84,6 +89,13 @@ export default function SyncRunPage() {
             { label: "New links", value: formatNumber(data.linksCreated), note: `${formatNumber(data.candidatesCreated)} possible duplicates` },
           ]}
         />
+        <section aria-labelledby="coverage-heading">
+          <SectionTitle id="coverage-heading">Provider coverage</SectionTitle>
+          <p className="mb-3 max-w-[72ch] text-[13px] leading-5 text-text-muted">
+            A run is fully successful only when every source could be used and each licensed source (Scopus, Web of Science) was reached at least once.
+          </p>
+          <CoverageTable coverage={data.coverage} />
+        </section>
         <section aria-labelledby="tasks-heading">
           <SectionTitle id="tasks-heading">Identities</SectionTitle>
           <Panel>
@@ -126,7 +138,7 @@ export default function SyncRunPage() {
                           {t.warnings > 0 && <p className="mt-1 text-[13px] text-warning">{formatNumber(t.warnings)} records skipped (see the server log)</p>}
                         </td>
                         <td data-label="Status">
-                          <StatusChip status={t.status} task />
+                          <StatusChip status={t.status === "NOT_CONFIGURED" && blockedSources.has(t.source) ? "BLOCKED" : t.status} task />
                         </td>
                         <td data-label="Fetched" className="num">
                           {formatNumber(t.recordsFetched)}
