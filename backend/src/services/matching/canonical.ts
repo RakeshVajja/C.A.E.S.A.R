@@ -4,7 +4,7 @@ import { normalizeTitle } from '../normalization/title';
 /**
  * Canonical metadata selection (Project_plan.md §9):
  *   CURATED → OpenAlex → DBLP → ORCID → Scopus → Web of Science → MANUAL
- * CURATED is handled by the caller (curated publications are never recomputed). Scopus and Web of
+ * CURATED is handled by the caller (curated fields are never recomputed, #125). Scopus and Web of
  * Science come after ORCID so existing canonical values do not change (decision #110).
  * For each field the first non-empty value in source priority order wins.
  */

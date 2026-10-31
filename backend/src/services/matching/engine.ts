@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient, PublicationStatus } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
 import type { NormalizedPublication } from '../normalization/normalizedPublication';
+import { CURATED_FIELDS, DeclaredBasis, readCuration, uncuratedColumns } from '../publications/curation';
 import { selectCanonicalMetadata } from './canonical';
 import { evaluateDoiMatch, evaluateTitleMatch, PublicationSnapshot } from './rules';
 
@@ -42,6 +43,8 @@ export interface IngestOptions {
   seenAt?: Date;
   /** The professor/admin who entered a MANUAL record. */
   createdByUserId?: string | null;
+  /** MANUAL records only: the declared basis of the entry and its evidence (§12.1, decision #125). */
+  entry?: { basis: DeclaredBasis; evidence: string };
   client?: PrismaClient;
   /**
    * Runs inside the ingest transaction after matching, with its result (manual entries use it to
@@ -135,6 +138,7 @@ async function applyRules(
         matchMethod: decision.method,
         matchDetail: decision.detail,
         createdByUserId: options.createdByUserId ?? null,
+        ...entryFields(record, options),
         lastSeenAt: options.seenAt ?? null,
       },
     });
@@ -166,6 +170,7 @@ async function applyRules(
       matchMethod: 'NEW_PUBLICATION',
       matchDetail: decision.detail,
       createdByUserId: options.createdByUserId ?? null,
+      ...entryFields(record, options),
       lastSeenAt: options.seenAt ?? null,
     },
   });
@@ -364,13 +369,22 @@ async function loadSnapshots(tx: Tx, publicationIds: readonly string[]): Promise
   }));
 }
 
-/** Re-derives canonical fields from source records (§9); curated publications are left untouched. */
+/**
+ * Re-derives canonical fields from source records (§9). Fields with a curation entry keep their
+ * value (field-level, #125, refining #90); a publication without source records is left unchanged.
+ * The row is locked first, so an administrator's edit committed meanwhile is read here and its
+ * fields are never overwritten (FOR NO KEY UPDATE does not conflict with the key-share locks that
+ * concurrent source-record inserts take on the publication).
+ */
 export async function recomputeCanonical(tx: Tx, publicationId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM publications WHERE id = ${publicationId}::uuid FOR NO KEY UPDATE`;
   const publication = await tx.publication.findUniqueOrThrow({
     where: { id: publicationId },
     include: { sourceRecords: true },
   });
-  if (publication.isCurated || publication.sourceRecords.length === 0) return;
+  if (publication.sourceRecords.length === 0) return;
+  const curation = readCuration(publication);
+  if (CURATED_FIELDS.every((field) => curation[field])) return;
 
   const candidateDois = unique(publication.sourceRecords.map((r) => r.doi));
   const taken = new Set(
@@ -383,8 +397,13 @@ export async function recomputeCanonical(tx: Tx, publicationId: string): Promise
   );
 
   const canonical = selectCanonicalMetadata(publication.sourceRecords, (doi) => taken.has(doi));
-  // Conditional on `is_curated`, so an administrator's edit committed meanwhile is never overwritten (#90).
-  await tx.publication.updateMany({ where: { id: publicationId, isCurated: false }, data: canonical });
+  await tx.publication.update({ where: { id: publicationId }, data: uncuratedColumns(canonical, curation) });
+}
+
+/** `entry_basis`/`entry_evidence` of a new source record: set for MANUAL entries only. */
+function entryFields(record: NormalizedPublication, options: IngestOptions) {
+  if (record.source !== 'MANUAL' || !options.entry) return {};
+  return { entryBasis: options.entry.basis, entryEvidence: options.entry.evidence };
 }
 
 /**

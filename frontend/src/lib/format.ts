@@ -1,4 +1,4 @@
-import type { Source, TypeFamily } from "./types";
+import type { Basis, DeclaredBasis, Source, TypeFamily } from "./types";
 
 /** Display conventions (design system §9): en-IN, Asia/Kolkata. */
 
@@ -45,6 +45,19 @@ export const SOURCE_LABEL: Record<Source, string> = {
   WOS: "Web of Science",
   MANUAL: "Manual",
 };
+
+/** Labels of the declared basis of a curated value or manual entry (decision #125). */
+export const BASIS_LABEL: Record<Basis, string> = {
+  INDEPENDENT: "Independent source",
+  OPENALEX: "Derived from OpenAlex",
+  DBLP: "Derived from DBLP",
+  ORCID: "Derived from ORCID",
+  SCOPUS: "Derived from Scopus",
+  WOS: "Derived from Web of Science",
+  JCR: "Derived from Journal Citation Reports",
+  PRE_PHASE15: "Edited before basis recording",
+};
+export const DECLARED_BASES: readonly DeclaredBasis[] = ["INDEPENDENT", "OPENALEX", "DBLP", "ORCID", "SCOPUS", "WOS", "JCR"];
 
 export function doiUrl(doi: string): string {
   return `https://doi.org/${doi}`;

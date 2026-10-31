@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { RequestHandler, Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requirePasswordChanged, requireRole } from '../middleware/auth';
 import { IdentityClients } from '../services/identities/identities';
@@ -16,13 +16,20 @@ import { Mailer } from '../services/email/mailer';
 /**
  * Protected route groups (Project_plan.md §15.3). Every endpoint inherits the checks mounted here.
  * /api/me endpoints derive the professor from the session (req.auth), never from the URL or body.
+ * Their responses may carry provider-derived data and are never cached (§22.4: no copies outside
+ * the database, so provider-data removal reaches every copy).
  */
+
+const noStore: RequestHandler = (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+};
 
 const ownProfileBody = z.strictObject({ name: z.string().trim().min(1).max(200) });
 
 export function createMeRouter(deps: { now: () => Date }): Router {
   const router = Router();
-  router.use(requireAuth, requirePasswordChanged);
+  router.use(noStore, requireAuth, requirePasswordChanged);
 
   // A professor's own profile: readable, and only the name is editable (decision #67).
   const professorOnly = (role: string) => {
@@ -46,7 +53,7 @@ export function createMeRouter(deps: { now: () => Date }): Router {
 
 export function createAdminRouter(deps: { identityClients: IdentityClients; now: () => Date; sync: SyncService; mailer: Mailer | null }): Router {
   const router = Router();
-  router.use(requireAuth, requireRole('ADMIN'), requirePasswordChanged);
+  router.use(noStore, requireAuth, requireRole('ADMIN'), requirePasswordChanged);
   router.use('/professors', createAdminProfessorsRouter(deps));
   router.use('/sync', createAdminSyncRouter(deps));
   router.use('/analytics', createAdminAnalyticsRouter());

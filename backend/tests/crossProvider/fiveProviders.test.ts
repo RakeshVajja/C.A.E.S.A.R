@@ -18,6 +18,7 @@ import { adminCookie } from '../professors/helpers';
 import { fiveProviderClients, IDS, ProviderRecord, ProviderWorld } from '../fixtures/synthetic/fiveProviders';
 import * as scopusFixtures from '../fixtures/scopus/synthetic';
 import * as wosFixtures from '../fixtures/wos/synthetic';
+import { INDEPENDENT_ENTRY } from '../helpers/basis';
 
 /*
  * Cross-provider matching and citation validation (stage 15.5): the same papers as OpenAlex, DBLP,
@@ -157,7 +158,7 @@ describe('five providers and a manual entry through one synchronization run', ()
   it('maps each paper to one canonical publication, keeps every provider record, and flags only the uncertain cases', async () => {
     const { professor, user } = await professorWithFiveIdentities();
     // The professor entered paper A by hand before any synchronization (APPROVED, MANUAL origin).
-    await addManualPublication(professor.id, user.id, { title: A, typeFamily: 'JOURNAL', doi: `https://doi.org/${DOI.A}`, year: 2021 }, new Date(T1));
+    await addManualPublication(professor.id, user.id, { title: A, typeFamily: 'JOURNAL', doi: `https://doi.org/${DOI.A}`, year: 2021, ...INDEPENDENT_ENTRY }, new Date(T1));
 
     const { run } = await syncRun(papers(), T1);
     expect(run.tasks.map((t) => [t.source, t.status]).sort()).toEqual([
@@ -268,7 +269,7 @@ async function discoverInOrder(world: ProviderWorld, order: Step[]) {
     if (step === 'ORCID') await discoverOrcidIdentity(identities.ORCID.id, { orcid: clients.orcid, now });
     if (step === 'SCOPUS') await discoverScopusIdentity(identities.SCOPUS.id, { scopus: clients.scopus!, now });
     if (step === 'WOS') await discoverWosIdentity(identities.WOS.id, { wos: clients.wos!, now });
-    if (step === 'MANUAL') await addManualPublication(professor.id, user.id, { title: A, typeFamily: 'JOURNAL', doi: DOI.A, year: 2021 }, new Date(T1));
+    if (step === 'MANUAL') await addManualPublication(professor.id, user.id, { title: A, typeFamily: 'JOURNAL', doi: DOI.A, year: 2021, ...INDEPENDENT_ENTRY }, new Date(T1));
   }
   return outcome();
 }

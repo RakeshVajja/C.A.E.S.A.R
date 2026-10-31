@@ -21,7 +21,8 @@
     "smoke:orcid": "tsx scripts/orcid-smoke.ts",
     "demo": "tsx scripts/demo-discovery.ts",
     "lint": "eslint",
-    "admin": "tsx scripts/admin-account.ts"
+    "admin": "tsx scripts/admin-account.ts",
+    "provider-removal": "tsx scripts/provider-removal.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1",

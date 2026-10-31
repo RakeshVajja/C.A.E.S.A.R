@@ -6,16 +6,18 @@ import { SourceChips, StatusChip } from "@/components/chips";
 import { ErrorSummary, Field, useFormErrors } from "@/components/form";
 import { Alert, Button, ButtonLink, Doi, PageHeader, Panel } from "@/components/ui";
 import { api } from "@/lib/api";
-import { TYPE_LABEL, TYPE_OPTIONS } from "@/lib/format";
-import type { ManualResult, TypeFamily } from "@/lib/types";
+import { BASIS_LABEL, DECLARED_BASES, TYPE_LABEL, TYPE_OPTIONS } from "@/lib/format";
+import type { DeclaredBasis, ManualResult, TypeFamily } from "@/lib/types";
 
 /**
  * Manual publication addition (Project_plan.md §12): metadata only, through the backend's
- * matching pipeline. The result explains whether an existing publication was reused.
+ * matching pipeline. The entry declares where its details come from, with evidence (§12.1,
+ * decision #125). The result explains whether an existing publication was reused.
  */
 
-const LABELS = { title: "Title", typeFamily: "Type", doi: "DOI", year: "Year", venue: "Venue", authorNames: "Authors" };
-const IDS = { title: "title", typeFamily: "type", doi: "doi", year: "year", venue: "venue", authorNames: "authors" };
+const LABELS = { title: "Title", typeFamily: "Type", doi: "DOI", year: "Year", venue: "Venue", authorNames: "Authors", basis: "Source of these details", evidence: "Evidence" };
+const IDS = { title: "title", typeFamily: "type", doi: "doi", year: "year", venue: "venue", authorNames: "authors", basis: "basis", evidence: "evidence" };
+const EMPTY = { title: "", typeFamily: "" as TypeFamily | "", doi: "", year: "", venue: "", authorNames: "", basis: "" as DeclaredBasis | "", evidence: "" };
 
 const OUTCOME: Record<ManualResult["match"]["outcome"], string> = {
   NEW_PUBLICATION: "No existing publication matched, so a new one was created.",
@@ -31,7 +33,7 @@ const RELATIONSHIP: Record<ManualResult["match"]["relationship"], string> = {
 };
 
 export default function AddPublicationPage() {
-  const [form, setForm] = useState({ title: "", typeFamily: "" as TypeFamily | "", doi: "", year: "", venue: "", authorNames: "" });
+  const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ManualResult | null>(null);
   const errors = useFormErrors();
@@ -44,6 +46,8 @@ export default function AddPublicationPage() {
     if (!form.title.trim()) local.title = "Enter the publication title";
     if (!form.typeFamily) local.typeFamily = "Choose the publication type";
     if (form.year && !/^\d{4}$/.test(form.year.trim())) local.year = "Enter a four-digit year";
+    if (!form.basis) local.basis = "Choose where these details come from";
+    if (!form.evidence.trim()) local.evidence = "Enter a DOI or a link to the publisher or repository page";
     if (Object.keys(local).length) return errors.setLocal(local);
     errors.clear();
     setBusy(true);
@@ -55,10 +59,12 @@ export default function AddPublicationPage() {
         year: form.year.trim() ? Number(form.year) : null,
         venue: form.venue.trim() || null,
         authorNames: form.authorNames.trim() || null,
+        basis: form.basis,
+        evidence: form.evidence.trim(),
       };
       setResult(await api<ManualResult>("/me/publications", { method: "POST", body }));
     } catch (error) {
-      errors.fromError(error, { INVALID_DOI: "doi", INVALID_TITLE: "title" });
+      errors.fromError(error, { INVALID_DOI: "doi", INVALID_TITLE: "title", INVALID_EVIDENCE: "evidence" });
     } finally {
       setBusy(false);
     }
@@ -92,7 +98,7 @@ export default function AddPublicationPage() {
             <Button
               onClick={() => {
                 setResult(null);
-                setForm({ title: "", typeFamily: "", doi: "", year: "", venue: "", authorNames: "" });
+                setForm(EMPTY);
               }}
             >
               Add another
@@ -150,6 +156,30 @@ export default function AddPublicationPage() {
           >
             {(p) => <input {...p} className="input font-mono" value={form.doi} onChange={set("doi")} maxLength={300} autoComplete="off" spellCheck={false} />}
           </Field>
+        </fieldset>
+        <fieldset className="flex flex-col gap-4 rounded-lg border border-border bg-surface px-5 pt-3 pb-5">
+          <legend className="px-1 text-lg font-semibold">Where these details come from</legend>
+          <p className="text-[13px] leading-5 text-text-muted">
+            Enter the details from the publisher, a repository or your own records. If you copied them from a citation database, choose that
+            database: details copied from Scopus or Web of Science remain that provider&apos;s data, even when retyped.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field id={IDS.basis} label="Source of these details" required error={errors.fields.basis}>
+              {(p) => (
+                <select {...p} className="input" value={form.basis} onChange={set("basis")}>
+                  <option value="">Choose a source</option>
+                  {DECLARED_BASES.map((b) => (
+                    <option key={b} value={b}>
+                      {b === "INDEPENDENT" ? "Publisher, repository or my own records" : BASIS_LABEL[b].replace("Derived from", "Copied from")}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field id={IDS.evidence} label="Evidence" required hint="A DOI, or a link (https://…) to the publisher or repository page." error={errors.fields.evidence}>
+              {(p) => <input {...p} className="input" value={form.evidence} onChange={set("evidence")} maxLength={1000} autoComplete="off" spellCheck={false} />}
+            </Field>
+          </div>
         </fieldset>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="primary" loading={busy} loadingLabel="Adding…">

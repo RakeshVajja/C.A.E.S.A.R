@@ -17,6 +17,7 @@ import { loadFixture, noSleep, replayFetch, Route, toResponse } from '../helpers
 import { adminCookie, tableCounts } from '../professors/helpers';
 import { allProvidersPresent, noLicensedProviders } from '../helpers/providers';
 import type { ProviderConfiguration } from '../../src/services/providers/providerStatus';
+import { INDEPENDENT_ENTRY } from '../helpers/basis';
 
 /* Synchronization (Project_plan.md §14; Phase 12). Recorded fixtures only — no network. */
 
@@ -603,7 +604,7 @@ describe('manual entries and synchronization share the per-title serialization (
           [{ source: 'DBLP', externalId: `journals/race/R${i}`, title, year: 2024, typeFamily: 'JOURNAL' }],
           { seenAt: new Date(T1) },
         ),
-        addManualPublication(prof.id, user.id, { title, typeFamily: 'JOURNAL', year: 2024 }, new Date(T1)),
+        addManualPublication(prof.id, user.id, { title, typeFamily: 'JOURNAL', year: 2024, ...INDEPENDENT_ENTRY }, new Date(T1)),
       ]),
     );
 
@@ -625,7 +626,7 @@ describe('manual entries and synchronization share the per-title serialization (
       { title: 'Endmarkers can make a difference', typeFamily: 'JOURNAL' as const, year: 1990 },
       { title: 'Module Checking', typeFamily: 'JOURNAL' as const, year: 2001 },
     ];
-    await Promise.all([sync.start('MANUAL').then(() => sync.idle()), ...manual.map((m) => addManualPublication(prof.id, user.id, m, new Date(T1)))]);
+    await Promise.all([sync.start('MANUAL').then(() => sync.idle()), ...manual.map((m) => addManualPublication(prof.id, user.id, { ...m, ...INDEPENDENT_ENTRY }, new Date(T1)))]);
 
     for (const m of manual) {
       expect(await prisma.publication.count({ where: { normalizedTitle: m.title.toLowerCase() } })).toBe(1);

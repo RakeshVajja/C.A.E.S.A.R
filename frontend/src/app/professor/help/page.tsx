@@ -51,7 +51,8 @@ export default function ProfessorHelpPage() {
             <>
               <p>
                 Use <HelpLink href="/professor/add">Add publication</HelpLink> for work the sources missed. Give the title and type, and the DOI if there is one
-                — it is the most reliable way to match an existing publication.
+                — it is the most reliable way to match an existing publication. Say where the details come from (the publisher, a repository or your own
+                records, or the citation database you copied them from) and give a DOI or a link as evidence.
               </p>
               <p>
                 If the publication already exists it is reused rather than duplicated, and it is added to your approved list. When a similar but not identical

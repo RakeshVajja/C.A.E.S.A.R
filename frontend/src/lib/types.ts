@@ -6,6 +6,11 @@ export type Source = "OPENALEX" | "DBLP" | "ORCID" | "SCOPUS" | "WOS" | "MANUAL"
 export type IdentitySource = "OPENALEX" | "DBLP" | "ORCID" | "SCOPUS" | "WOS";
 export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type PublicationStatus = "ACTIVE" | "SUPPRESSED";
+/** The basis of a curated value or manual entry (decision #125); PRE_PHASE15 is never chosen in the UI. */
+export type DeclaredBasis = "INDEPENDENT" | "OPENALEX" | "DBLP" | "ORCID" | "SCOPUS" | "WOS" | "JCR";
+export type Basis = DeclaredBasis | "PRE_PHASE15";
+export type CuratedField = "title" | "year" | "venue" | "type_family" | "author_names_display" | "doi";
+export type Curation = Partial<Record<CuratedField, { basis: Basis; evidence: string | null }>>;
 export type CandidateStatus = "OPEN" | "MERGED" | "DISMISSED";
 export type SyncRunStatus = "RUNNING" | "SUCCESS" | "PARTIAL_SUCCESS" | "FAILED";
 export type SyncTaskStatus = "PENDING" | "RUNNING" | "SUCCESS" | "FAILED" | "NOT_CONFIGURED";
@@ -165,10 +170,14 @@ export interface SourceRecordSummary {
   authorNamesDisplay: string | null;
   matchMethod: "DOI" | "TITLE_YEAR" | "NEW_PUBLICATION" | "ADMIN";
   matchDetail: string | null;
+  /** MANUAL records only: declared basis and evidence (null for imported records). */
+  entryBasis: Basis | null;
+  entryEvidence: string | null;
   firstSeenAt: string;
   lastSeenAt: string | null;
 }
 export interface PublicationDetail extends PublicationSummary {
+  curation: Curation;
   sourceRecords: SourceRecordSummary[];
   scopusCitation: ScopusCitation | null;
   relationships: {

@@ -8,6 +8,7 @@ import { OPENALEX_BASE_URL, OpenAlexClient } from '../../src/integrations/openal
 import { OrcidClient } from '../../src/integrations/orcid/client';
 import { overview } from '../../src/services/analytics/analytics';
 import { addManualPublication } from '../../src/services/manual/manualPublications';
+import { updatePublication } from '../../src/services/publications/adminPublications';
 import { ingestPublication, recomputeCanonical, Tx } from '../../src/services/matching/engine';
 import { buildNormalizedPublication } from '../../src/services/normalization/normalizedPublication';
 import { SyncAlreadyRunningError, SyncService } from '../../src/services/sync/syncService';
@@ -16,6 +17,7 @@ import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch, Route, toResponse } from '../helpers/fixtures';
 import { allProvidersPresent } from '../helpers/providers';
 import { adminCookie } from '../professors/helpers';
+import { INDEPENDENT_ENTRY } from '../helpers/basis';
 
 /* Administrator publication and duplicate management (Project_plan.md §8.5, §15.1; Phase 13B, #90–#95). No network. */
 
@@ -280,7 +282,7 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
     const res = await request(server)
       .patch(`/api/admin/publications/${p.id}`)
       .set('Cookie', admin)
-      .send({ title: '  The Correct <i>Title</i>: Ünïcode ', year: 2019, venue: 'ICSE', typeFamily: 'CONFERENCE', authorNames: 'A. Author; B. Author', doi: 'https://doi.org/10.1145/ABC.123' });
+      .send({ ...INDEPENDENT_ENTRY, title: '  The Correct <i>Title</i>: Ünïcode ', year: 2019, venue: 'ICSE', typeFamily: 'CONFERENCE', authorNames: 'A. Author; B. Author', doi: 'https://doi.org/10.1145/ABC.123' });
     expect(res.status).toBe(200);
     expect(res.body.publication).toMatchObject({
       title: 'The Correct <i>Title</i>: Ünïcode',
@@ -297,7 +299,7 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
     expect(await prisma.professorPublication.findUniqueOrThrow({ where: { id: rel.id } })).toEqual(rel);
 
     // Clearing optional fields.
-    const cleared = await request(server).patch(`/api/admin/publications/${p.id}`).set('Cookie', admin).send({ doi: null, venue: '', year: null });
+    const cleared = await request(server).patch(`/api/admin/publications/${p.id}`).set('Cookie', admin).send({ ...INDEPENDENT_ENTRY, doi: null, venue: '', year: null });
     expect(cleared.body.publication).toMatchObject({ doi: null, venue: null, year: null, isCurated: true });
   });
 
@@ -305,7 +307,7 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
     const { server, admin } = await setup();
     const p = await publication({ title: 'Source title', records: [{ source: 'DBLP' }] });
     const record = await prisma.publicationSourceRecord.findFirstOrThrow({ where: { publicationId: p.id } });
-    await request(server).patch(`/api/admin/publications/${p.id}`).set('Cookie', admin).send({ title: 'Curated title', year: 2001 }).expect(200);
+    await request(server).patch(`/api/admin/publications/${p.id}`).set('Cookie', admin).send({ ...INDEPENDENT_ENTRY, title: 'Curated title', year: 2001 }).expect(200);
 
     // The source reports the record again (rule 1: update in place) with different metadata.
     const again = buildNormalizedPublication({ source: 'DBLP', externalId: record.externalId, title: 'Source title, revised', year: 2020, typeFamily: 'JOURNAL', dois: ['10.1000/new'] });
@@ -315,12 +317,14 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
     expect(await prisma.publicationSourceRecord.findUniqueOrThrow({ where: { id: record.id } })).toMatchObject({ title: 'Source title, revised', doi: '10.1000/new' });
   });
 
-  it('an edit committed while a synchronization recompute is in flight is not overwritten (#90)', async () => {
+  it('an edit made while a synchronization recompute is in flight waits for it and is never overwritten (#90, #125)', async () => {
     const p = await publication({ title: 'Source title', records: [{ source: 'DBLP' }] });
     await prisma.publicationSourceRecord.updateMany({ where: { publicationId: p.id }, data: { title: 'Source title v2', normalizedTitle: 'source title v2' } });
+    let edit: Promise<unknown> | undefined;
+    let editSettled = false;
     await prisma.$transaction(async (tx) => {
-      // The recompute reads the (not yet curated) publication; the administrator's edit then commits
-      // on another connection before the recompute writes.
+      // The recompute has locked and read the (not yet curated) publication; the administrator's
+      // edit starts on another connection before the recompute writes, and must wait for it.
       const interleaved = new Proxy(tx, {
         get(target, key) {
           if (key !== 'publication') return Reflect.get(target, key);
@@ -329,7 +333,11 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
               if (method !== 'findUniqueOrThrow') return Reflect.get(model, method);
               return async (args: Parameters<typeof model.findUniqueOrThrow>[0]) => {
                 const row = await model.findUniqueOrThrow(args);
-                await prisma.publication.update({ where: { id: p.id }, data: { title: 'Curated title', isCurated: true } });
+                edit = updatePublication(p.id, { title: 'Curated title', ...INDEPENDENT_ENTRY }).finally(() => {
+                  editSettled = true;
+                });
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                expect(editSettled).toBe(false);
                 return row;
               };
             },
@@ -338,7 +346,14 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
       }) as Tx;
       await recomputeCanonical(interleaved, p.id);
     });
-    expect(await prisma.publication.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ title: 'Curated title', isCurated: true });
+    await edit;
+    expect(await prisma.publication.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({
+      title: 'Curated title',
+      isCurated: true,
+      curation: { title: { basis: 'INDEPENDENT', evidence: INDEPENDENT_ENTRY.evidence } },
+    });
+    await prisma.$transaction((tx) => recomputeCanonical(tx, p.id));
+    expect(await prisma.publication.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ title: 'Curated title' });
   });
 
   it('refuses invalid input, a DOI owned by another publication, and unknown publications', async () => {
@@ -346,7 +361,7 @@ describe('PATCH /api/admin/publications/:id (edit and curate)', () => {
     const p = await publication();
     const owner = await publication({ doi: '10.1000/taken' });
     const before = await snapshot();
-    const patch = (body: unknown, id = p.id) => request(server).patch(`/api/admin/publications/${id}`).set('Cookie', admin).send(body as object);
+    const patch = (body: object, id = p.id) => request(server).patch(`/api/admin/publications/${id}`).set('Cookie', admin).send({ ...INDEPENDENT_ENTRY, ...body });
 
     expect((await patch({})).body.error.code).toBe('VALIDATION_ERROR');
     expect((await patch({ title: '   ' })).body.error.code).toBe('VALIDATION_ERROR');
@@ -722,7 +737,7 @@ describe('coordination with synchronization (#91)', () => {
     expect((await request(server).post(`/api/admin/source-records/${record.id}/detach`).set('Cookie', admin)).body.error.code).toBe('SYNC_ALREADY_RUNNING');
     expect(await snapshot()).toEqual(before);
     // Editing and suppressing do not conflict with synchronization (curated rows are never recomputed).
-    expect((await request(server).patch(`/api/admin/publications/${a.id}`).set('Cookie', admin).send({ venue: 'Edited' })).status).toBe(200);
+    expect((await request(server).patch(`/api/admin/publications/${a.id}`).set('Cookie', admin).send({ ...INDEPENDENT_ENTRY, venue: 'Edited' })).status).toBe(200);
 
     release();
     await sync.idle();
@@ -829,7 +844,7 @@ describe('merges and concurrent manual entries (#96)', () => {
     const { server, admin, user, prof, keep, remove, c } = await world();
     await withBlockedManualInsert(async () => {
       const lock = await holdAdvisoryLock();
-      const manual = addManualPublication(prof.id, user.id, { title: 'Model checking of programs', typeFamily: 'JOURNAL', year: 2020 }, new Date(NOW));
+      const manual = addManualPublication(prof.id, user.id, { title: 'Model checking of programs', typeFamily: 'JOURNAL', year: 2020, ...INDEPENDENT_ENTRY }, new Date(NOW));
       await waitUntil(manualBlocked, 'manual entry inside its transaction');
 
       const merge = request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id }).then((r) => r);
@@ -858,7 +873,7 @@ describe('merges and concurrent manual entries (#96)', () => {
     const { server, admin, user, prof, keep, remove, c } = await world();
     await withBlockedManualInsert(async () => {
       const lock = await holdAdvisoryLock();
-      const manual = addManualPublication(prof.id, user.id, { title: 'Model checking of programs: an extended study', typeFamily: 'JOURNAL', year: 2020, doi: '10.1000/REMOVE' }, new Date(NOW)).then(
+      const manual = addManualPublication(prof.id, user.id, { title: 'Model checking of programs: an extended study', typeFamily: 'JOURNAL', year: 2020, doi: '10.1000/REMOVE', ...INDEPENDENT_ENTRY }, new Date(NOW)).then(
         (value) => ({ value }),
         (error: unknown) => ({ error }),
       );

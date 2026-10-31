@@ -5,12 +5,13 @@ import { scopusCitations } from '../citations/scopusCitations';
 import { SOURCE_PRIORITY } from '../matching/canonical';
 import { normalizeDoi } from '../normalization/doi';
 import { normalizeTitle } from '../normalization/title';
+import { CanonicalFields, CuratedField, curationJson, DeclaredBasis, readCuration } from './curation';
 
 /**
  * Administrator publication management (Project_plan.md §6.4, §9, §15.1; Phase 13B, decisions
- * #90 and #92). The administrator sees every publication, suppressed ones included, and may edit
- * canonical metadata (which makes the publication curated, so synchronization never recomputes it)
- * or suppress/restore it. Suppression keeps all source records and relationships; restoring creates
+ * #90, #92 and #125). The administrator sees every publication, suppressed ones included, and may
+ * edit canonical metadata (each changed field becomes curated with a declared basis, so
+ * synchronization never recomputes it) or suppress/restore it. Suppression keeps all source records and relationships; restoring creates
  * no relationship. Professor-facing lists and analytics keep hiding suppressed publications.
  */
 
@@ -33,6 +34,9 @@ export interface PublicationEdit {
   typeFamily?: TypeFamily;
   authorNames?: string | null;
   doi?: string | null;
+  /** Basis of every value this edit changes (#125); INDEPENDENT needs `evidence`. */
+  basis: DeclaredBasis;
+  evidence?: string | null;
 }
 
 const notFound = () => new HttpError(404, 'PUBLICATION_NOT_FOUND', 'Publication not found');
@@ -112,6 +116,7 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
     where: { id },
     select: {
       ...summarySelect,
+      curation: true,
       sourceRecords: {
         select: {
           id: true,
@@ -125,6 +130,8 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
           authorNamesDisplay: true,
           matchMethod: true,
           matchDetail: true,
+          entryBasis: true,
+          entryEvidence: true,
           firstSeenAt: true,
           lastSeenAt: true,
         },
@@ -166,6 +173,8 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
   const count = (status: string) => professors.filter((p) => p.status === status).length;
   return {
     ...rest,
+    // Per curated field: basis and evidence (#125); a whole-record legacy curation reads as PRE_PHASE15.
+    curation: readCuration(publication),
     sources: orderedSources(sourceRecords),
     sourceRecordCount: sourceRecords.length,
     // Scopus only, with attribution links (#112); Web of Science and JCR values are never returned.
@@ -185,42 +194,81 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
 }
 
 /**
- * Edits canonical metadata and marks the publication curated (§6.4, §9; #90). Title and DOI go
+ * Edits canonical metadata (§6.4, §9; #90, #125). Every field whose value actually changes gets a
+ * curation entry with the declared basis — `INDEPENDENT` needs an evidence note — replacing any
+ * earlier entry for that field; synchronization then leaves exactly those fields alone. Unchanged
+ * fields are not recorded and an edit that changes nothing writes nothing. Title and DOI go
  * through the shared normalizers; a DOI owned by another publication → 409 DOI_IN_USE. Source
  * records are never changed. Relationships and their decisions are unaffected (§9).
  */
 export async function updatePublication(id: string, edit: PublicationEdit, client: PrismaClient = defaultClient) {
-  const data: Prisma.PublicationUpdateInput = { isCurated: true };
+  const evidence = edit.evidence?.trim() || null;
+  if (edit.basis === 'INDEPENDENT' && !evidence) {
+    throw new HttpError(400, 'EVIDENCE_REQUIRED', 'An independent value needs evidence (for example a DOI, publisher or repository URL)');
+  }
+  const requested: Partial<CanonicalFields> = {};
   if (edit.title !== undefined) {
     const normalizedTitle = normalizeTitle(edit.title);
     if (!normalizedTitle) throw new HttpError(400, 'INVALID_TITLE', 'The title has no usable text');
-    data.title = edit.title;
-    data.normalizedTitle = normalizedTitle;
+    requested.title = edit.title;
+    requested.normalizedTitle = normalizedTitle;
   }
   if (edit.doi !== undefined) {
     const doi = edit.doi === null ? null : normalizeDoi(edit.doi);
     if (edit.doi !== null && !doi) throw new HttpError(400, 'INVALID_DOI', 'The DOI is not valid (expected e.g. 10.1234/abcd)');
-    data.doi = doi;
+    requested.doi = doi;
   }
-  if (edit.year !== undefined) data.year = edit.year;
-  if (edit.venue !== undefined) data.venue = edit.venue;
-  if (edit.typeFamily !== undefined) data.typeFamily = edit.typeFamily;
-  if (edit.authorNames !== undefined) data.authorNamesDisplay = edit.authorNames;
+  if (edit.year !== undefined) requested.year = edit.year;
+  if (edit.venue !== undefined) requested.venue = edit.venue;
+  if (edit.typeFamily !== undefined) requested.typeFamily = edit.typeFamily;
+  if (edit.authorNames !== undefined) requested.authorNamesDisplay = edit.authorNames;
 
-  if (typeof data.doi === 'string') {
-    const owner = await client.publication.findFirst({ where: { doi: data.doi, id: { not: id } }, select: { id: true } });
-    if (owner) throw doiInUse(owner.id);
-  }
   try {
-    await client.publication.update({ where: { id }, data });
+    await client.$transaction(async (tx) => {
+      // The row lock orders this edit with canonical recomputation (engine.recomputeCanonical).
+      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM publications WHERE id = ${id}::uuid FOR UPDATE`;
+      if (locked.length === 0) throw notFound();
+      const current = await tx.publication.findUniqueOrThrow({ where: { id } });
+
+      const data: Prisma.PublicationUpdateInput = {};
+      const curation = readCuration(current);
+      const entry = { basis: edit.basis, evidence };
+      for (const [field, column] of EDITABLE) {
+        const value = requested[column];
+        if (value === undefined || value === current[column]) continue;
+        if (column === 'title') {
+          data.title = requested.title;
+          data.normalizedTitle = requested.normalizedTitle;
+        } else {
+          (data as Record<string, unknown>)[column] = value;
+        }
+        curation[field] = entry;
+      }
+      if (Object.keys(data).length === 0) return;
+
+      if (typeof data.doi === 'string') {
+        const owner = await tx.publication.findFirst({ where: { doi: data.doi, id: { not: id } }, select: { id: true } });
+        if (owner) throw doiInUse(owner.id);
+      }
+      await tx.publication.update({ where: { id }, data: { ...data, curation: curationJson(curation), isCurated: true } });
+    });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') throw notFound();
     // A concurrent change claimed the DOI between the check and the update.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw doiInUse(null);
     throw error;
   }
   return getPublication(id, client);
 }
+
+/** Curated fields and their `publications` columns, in curation order. */
+const EDITABLE: readonly [CuratedField, Exclude<keyof CanonicalFields, 'normalizedTitle'>][] = [
+  ['title', 'title'],
+  ['year', 'year'],
+  ['venue', 'venue'],
+  ['type_family', 'typeFamily'],
+  ['author_names_display', 'authorNamesDisplay'],
+  ['doi', 'doi'],
+];
 
 function doiInUse(publicationId: string | null) {
   return new HttpError(409, 'DOI_IN_USE', 'This DOI already belongs to another publication', publicationId ? { publicationId } : undefined);

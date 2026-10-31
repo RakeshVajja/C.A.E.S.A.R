@@ -19,6 +19,7 @@ import {
 import { SyncService } from '../services/sync/syncService';
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
+import { DECLARED_BASES } from '../services/publications/curation';
 
 /**
  * Administrator publication and duplicate management (Project_plan.md §8.5, §15.1; Phase 13B).
@@ -27,7 +28,7 @@ import { parseBody } from '../utils/validation';
  *   /api/admin/publications
  *     GET    /                 search and filter (suppressed included), paged
  *     GET    /:id              details: source records, relationships, duplicate candidates
- *     PATCH  /:id              edit canonical metadata (marks it curated)
+ *     PATCH  /:id              edit canonical metadata with a declared basis (changed fields become curated)
  *     PATCH  /:id/status       ACTIVE ⇄ SUPPRESSED with the expected current status
  *   /api/admin/duplicate-candidates
  *     GET    /                 by status (default OPEN), paged
@@ -64,8 +65,14 @@ const editBody = z
     typeFamily: typeFamily.optional(),
     authorNames: optionalText(5000),
     doi: optionalText(300),
+    // Basis of the changed values (#125): INDEPENDENT (evidence required) or the provider they come from.
+    basis: z.enum(DECLARED_BASES),
+    evidence: optionalText(1000),
   })
-  .refine((body) => Object.keys(body).length > 0, 'Provide at least one field to change');
+  .refine(
+    (body) => Object.keys(body).some((key) => key !== 'basis' && key !== 'evidence'),
+    'Provide at least one field to change',
+  );
 const statusBody = z.strictObject({ status: publicationStatus, expectedStatus: publicationStatus });
 const mergeBody = z.strictObject({ keepPublicationId: z.uuid() });
 

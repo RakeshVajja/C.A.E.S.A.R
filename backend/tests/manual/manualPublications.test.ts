@@ -11,6 +11,7 @@ import { cookiePair, createUser, PASSWORD, testClock } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
 import { loadFixture, noSleep, replayFetch } from '../helpers/fixtures';
 import { tableCounts } from '../professors/helpers';
+import { INDEPENDENT_ENTRY } from '../helpers/basis';
 
 /* Manual publication addition (Project_plan.md §12; Phase 11). */
 
@@ -40,7 +41,7 @@ async function setup() {
   const server = createApp({ mailer: null, now: testClock(NOW).now });
   const a = await professor(server, 'a@example.org');
   const b = await professor(server, 'b@example.org');
-  const add = (body: Record<string, unknown>, cookie = a.cookie) => request(server).post('/api/me/publications').set('Cookie', cookie).send(body);
+  const add = (body: Record<string, unknown>, cookie = a.cookie) => request(server).post('/api/me/publications').set('Cookie', cookie).send({ ...INDEPENDENT_ENTRY, ...body });
   return { server, a, b, add };
 }
 

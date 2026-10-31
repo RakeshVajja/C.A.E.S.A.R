@@ -8,6 +8,7 @@ import {
   LIST_MAX_LIMIT,
   listOwnPublications,
 } from '../services/verification/verification';
+import { DECLARED_BASES } from '../services/publications/curation';
 import { addManualPublication } from '../services/manual/manualPublications';
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
@@ -34,7 +35,8 @@ const bulkBody = z.strictObject({
 });
 
 /** The signed-in professor (403 for other roles, 404 for a professor account without a profile). */
-// Manual entry (§12.1): title and type family required; DOI, year, venue and author names optional.
+// Manual entry (§12.1): title, type family, basis and evidence required; DOI, year, venue and
+// author names optional. The basis is INDEPENDENT or the provider the entry was derived from (#125).
 // Strict: abstracts, full text, files or other fields are refused, never stored.
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional().transform((v) => (v ? v : null));
 const manualBody = z.strictObject({
@@ -44,6 +46,8 @@ const manualBody = z.strictObject({
   year: z.number().int().min(1000).max(2100).nullable().optional(),
   venue: optionalText(500),
   authorNames: optionalText(5000),
+  basis: z.enum(DECLARED_BASES),
+  evidence: z.string().trim().min(1).max(1000),
 });
 
 function ownProfessor(req: Request): { professorId: string; userId: string } {

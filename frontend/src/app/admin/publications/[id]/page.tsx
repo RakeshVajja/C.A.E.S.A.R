@@ -11,9 +11,9 @@ import { ErrorSummary, Field, useFormErrors } from "@/components/form";
 import { useToast } from "@/components/toast";
 import { Alert, Button, Doi, EmptyState, LoadError, Missing, PageHeader, Panel, SectionTitle, Skeleton } from "@/components/ui";
 import { api, ApiError, errorMessage } from "@/lib/api";
-import { formatDate, formatDateTime, SOURCE_LABEL, TYPE_LABEL, TYPE_OPTIONS } from "@/lib/format";
+import { BASIS_LABEL, DECLARED_BASES, formatDate, formatDateTime, SOURCE_LABEL, TYPE_LABEL, TYPE_OPTIONS } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
-import type { PublicationDetail, SourceRecordSummary, TypeFamily } from "@/lib/types";
+import type { CuratedField, DeclaredBasis, PublicationDetail, SourceRecordSummary, TypeFamily } from "@/lib/types";
 
 /** Publication detail: metadata curation, suppression, provenance and detachment (Phase 13B). */
 export default function PublicationDetailPage() {
@@ -79,6 +79,8 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
     doi: p.doi ?? "",
   });
   const [form, setForm] = useState(toForm(publication));
+  const [basis, setBasis] = useState<DeclaredBasis | "">("");
+  const [evidence, setEvidence] = useState("");
   const [busy, setBusy] = useState(false);
   const errors = useFormErrors();
   const set = (k: keyof ReturnType<typeof toForm>) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -99,15 +101,19 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
     if (form.authorNames !== original.authorNames) body.authorNames = form.authorNames.trim() || null;
     if (form.doi !== original.doi) body.doi = form.doi.trim() || null;
     if (Object.keys(body).length === 0) return setEditing(false);
+    if (!basis) return errors.setLocal({ basis: "Choose where the new values come from" });
+    if (basis === "INDEPENDENT" && !evidence.trim()) return errors.setLocal({ evidence: "Give the evidence for an independent value (DOI, publisher or repository link)" });
+    body.basis = basis;
+    body.evidence = evidence.trim() || null;
     errors.clear();
     setBusy(true);
     try {
       const { publication: saved } = await api<{ publication: PublicationDetail }>(`/admin/publications/${publication.id}`, { method: "PATCH", body });
       onSaved(saved);
       setEditing(false);
-      toast("Metadata saved. The publication is now curated, so synchronization keeps your edits.");
+      toast("Metadata saved. The changed fields are now curated, so synchronization keeps them.");
     } catch (error) {
-      errors.fromError(error, { INVALID_DOI: "doi", INVALID_TITLE: "title", DOI_IN_USE: "doi" });
+      errors.fromError(error, { INVALID_DOI: "doi", INVALID_TITLE: "title", DOI_IN_USE: "doi", EVIDENCE_REQUIRED: "evidence" });
     } finally {
       setBusy(false);
     }
@@ -124,6 +130,8 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
               icon={<Pencil aria-hidden size={16} />}
               onClick={() => {
                 setForm(toForm(publication));
+                setBasis("");
+                setEvidence("");
                 errors.clear();
                 setEditing(true);
               }}
@@ -138,12 +146,15 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
       {editing ? (
         <form noValidate onSubmit={save} className="max-w-3xl">
           <Panel className="flex flex-col gap-4 px-5 py-5">
-            <Alert tone="info">Saving marks the publication as curated: synchronization will no longer recompute these fields from the sources.</Alert>
+            <Alert tone="info">
+              Each field you change becomes curated with the source you declare: synchronization no longer recomputes it. A value derived from a
+              provider stays that provider&apos;s data and is removed with it.
+            </Alert>
             <ErrorSummary
               errors={errors.fields}
               formError={errors.form}
-              labels={{ title: "Title", year: "Year", venue: "Venue", typeFamily: "Type", authorNames: "Authors", doi: "DOI" }}
-              fieldIds={{ title: "m-title", year: "m-year", venue: "m-venue", typeFamily: "m-type", authorNames: "m-authors", doi: "m-doi" }}
+              labels={{ title: "Title", year: "Year", venue: "Venue", typeFamily: "Type", authorNames: "Authors", doi: "DOI", basis: "Source of the new values", evidence: "Evidence" }}
+              fieldIds={{ title: "m-title", year: "m-year", venue: "m-venue", typeFamily: "m-type", authorNames: "m-authors", doi: "m-doi", basis: "m-basis", evidence: "m-evidence" }}
               summaryRef={errors.summaryRef}
             />
             <Field id="m-title" label="Title" required error={errors.fields.title}>
@@ -181,6 +192,29 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
             <Field id="m-authors" label="Authors" error={errors.fields.authorNames}>
               {(p) => <textarea {...p} className="input" rows={2} value={form.authorNames} onChange={set("authorNames")} maxLength={5000} />}
             </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field id="m-basis" label="Source of the new values" required error={errors.fields.basis}>
+                {(p) => (
+                  <select {...p} className="input" value={basis} onChange={(e) => setBasis(e.target.value as DeclaredBasis | "")}>
+                    <option value="">Choose a source</option>
+                    {DECLARED_BASES.map((b) => (
+                      <option key={b} value={b}>
+                        {BASIS_LABEL[b]}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field
+                id="m-evidence"
+                label="Evidence"
+                required={basis === "INDEPENDENT"}
+                hint="Required for an independent source: a DOI, publisher or repository link, or a note."
+                error={errors.fields.evidence}
+              >
+                {(p) => <input {...p} className="input" value={evidence} onChange={(e) => setEvidence(e.target.value)} maxLength={1000} autoComplete="off" />}
+              </Field>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="primary" loading={busy} loadingLabel="Saving…">
                 Save metadata
@@ -214,14 +248,43 @@ function MetadataSection({ publication, onSaved }: { publication: PublicationDet
             <dd>{publication.scopusCitation ? <ScopusCitationNote citation={publication.scopusCitation} /> : <Missing />}</dd>
             <dt className="text-text-muted">Curation</dt>
             <dd>
-              {publication.isCurated
-                ? "Curated: edited by the administrator; synchronization keeps these values."
-                : "Derived from the source records (OpenAlex, then DBLP, ORCID, Scopus, Web of Science, manual)."}
+              <CurationNote publication={publication} />
             </dd>
           </dl>
         </Panel>
       )}
     </section>
+  );
+}
+
+const FIELD_LABEL: Record<CuratedField, string> = {
+  title: "Title",
+  year: "Year",
+  venue: "Venue",
+  type_family: "Type",
+  author_names_display: "Authors",
+  doi: "DOI",
+};
+
+/** Which fields are curated, each with its declared basis and evidence (decision #125). */
+function CurationNote({ publication }: { publication: PublicationDetail }) {
+  const entries = (Object.keys(FIELD_LABEL) as CuratedField[]).flatMap((field) => {
+    const entry = publication.curation[field];
+    return entry ? [{ field, ...entry }] : [];
+  });
+  if (entries.length === 0) return <>Derived from the source records (OpenAlex, then DBLP, ORCID, Scopus, Web of Science, manual).</>;
+  return (
+    <>
+      <p>Curated fields are kept by synchronization; the others are derived from the source records.</p>
+      <ul className="mt-1 flex flex-col gap-0.5 text-[13px]">
+        {entries.map((e) => (
+          <li key={e.field}>
+            <span className="font-medium">{FIELD_LABEL[e.field]}</span>: {BASIS_LABEL[e.basis]}
+            {e.evidence && <span className="text-text-muted [overflow-wrap:anywhere]"> — {e.evidence}</span>}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -307,6 +370,12 @@ function SourceRecordsSection({ publication, onChanged }: { publication: Publica
                   <td data-label="Attachment" className="text-[13px] max-w-[22rem]">
                     <p className="font-medium">{MATCH_LABEL[r.matchMethod]}</p>
                     {r.matchDetail && <p className="text-text-muted [overflow-wrap:anywhere]">{r.matchDetail}</p>}
+                    {r.entryBasis && (
+                      <p className="text-text-muted [overflow-wrap:anywhere]">
+                        Entry: {BASIS_LABEL[r.entryBasis]}
+                        {r.entryEvidence && ` — ${r.entryEvidence}`}
+                      </p>
+                    )}
                   </td>
                   <td data-label="Last seen" className="text-[13px] whitespace-nowrap">
                     {r.source === "MANUAL" ? "Manual entry" : formatDate(r.lastSeenAt)}

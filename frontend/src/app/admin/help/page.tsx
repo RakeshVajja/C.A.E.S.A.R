@@ -53,7 +53,8 @@ export default function AdminHelpPage() {
               </li>
               <li>
                 <strong className="font-medium">Wrong metadata:</strong> open the publication in <HelpLink href="/admin/publications">Publications</HelpLink>{" "}
-                and edit it. Edited publications are curated, so synchronization keeps your corrections.
+                and edit it, saying where the new values come from (an independent source with evidence, or the provider you took them from). The
+                changed fields are curated, so synchronization keeps your corrections; values taken from a provider are removed with that provider&apos;s data.
               </li>
               <li>
                 <strong className="font-medium">A source record attached to the wrong paper:</strong> detach it on the publication page; it becomes a separate
