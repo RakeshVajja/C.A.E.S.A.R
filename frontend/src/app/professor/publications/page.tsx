@@ -33,18 +33,26 @@ export default function MyPublicationsPage() {
         title="My publications"
         description="Your verified (approved) publications. Each publication is shown once, with every source that reported it. Publications you rejected are under Pending, where you can still change your decision."
         actions={
-          <>
-            <Button icon={<FileDown aria-hidden size={18} />} onClick={() => void download()} loading={downloading} loadingLabel="Preparing…">
-              Download CSV
-            </Button>
-            <ButtonLink href="/professor/add" variant="primary" icon={<FilePlus2 aria-hidden size={18} />}>
-              Add publication
-            </ButtonLink>
-          </>
+          <ButtonLink href="/professor/add" variant="primary" icon={<FilePlus2 aria-hidden size={18} />}>
+            Add publication
+          </ButtonLink>
         }
       />
       <Suspense fallback={<SkeletonRows rows={6} />}>
-        <PublicationReview defaultStatus="APPROVED" statuses={["APPROVED"]} />
+        <PublicationReview
+          defaultStatus="APPROVED"
+          statuses={["APPROVED"]}
+          toolbar={
+            <Button
+              compact
+              icon={<FileDown aria-hidden size={16} />}
+              onClick={() => void download()}
+              loading={downloading}
+              aria-label={downloading ? "Preparing the CSV download" : "Download as CSV"}
+              title="Download as CSV"
+            />
+          }
+        />
       </Suspense>
     </>
   );

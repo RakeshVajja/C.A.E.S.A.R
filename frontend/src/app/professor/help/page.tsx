@@ -40,8 +40,8 @@ export default function ProfessorHelpPage() {
                   rejected ones under Pending&apos;s Rejected tab.
                 </li>
                 <li>
-                  <strong className="font-medium">Download CSV</strong> on My publications saves your approved publications (title, year, type, venue, authors,
-                  DOI and sources) as a spreadsheet file.
+                  The download button beside refresh on My publications saves your approved publications (title, year, type, venue, authors, DOI and
+                  sources) as a CSV spreadsheet file.
                 </li>
                 <li>A rejected publication stays rejected after later synchronizations.</li>
                 <li>

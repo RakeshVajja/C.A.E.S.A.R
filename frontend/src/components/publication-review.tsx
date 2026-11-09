@@ -32,7 +32,16 @@ type RowNote = { tone: "danger" | "info"; text: string };
  *   status no switcher is shown (My publications: approved only — rejections are reviewed and
  *   reversed under Pending's Rejected tab).
  */
-export function PublicationReview({ defaultStatus, statuses = STATUSES }: { defaultStatus: VerificationStatus; statuses?: readonly VerificationStatus[] }) {
+export function PublicationReview({
+  defaultStatus,
+  statuses = STATUSES,
+  toolbar,
+}: {
+  defaultStatus: VerificationStatus;
+  statuses?: readonly VerificationStatus[];
+  /** Extra buttons shown beside Refresh. */
+  toolbar?: React.ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -185,11 +194,19 @@ export function PublicationReview({ defaultStatus, statuses = STATUSES }: { defa
             options={statuses.map((s) => ({ value: s, label: STATUS_WORD[s], count: counts?.[s] }))}
           />
         ) : (
-          <p className="text-[15px] text-text-muted tabular-nums">{counts ? plural(counts[status], `${STATUS_WORD[status].toLowerCase()} publication`) : " "}</p>
+          <p className="text-[15px] text-text-muted tabular-nums">{counts ? plural(counts[status], "publication") : " "}</p>
         )}
-        <Button compact icon={<RefreshCw aria-hidden size={16} />} onClick={() => void reload()} loading={loading && !!data} loadingLabel="Refreshing…">
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {toolbar}
+          <Button
+            compact
+            icon={<RefreshCw aria-hidden size={16} />}
+            onClick={() => void reload()}
+            loading={loading && !!data}
+            aria-label={loading && !!data ? "Refreshing" : "Refresh"}
+            title="Refresh"
+          />
+        </div>
       </div>
 
       {selected.size > 0 && (
