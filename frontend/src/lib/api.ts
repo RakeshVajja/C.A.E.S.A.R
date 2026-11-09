@@ -67,20 +67,54 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   } catch {
     // Non-JSON answer (e.g. a proxy error page).
   }
-  if (!response.ok) {
-    const error = (body as { error?: { code?: string; message?: string; details?: unknown } } | null)?.error;
-    const apiError = new ApiError(
-      response.status,
-      error?.code ?? "UNEXPECTED_RESPONSE",
-      error?.message ?? `The server answered with HTTP ${response.status}.`,
-      error?.details,
-    );
-    if (!options.ignoreAuthErrors && (apiError.status === 401 || apiError.code === "PASSWORD_CHANGE_REQUIRED")) {
-      authListener?.(apiError);
-    }
-    throw apiError;
-  }
+  if (!response.ok) throw failure(response, body, options);
   return body as T;
+}
+
+/** The ApiError for a failed response; an expired session is also reported to the auth listener. */
+function failure(response: Response, body: unknown, options: RequestOptions): ApiError {
+  const error = (body as { error?: { code?: string; message?: string; details?: unknown } } | null)?.error;
+  const apiError = new ApiError(
+    response.status,
+    error?.code ?? "UNEXPECTED_RESPONSE",
+    error?.message ?? `The server answered with HTTP ${response.status}.`,
+    error?.details,
+  );
+  if (!options.ignoreAuthErrors && (apiError.status === 401 || apiError.code === "PASSWORD_CHANGE_REQUIRED")) {
+    authListener?.(apiError);
+  }
+  return apiError;
+}
+
+/**
+ * Downloads a file from the API (with the session cookie) and hands it to the browser as a save,
+ * named by the server's Content-Disposition (or `fallbackName`).
+ */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, { credentials: "include", cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "NETWORK_ERROR", "The server could not be reached. Check your connection and try again.");
+  }
+  if (!response.ok) {
+    let body: unknown = null;
+    try {
+      body = await response.json();
+    } catch {
+      // Non-JSON answer.
+    }
+    throw failure(response, body, {});
+  }
+  const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Builds a query string, dropping empty values. */

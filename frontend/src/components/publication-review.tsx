@@ -27,12 +27,17 @@ const STATUS_WORD: Record<VerificationStatus, string> = { PENDING: "Pending", AP
 
 type RowNote = { tone: "danger" | "info"; text: string };
 
-export function PublicationReview({ defaultStatus }: { defaultStatus: VerificationStatus }) {
+/**
+ * @param statuses the verification statuses this page offers (default all three); with a single
+ *   status no switcher is shown (My publications: approved only — rejections are reviewed and
+ *   reversed under Pending's Rejected tab).
+ */
+export function PublicationReview({ defaultStatus, statuses = STATUSES }: { defaultStatus: VerificationStatus; statuses?: readonly VerificationStatus[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const toast = useToast();
-  const status = (STATUSES as string[]).includes(params.get("status") ?? "") ? (params.get("status") as VerificationStatus) : defaultStatus;
+  const status = (statuses as readonly string[]).includes(params.get("status") ?? "") ? (params.get("status") as VerificationStatus) : defaultStatus;
   const offset = Math.max(0, Number(params.get("offset")) || 0);
   const key = `/me/publications${query({ status, limit: PAGE_SIZE, offset })}`;
   const { data, error, loading, reload, setData } = useResource<OwnList>(key, (signal) => api<OwnList>(key, { signal }));
@@ -172,12 +177,16 @@ export function PublicationReview({ defaultStatus }: { defaultStatus: Verificati
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented
-          label="Verification status"
-          value={status}
-          onChange={(s) => navigate({ status: s, offset: 0 })}
-          options={STATUSES.map((s) => ({ value: s, label: STATUS_WORD[s], count: counts?.[s] }))}
-        />
+        {statuses.length > 1 ? (
+          <Segmented
+            label="Verification status"
+            value={status}
+            onChange={(s) => navigate({ status: s, offset: 0 })}
+            options={statuses.map((s) => ({ value: s, label: STATUS_WORD[s], count: counts?.[s] }))}
+          />
+        ) : (
+          <p className="text-[15px] text-text-muted tabular-nums">{counts ? plural(counts[status], `${STATUS_WORD[status].toLowerCase()} publication`) : " "}</p>
+        )}
         <Button compact icon={<RefreshCw aria-hidden size={16} />} onClick={() => void reload()} loading={loading && !!data} loadingLabel="Refreshing…">
           Refresh
         </Button>

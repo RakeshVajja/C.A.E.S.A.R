@@ -35,7 +35,14 @@ export default function ProfessorHelpPage() {
                   <strong className="font-medium">Approve</strong> a publication that is yours; <strong className="font-medium">Reject</strong> one that is not.
                   Rejecting removes it only from your list, never for co-authors.
                 </li>
-                <li>Every decision can be changed later from the same list (Approved or Rejected tab).</li>
+                <li>
+                  Every decision can be changed later: approved publications are under <HelpLink href="/professor/publications">My publications</HelpLink>,
+                  rejected ones under Pending&apos;s Rejected tab.
+                </li>
+                <li>
+                  <strong className="font-medium">Download CSV</strong> on My publications saves your approved publications (title, year, type, venue, authors,
+                  DOI and sources) as a spreadsheet file.
+                </li>
                 <li>A rejected publication stays rejected after later synchronizations.</li>
                 <li>
                   To approve many at once, tick their boxes (or use “Select all pending”) and choose <strong className="font-medium">Approve selected</strong>.

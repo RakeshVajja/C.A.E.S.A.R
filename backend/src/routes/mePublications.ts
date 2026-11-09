@@ -10,6 +10,7 @@ import {
 } from '../services/verification/verification';
 import { DECLARED_BASES } from '../services/publications/curation';
 import { addManualPublication } from '../services/manual/manualPublications';
+import { approvedPublicationsCsv } from '../services/verification/approvedExport';
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 
@@ -73,6 +74,18 @@ export function createMePublicationsRouter(deps: { now: () => Date }): Router {
     }
     const query = parsed.data;
     res.json(await listOwnPublications(professorId, query));
+  });
+
+  // The professor's approved publications as a CSV download (decision #153; canonical metadata only).
+  router.get('/export', async (req, res) => {
+    const { professorId } = ownProfessor(req);
+    const { csv } = await approvedPublicationsCsv(professorId);
+    const date = deps.now().toISOString().slice(0, 10);
+    res
+      .set('Content-Type', 'text/csv; charset=utf-8')
+      .set('Content-Disposition', `attachment; filename="my-approved-publications-${date}.csv"`)
+      .set('Access-Control-Expose-Headers', 'Content-Disposition')
+      .send(csv);
   });
 
   // Manual publication addition (Phase 11): through the shared matching pipeline; APPROVED/MANUAL.
