@@ -49,8 +49,8 @@ export function createApp(options: AppOptions = {}): Express {
       limits: { ...DEFAULT_AUTH_RATE_LIMITS, ...options.rateLimits },
     }),
   );
-  app.use('/api/me', createMeRouter({ now }));
   const sync = options.sync ?? new SyncService({ clients: createSyncClients(), now });
+  app.use('/api/me', createMeRouter({ now, sync }));
   app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now, sync, mailer }));
 
   app.use(notFoundHandler);

@@ -50,7 +50,7 @@ const manualBody = z.strictObject({
   evidence: z.string().trim().min(1).max(1000),
 });
 
-function ownProfessor(req: Request): { professorId: string; userId: string } {
+export function ownProfessor(req: Request): { professorId: string; userId: string } {
   const user = req.auth!.user;
   if (user.role !== 'PROFESSOR') throw new HttpError(403, 'FORBIDDEN', 'Only professors verify publications');
   if (!user.professor) throw new HttpError(404, 'PROFILE_NOT_FOUND', 'No professor profile is linked to this account');

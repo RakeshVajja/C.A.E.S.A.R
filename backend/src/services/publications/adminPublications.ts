@@ -110,7 +110,7 @@ export async function listPublications(query: PublicationListQuery, client: Pris
   return { publications: rows.map(toSummary), total, limit: query.limit, offset: query.offset };
 }
 
-/** A publication with source-record summaries (no raw metadata), relationships and candidates. */
+/** A publication with source-record summaries (no raw metadata) and relationships (candidates are the professors', #149). */
 export async function getPublication(id: string, client: PrismaClient = defaultClient) {
   const publication = await client.publication.findUnique({
     where: { id },
@@ -153,22 +153,6 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
   });
   if (!publication) throw notFound();
 
-  const other = { select: { id: true, title: true, year: true, typeFamily: true, doi: true, status: true } } as const;
-  const candidates = await client.duplicateCandidate.findMany({
-    where: { OR: [{ publicationAId: id }, { publicationBId: id }] },
-    select: {
-      id: true,
-      reason: true,
-      status: true,
-      resolvedAt: true,
-      createdAt: true,
-      publicationAId: true,
-      publicationA: other,
-      publicationB: other,
-    },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-  });
-
   const { sourceRecords, professors, ...rest } = publication;
   const count = (status: string) => professors.filter((p) => p.status === status).length;
   return {
@@ -182,14 +166,6 @@ export async function getPublication(id: string, client: PrismaClient = defaultC
     relationshipCounts: { pending: count('PENDING'), approved: count('APPROVED'), rejected: count('REJECTED') },
     sourceRecords,
     relationships: professors,
-    duplicateCandidates: candidates.map((c) => ({
-      id: c.id,
-      reason: c.reason,
-      status: c.status,
-      resolvedAt: c.resolvedAt,
-      createdAt: c.createdAt,
-      otherPublication: c.publicationAId === id ? c.publicationB : c.publicationA,
-    })),
   };
 }
 

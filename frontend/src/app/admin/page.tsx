@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChartColumn, GitMerge, RefreshCw, Users } from "lucide-react";
+import { ChartColumn, RefreshCw, Users } from "lucide-react";
 import { StatusChip } from "@/components/chips";
 import { Figures, LoadError, PageHeader, Panel, SectionTitle, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -12,25 +12,12 @@ import type { Overview } from "@/lib/types";
 /** Administrator dashboard: the overview figures and the work waiting for the administrator. */
 export default function AdminDashboard() {
   const { data, error, reload } = useResource("admin-dashboard", (signal) =>
-    Promise.all([
-      api<{ overview: Overview }>("/admin/analytics/overview", { signal }).then((r) => r.overview),
-      api<{ total: number }>("/admin/duplicate-candidates?status=OPEN&limit=1", { signal }).then((r) => r.total),
-    ]),
+    api<{ overview: Overview }>("/admin/analytics/overview", { signal }).then((r) => r.overview),
   );
-  const [overview, openCandidates] = data ?? [null, null];
+  const overview = data ?? null;
 
+  // Duplicate candidates are resolved by professors (#149), so they are not administrator work.
   const tasks = [
-    {
-      href: "/admin/duplicates",
-      Icon: GitMerge,
-      label: "Duplicate candidates",
-      text:
-        openCandidates === null
-          ? "…"
-          : openCandidates === 0
-            ? "No open candidates."
-            : `${formatNumber(openCandidates)} possible duplicates wait for a decision.`,
-    },
     { href: "/admin/professors", Icon: Users, label: "Professors and identities", text: "Add professors, create accounts and verify external identities." },
     {
       href: "/admin/sync",

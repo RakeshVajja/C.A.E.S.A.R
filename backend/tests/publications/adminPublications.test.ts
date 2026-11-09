@@ -1,25 +1,18 @@
-import { PublicationSource, TypeFamily, VerificationStatus } from '@prisma/client';
 import request from 'supertest';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createApp } from '../../src/app';
 import { prisma } from '../../src/config/database';
-import { DblpClient } from '../../src/integrations/dblp/client';
-import { OPENALEX_BASE_URL, OpenAlexClient } from '../../src/integrations/openalex/client';
-import { OrcidClient } from '../../src/integrations/orcid/client';
 import { overview } from '../../src/services/analytics/analytics';
-import { addManualPublication } from '../../src/services/manual/manualPublications';
 import { updatePublication } from '../../src/services/publications/adminPublications';
 import { ingestPublication, recomputeCanonical, Tx } from '../../src/services/matching/engine';
 import { buildNormalizedPublication } from '../../src/services/normalization/normalizedPublication';
-import { SyncAlreadyRunningError, SyncService } from '../../src/services/sync/syncService';
-import { cookiePair, createUser, PASSWORD, testClock } from '../auth/helpers';
+import { SyncAlreadyRunningError } from '../../src/services/sync/syncService';
+import { cookiePair, createUser, PASSWORD } from '../auth/helpers';
 import { resetDatabase } from '../helpers/database';
-import { loadFixture, noSleep, replayFetch, Route, toResponse } from '../helpers/fixtures';
-import { allProvidersPresent } from '../helpers/providers';
-import { adminCookie } from '../professors/helpers';
+import { loadFixture, toResponse } from '../helpers/fixtures';
 import { INDEPENDENT_ENTRY } from '../helpers/basis';
+import { AUTHOR_URL, candidate, link, NOW, PRIEM, professor, publication, setup, snapshot, syncService, withTrigger } from './helpers';
 
-/* Administrator publication and duplicate management (Project_plan.md §8.5, §15.1; Phase 13B, #90–#95). No network. */
+/* Administrator publication management (Project_plan.md §15.1; Phase 13B, #90–#95). Duplicate candidates are the professors' (#149; professorDuplicates.test.ts). No network. */
 
 vi.setConfig({ testTimeout: 60_000 });
 
@@ -36,122 +29,11 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-const NOW = '2026-10-26T09:00:00.000Z';
-const PRIEM = 'A5023888391';
-const AUTHOR_URL = `${OPENALEX_BASE_URL}/authors/${PRIEM}?select=id,display_name,orcid,works_count`;
-
-function syncService(overrides: Record<string, Route> = {}) {
-  const recorded = [loadFixture('openalex', 'author-valid'), ...['works-page-1', 'works-page-2', 'works-page-3'].map((n) => loadFixture('openalex', n))];
-  const deps = { fetchImpl: replayFetch(recorded, overrides).fetchImpl, sleep: noSleep };
-  return new SyncService({
-    clients: {
-      openAlex: new OpenAlexClient({ perPage: 25, deps, http: { maxRetries: 0 } }),
-      dblp: new DblpClient({ deps, http: { maxRetries: 0 } }),
-      orcid: new OrcidClient({ deps, http: { maxRetries: 0 } }),
-    },
-    now: testClock(NOW).now,
-    providers: allProvidersPresent(),
-  });
-}
-
-async function setup(sync = syncService()) {
-  const server = createApp({ mailer: null, sync, now: testClock(NOW).now });
-  const admin = await adminCookie(server);
-  const adminUser = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@example.org' } });
-  return { server, admin, adminUser, sync };
-}
-
-let seq = 0;
-interface RecordSpec {
-  source: PublicationSource;
-  doi?: string | null;
-  venue?: string | null;
-  title?: string;
-  year?: number | null;
-}
-async function publication(options: { title?: string; year?: number | null; type?: TypeFamily; doi?: string | null; status?: 'ACTIVE' | 'SUPPRESSED'; isCurated?: boolean; records?: RecordSpec[] } = {}) {
-  const n = ++seq;
-  const title = options.title ?? `Paper ${n}`;
-  const typeFamily = options.type ?? 'JOURNAL';
-  const records = options.records ?? [{ source: 'DBLP' }];
-  return prisma.publication.create({
-    data: {
-      title,
-      normalizedTitle: title.toLowerCase(),
-      year: options.year === undefined ? 2020 : options.year,
-      typeFamily,
-      doi: options.doi === undefined ? `10.1000/p${n}` : options.doi,
-      status: options.status ?? 'ACTIVE',
-      isCurated: options.isCurated ?? false,
-      sourceRecords: {
-        create: records.map((r, i) => ({
-          source: r.source,
-          externalId: `${r.source}-${n}-${i}`,
-          title: r.title ?? title,
-          normalizedTitle: (r.title ?? title).toLowerCase(),
-          doi: r.doi === undefined ? null : r.doi,
-          year: r.year === undefined ? (options.year === undefined ? 2020 : options.year) : r.year,
-          venue: r.venue ?? null,
-          typeFamily,
-          matchMethod: i === 0 ? 'NEW_PUBLICATION' : 'DOI',
-          matchDetail: i === 0 ? 'No matching publication' : 'Matched on DOI',
-          firstSeenAt: new Date(Date.UTC(2026, 0, 1 + i)),
-          rawMetadata: { marker: 'raw-metadata-never-returned' },
-        })),
-      },
-    },
-  });
-}
-
-async function professor(name: string, isActive = true) {
-  return prisma.professor.create({ data: { name, isActive } });
-}
-
-async function link(professorId: string, publicationId: string, status: VerificationStatus, extra: { decidedAt?: Date; decidedByUserId?: string } = {}) {
-  return prisma.professorPublication.create({ data: { professorId, publicationId, status, origin: 'DISCOVERED', ...extra } });
-}
-
-async function candidate(x: string, y: string, status: 'OPEN' | 'DISMISSED' | 'MERGED' = 'OPEN', reason = 'Exact title match blocked: test') {
-  const [publicationAId, publicationBId] = x < y ? [x, y] : [y, x];
-  return prisma.duplicateCandidate.create({ data: { publicationAId, publicationBId, status, reason } });
-}
-
-/** Every row of the tables merge/detach touch, for "nothing changed" checks. */
-async function snapshot() {
-  return {
-    publications: await prisma.publication.findMany({ orderBy: { id: 'asc' } }),
-    records: await prisma.publicationSourceRecord.findMany({ orderBy: { id: 'asc' } }),
-    relationships: await prisma.professorPublication.findMany({ orderBy: { id: 'asc' } }),
-    candidates: await prisma.duplicateCandidate.findMany({ orderBy: { id: 'asc' } }),
-  };
-}
-
-async function withTrigger(table: string, timing: string, body: string, run: () => Promise<void>) {
-  const name = 'phase13b_test_trigger';
-  const [{ current_database: db }] = await prisma.$queryRaw<{ current_database: string }[]>`SELECT current_database()`;
-  expect(db.endsWith('_test')).toBe(true);
-  const drop = async () => {
-    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS ${name} ON ${table}`);
-    await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${name}()`);
-  };
-  await drop();
-  try {
-    await prisma.$executeRawUnsafe(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${body} END $$`);
-    await prisma.$executeRawUnsafe(`CREATE TRIGGER ${name} ${timing} ON ${table} FOR EACH ROW EXECUTE FUNCTION ${name}()`);
-    await run();
-  } finally {
-    await drop();
-  }
-}
-
 const PUB_ROUTES = (id: string) => [
   ['get', '/api/admin/publications'],
   ['get', `/api/admin/publications/${id}`],
   ['patch', `/api/admin/publications/${id}`],
   ['patch', `/api/admin/publications/${id}/status`],
-  ['get', '/api/admin/duplicate-candidates'],
-  ['post', `/api/admin/duplicate-candidates/${id}/dismiss`],
-  ['post', `/api/admin/duplicate-candidates/${id}/merge`],
   ['post', `/api/admin/source-records/${id}/detach`],
 ] as const;
 
@@ -185,12 +67,10 @@ describe('authorization and request safety', () => {
     const q = await publication();
     const prof = await professor('Prof A');
     await link(prof.id, p.id, 'PENDING');
-    const c = await candidate(p.id, q.id);
+    await candidate(p.id, q.id);
     const bodies = [
       await request(server).get('/api/admin/publications').set('Cookie', admin),
       await request(server).get(`/api/admin/publications/${p.id}`).set('Cookie', admin),
-      await request(server).get('/api/admin/duplicate-candidates').set('Cookie', admin),
-      await request(server).post(`/api/admin/duplicate-candidates/${c.id}/dismiss`).set('Cookie', admin),
     ].map((r) => JSON.stringify(r.body));
     for (const body of bodies) {
       expect(body).not.toContain('raw-metadata-never-returned');
@@ -245,7 +125,7 @@ describe('GET /api/admin/publications', () => {
 });
 
 describe('GET /api/admin/publications/:id', () => {
-  it('returns source-record summaries, relationships and candidates; unknown and malformed IDs are 404', async () => {
+  it('returns source-record summaries and relationships, no candidates (#149); unknown and malformed IDs are 404', async () => {
     const { server, admin } = await setup();
     const p = await publication({ records: [{ source: 'OPENALEX', doi: '10.1000/x' }, { source: 'ORCID' }] });
     const other = await publication({ title: 'Other paper' });
@@ -264,7 +144,8 @@ describe('GET /api/admin/publications/:id', () => {
     expect(detail.relationships).toEqual([
       expect.objectContaining({ status: 'PENDING', origin: 'DISCOVERED', professor: { id: prof.id, name: 'Prof A', isActive: true }, discoveredViaIdentity: { id: identity.id, source: 'ORCID', externalId: '0000-0002-0661-5773' } }),
     ]);
-    expect(detail.duplicateCandidates).toEqual([expect.objectContaining({ id: c.id, status: 'OPEN', otherPublication: expect.objectContaining({ id: other.id, title: 'Other paper' }) })]);
+    expect(c.status).toBe('OPEN');
+    expect(detail).not.toHaveProperty('duplicateCandidates');
 
     expect((await request(server).get('/api/admin/publications/00000000-0000-4000-8000-000000000001').set('Cookie', admin)).body.error.code).toBe('PUBLICATION_NOT_FOUND');
     expect((await request(server).get('/api/admin/publications/not-a-uuid').set('Cookie', admin)).status).toBe(404);
@@ -437,207 +318,6 @@ describe('PATCH /api/admin/publications/:id/status (suppress and restore)', () =
   });
 });
 
-describe('duplicate candidates: listing and dismissal', () => {
-  it('lists candidates by status with both publication summaries; dismisses only OPEN ones with attribution', async () => {
-    const { server, admin, adminUser } = await setup();
-    const a = await publication({ title: 'Same title', records: [{ source: 'OPENALEX' }] });
-    const b = await publication({ title: 'Same title', records: [{ source: 'DBLP' }, { source: 'ORCID' }] });
-    const c = await publication({ title: 'Other' });
-    const open = await candidate(a.id, b.id);
-    const dismissed = await candidate(a.id, c.id, 'DISMISSED');
-
-    const list = await request(server).get('/api/admin/duplicate-candidates').set('Cookie', admin);
-    expect(list.body).toMatchObject({ total: 1, limit: 50, offset: 0 });
-    expect(list.body.candidates[0]).toMatchObject({ id: open.id, status: 'OPEN', reason: 'Exact title match blocked: test' });
-    const sides = [list.body.candidates[0].publicationA, list.body.candidates[0].publicationB];
-    expect(sides.map((s: { id: string }) => s.id).sort()).toEqual([a.id, b.id].sort());
-    expect(sides.find((s: { id: string }) => s.id === b.id)).toMatchObject({ sources: ['DBLP', 'ORCID'], sourceRecordCount: 2 });
-    expect((await request(server).get('/api/admin/duplicate-candidates?status=DISMISSED').set('Cookie', admin)).body.candidates.map((x: { id: string }) => x.id)).toEqual([dismissed.id]);
-    for (const qs of ['status=CLOSED', 'limit=0', 'limit=201', 'foo=1']) {
-      expect((await request(server).get(`/api/admin/duplicate-candidates?${qs}`).set('Cookie', admin)).status, qs).toBe(400);
-    }
-
-    const res = await request(server).post(`/api/admin/duplicate-candidates/${open.id}/dismiss`).set('Cookie', admin);
-    expect(res.status).toBe(200);
-    expect(res.body.candidate).toMatchObject({ id: open.id, status: 'DISMISSED', resolvedAt: NOW });
-    expect(await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: open.id } })).toMatchObject({ resolvedByUserId: adminUser.id });
-    expect(await prisma.publication.count()).toBe(3); // both publications stay
-
-    const again = await request(server).post(`/api/admin/duplicate-candidates/${open.id}/dismiss`).set('Cookie', admin);
-    expect(again.status).toBe(409);
-    expect(again.body.error).toMatchObject({ code: 'CANDIDATE_NOT_OPEN', details: { currentStatus: 'DISMISSED' } });
-    expect((await request(server).post('/api/admin/duplicate-candidates/00000000-0000-4000-8000-000000000001/dismiss').set('Cookie', admin)).body.error.code).toBe('CANDIDATE_NOT_FOUND');
-    expect((await request(server).post('/api/admin/duplicate-candidates/x/dismiss').set('Cookie', admin)).status).toBe(404);
-  });
-});
-
-describe('POST /api/admin/duplicate-candidates/:id/merge', () => {
-  async function mergeWorld() {
-    const keep = await publication({ title: 'Model checking', doi: null, records: [{ source: 'OPENALEX', doi: null, venue: null }] });
-    const remove = await publication({ title: 'Model checking', doi: '10.1000/merged', records: [{ source: 'DBLP', doi: '10.1000/merged', venue: 'CAV' }, { source: 'ORCID' }] });
-    return { keep, remove, c: await candidate(keep.id, remove.id) };
-  }
-
-  it('moves source records, recomputes the survivor, removes the other publication and records the merge', async () => {
-    const { server, admin, adminUser } = await setup();
-    const { keep, remove, c } = await mergeWorld();
-    const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id });
-    expect(res.status).toBe(200);
-    expect(res.body.merge).toEqual({ removedPublicationId: remove.id, sourceRecordsMoved: 2, relationshipsMoved: 0, relationshipsRemoved: 0, candidatesRepointed: 0, candidatesClosed: 0 });
-    expect(res.body.publication).toMatchObject({ id: keep.id, sources: ['OPENALEX', 'DBLP', 'ORCID'], sourceRecordCount: 3, venue: 'CAV', doi: '10.1000/merged' });
-
-    expect(await prisma.publication.findUnique({ where: { id: remove.id } })).toBeNull();
-    const moved = await prisma.publicationSourceRecord.findMany({ where: { source: { in: ['DBLP', 'ORCID'] } } });
-    for (const r of moved) {
-      expect(r).toMatchObject({ publicationId: keep.id, matchMethod: 'ADMIN' });
-      expect(r.matchDetail).toContain(`Merged by the administrator from publication ${remove.id} (duplicate candidate ${c.id}); previously`);
-    }
-    expect(moved.map((r) => r.matchDetail).some((d) => d!.includes('previously DOI: Matched on DOI'))).toBe(true);
-    const merged = await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: c.id } });
-    expect(merged).toMatchObject({ status: 'MERGED', resolvedByUserId: adminUser.id, resolvedAt: new Date(NOW) });
-    expect([merged.publicationAId, merged.publicationBId]).toContain(keep.id);
-    expect([merged.publicationAId, merged.publicationBId]).toContain(null); // the removed side (§6.10)
-    expect(res.body.candidate).toMatchObject({ id: c.id, status: 'MERGED' });
-  });
-
-  it('either publication may be kept', async () => {
-    const { server, admin } = await setup();
-    const { keep, remove, c } = await mergeWorld();
-    const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: remove.id });
-    expect(res.status).toBe(200);
-    expect(res.body.merge.removedPublicationId).toBe(keep.id);
-    expect(await prisma.publicationSourceRecord.count({ where: { publicationId: remove.id } })).toBe(3);
-  });
-
-  it('consolidates relationships APPROVED > PENDING > REJECTED; ties keep the survivor’s; the winner keeps its decision metadata', async () => {
-    const { server, admin, adminUser } = await setup();
-    const { keep, remove, c } = await mergeWorld();
-    const [p1, p2, p3, p4, p5, p6] = await Promise.all(['P1', 'P2', 'P3', 'P4', 'P5', 'P6'].map((n) => professor(n)));
-    const decided = { decidedAt: new Date('2026-09-01T00:00:00Z'), decidedByUserId: adminUser.id };
-    await link(p1.id, keep.id, 'PENDING');
-    const p1Winner = await link(p1.id, remove.id, 'APPROVED', decided);
-    await link(p2.id, keep.id, 'REJECTED', decided);
-    const p2Winner = await link(p2.id, remove.id, 'PENDING');
-    const p3Winner = await link(p3.id, keep.id, 'APPROVED', decided);
-    await link(p3.id, remove.id, 'REJECTED', decided);
-    const p4Winner = await link(p4.id, keep.id, 'PENDING');
-    await link(p4.id, remove.id, 'PENDING');
-    const p5Moved = await link(p5.id, remove.id, 'REJECTED', decided);
-    const p6Kept = await link(p6.id, keep.id, 'APPROVED', decided);
-
-    const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id });
-    expect(res.status).toBe(200);
-    expect(res.body.merge).toMatchObject({ relationshipsMoved: 3, relationshipsRemoved: 4 }); // moved: p1, p2, p5
-
-    const rows = await prisma.professorPublication.findMany({ orderBy: { id: 'asc' } });
-    expect(rows).toHaveLength(6);
-    expect(rows.every((r) => r.publicationId === keep.id)).toBe(true);
-    const byId = (id: string) => rows.find((r) => r.id === id);
-    for (const winner of [p1Winner, p2Winner, p3Winner, p4Winner, p5Moved, p6Kept]) {
-      expect(byId(winner.id), winner.id).toEqual({ ...winner, publicationId: keep.id, updatedAt: expect.any(Date) });
-    }
-    expect(byId(p1Winner.id)).toMatchObject({ status: 'APPROVED', decidedAt: decided.decidedAt, decidedByUserId: adminUser.id });
-    expect(byId(p2Winner.id)?.status).toBe('PENDING');
-  });
-
-  it('re-points other open candidates, closes redundant ones, never reopens dismissed pairs, and keeps resolved history', async () => {
-    const { server, admin } = await setup();
-    const { keep, remove, c } = await mergeWorld();
-    const x = await publication({ title: 'X' });
-    const y = await publication({ title: 'Y' });
-    const z = await publication({ title: 'Z' });
-    const repoint = await candidate(remove.id, x.id);
-    const dismissedPair = await candidate(keep.id, y.id, 'DISMISSED');
-    const redundant = await candidate(remove.id, y.id);
-    const history = await candidate(remove.id, z.id, 'DISMISSED');
-
-    const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id });
-    expect(res.body.merge).toMatchObject({ candidatesRepointed: 1, candidatesClosed: 1 });
-
-    const after = await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: repoint.id } });
-    expect(after.status).toBe('OPEN');
-    expect([after.publicationAId, after.publicationBId]).toEqual(keep.id < x.id ? [keep.id, x.id] : [x.id, keep.id]);
-    expect(await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: dismissedPair.id } })).toMatchObject({ status: 'DISMISSED' });
-    const closed = await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: redundant.id } });
-    expect(closed.status).toBe('DISMISSED');
-    expect(closed.reason).toContain('the pair already exists');
-    const kept = await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: history.id } });
-    expect(kept).toMatchObject({ status: 'DISMISSED', reason: history.reason });
-    expect([kept.publicationAId, kept.publicationBId]).toContain(null);
-    // No pair exists twice.
-    const pairs = (await prisma.duplicateCandidate.findMany()).filter((d) => d.publicationAId && d.publicationBId).map((d) => `${d.publicationAId}|${d.publicationBId}`);
-    expect(new Set(pairs).size).toBe(pairs.length);
-  });
-
-  it('a curated survivor keeps its metadata; two suppressed publications merge and stay suppressed', async () => {
-    const { server, admin } = await setup();
-    const curated = await publication({ title: 'Curated title', isCurated: true, doi: null, records: [{ source: 'OPENALEX' }] });
-    const other = await publication({ title: 'Raw title', doi: '10.1000/raw', records: [{ source: 'DBLP', doi: '10.1000/raw', venue: 'V' }] });
-    const c1 = await candidate(curated.id, other.id);
-    await request(server).post(`/api/admin/duplicate-candidates/${c1.id}/merge`).set('Cookie', admin).send({ keepPublicationId: curated.id }).expect(200);
-    expect(await prisma.publication.findUniqueOrThrow({ where: { id: curated.id } })).toMatchObject({ title: 'Curated title', doi: null, venue: null, isCurated: true });
-
-    const s1 = await publication({ status: 'SUPPRESSED' });
-    const s2 = await publication({ status: 'SUPPRESSED' });
-    const c2 = await candidate(s1.id, s2.id);
-    const res = await request(server).post(`/api/admin/duplicate-candidates/${c2.id}/merge`).set('Cookie', admin).send({ keepPublicationId: s2.id });
-    expect(res.status).toBe(200);
-    expect(res.body.publication.status).toBe('SUPPRESSED');
-  });
-
-  it('refuses an active/suppressed pair, a publication outside the candidate, resolved and unknown candidates — changing nothing', async () => {
-    const { server, admin } = await setup();
-    const a = await publication();
-    const s = await publication({ status: 'SUPPRESSED' });
-    const mixed = await candidate(a.id, s.id);
-    const b = await publication();
-    const c = await publication();
-    const ok = await candidate(b.id, c.id);
-    const done = await candidate(a.id, b.id, 'DISMISSED');
-    const before = await snapshot();
-    const merge = (id: string, body: unknown) => request(server).post(`/api/admin/duplicate-candidates/${id}/merge`).set('Cookie', admin).send(body as object);
-
-    const mismatch = await merge(mixed.id, { keepPublicationId: a.id });
-    expect(mismatch.status).toBe(409);
-    expect(mismatch.body.error.code).toBe('MERGE_STATUS_MISMATCH');
-    expect((await merge(ok.id, { keepPublicationId: a.id })).body.error.code).toBe('INVALID_KEEP_PUBLICATION');
-    expect((await merge(ok.id, { keepPublicationId: 'x' })).body.error.code).toBe('VALIDATION_ERROR');
-    expect((await merge(ok.id, {})).body.error.code).toBe('VALIDATION_ERROR');
-    expect((await merge(ok.id, { keepPublicationId: b.id, extra: 1 })).body.error.code).toBe('VALIDATION_ERROR');
-    const resolved = await merge(done.id, { keepPublicationId: a.id });
-    expect(resolved.body.error).toMatchObject({ code: 'CANDIDATE_NOT_OPEN', details: { currentStatus: 'DISMISSED' } });
-    expect((await merge('00000000-0000-4000-8000-000000000001', { keepPublicationId: a.id })).body.error.code).toBe('CANDIDATE_NOT_FOUND');
-    expect(await snapshot()).toEqual(before);
-  });
-
-  it('a failure part-way through rolls the whole merge back', async () => {
-    const { server, admin } = await setup();
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { keep, remove, c } = await mergeWorld();
-    const prof = await professor('P1');
-    await link(prof.id, remove.id, 'APPROVED');
-    await candidate(remove.id, (await publication({ title: 'X' })).id);
-    const before = await snapshot();
-    await withTrigger('publications', 'BEFORE DELETE', `RAISE EXCEPTION 'phase13b test: delete blocked';`, async () => {
-      const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id });
-      expect(res.status).toBe(500);
-      expect(JSON.stringify(res.body)).not.toContain('phase13b');
-    });
-    expect(await snapshot()).toEqual(before);
-  });
-
-  it('two simultaneous merges of one candidate: exactly one succeeds', async () => {
-    const { server, admin } = await setup();
-    const { keep, c } = await mergeWorld();
-    const results = await Promise.all(
-      [0, 1].map(() => request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id })),
-    );
-    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
-    expect(results.find((r) => r.status === 409)!.body.error.code).toBe('CANDIDATE_NOT_OPEN');
-    expect(await prisma.publication.count()).toBe(1);
-  });
-});
-
 describe('POST /api/admin/source-records/:id/detach', () => {
   it('moves the record to a new ACTIVE publication with ADMIN provenance; relationships stay; both publications are recomputed', async () => {
     const { server, admin } = await setup();
@@ -721,19 +401,15 @@ describe('coordination with synchronization (#91)', () => {
     return { sync, release };
   }
 
-  it('merge and detach are refused with 409 while a run executes, then succeed after it; other edits stay available', async () => {
+  it('detach is refused with 409 while a run executes, then succeeds after it; other edits stay available', async () => {
     const { sync, release } = await blockedRun();
     const { server, admin } = await setup(sync);
     const a = await publication({ title: 'Same' });
     const b = await publication({ title: 'Same', records: [{ source: 'ORCID' }, { source: 'MANUAL' }] });
-    const c = await candidate(a.id, b.id);
     const record = await prisma.publicationSourceRecord.findFirstOrThrow({ where: { publicationId: b.id, source: 'MANUAL' } });
 
     await request(server).post('/api/admin/sync').set('Cookie', admin).expect(202);
     const before = await snapshot();
-    const merge = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: a.id });
-    expect(merge.status).toBe(409);
-    expect(merge.body.error.code).toBe('SYNC_ALREADY_RUNNING');
     expect((await request(server).post(`/api/admin/source-records/${record.id}/detach`).set('Cookie', admin)).body.error.code).toBe('SYNC_ALREADY_RUNNING');
     expect(await snapshot()).toEqual(before);
     // Editing and suppressing do not conflict with synchronization (curated rows are never recomputed).
@@ -741,19 +417,16 @@ describe('coordination with synchronization (#91)', () => {
 
     release();
     await sync.idle();
-    expect((await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: a.id })).status).toBe(200);
+    expect((await request(server).post(`/api/admin/source-records/${record.id}/detach`).set('Cookie', admin)).status).toBe(200);
   });
 
-  it('a RUNNING run recorded in the database (another process, unrecovered crash) also blocks merge and detach', async () => {
+  it('a RUNNING run recorded in the database (another process, unrecovered crash) also blocks detach', async () => {
     const { server, admin } = await setup();
-    const a = await publication({ title: 'Same' });
     const b = await publication({ title: 'Same', records: [{ source: 'ORCID' }, { source: 'MANUAL' }] });
-    const c = await candidate(a.id, b.id);
     const record = await prisma.publicationSourceRecord.findFirstOrThrow({ where: { publicationId: b.id, source: 'MANUAL' } });
     await prisma.syncRun.create({ data: { trigger: 'SCHEDULED', status: 'RUNNING' } });
-    expect((await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: a.id })).body.error.code).toBe('SYNC_ALREADY_RUNNING');
     expect((await request(server).post(`/api/admin/source-records/${record.id}/detach`).set('Cookie', admin)).body.error.code).toBe('SYNC_ALREADY_RUNNING');
-    expect(await prisma.publication.count()).toBe(2);
+    expect(await prisma.publication.count()).toBe(1);
   });
 
   it('a run started during an exclusive operation waits for it; a queued operation is then refused', async () => {
@@ -794,125 +467,22 @@ describe('coordination with synchronization (#91)', () => {
   });
 });
 
-describe('merges and concurrent manual entries (#96)', () => {
-  const KEY = 4242;
-
-  /** Holds a transaction-level advisory lock on another connection until released. */
-  async function holdAdvisoryLock() {
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    let acquired!: () => void;
-    const held = new Promise<void>((r) => (acquired = r));
-    const done = prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KEY})`;
-        acquired();
-        await gate;
-      },
-      { timeout: 30_000 },
-    );
-    await held;
-    return { release, done };
-  }
-
-  async function waitUntil(condition: () => Promise<boolean>, what: string) {
-    for (let i = 0; i < 200; i++) {
-      if (await condition()) return;
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    throw new Error(`Timed out waiting for: ${what}`);
-  }
-  const manualBlocked = async () =>
-    (await prisma.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`)[0].n > 0;
-
-  /** The manual entry's source-record insert waits on the advisory lock inside its transaction (after matching). */
-  async function withBlockedManualInsert(run: () => Promise<void>) {
-    await withTrigger('publication_source_records', 'BEFORE INSERT', `IF NEW.source = 'MANUAL' THEN PERFORM pg_advisory_xact_lock(${KEY}); END IF; RETURN NEW;`, run);
-  }
-
-  async function world() {
+describe('duplicate-candidate resolution is not an administrator function (#149)', () => {
+  it('the former admin candidate endpoints no longer exist and change nothing', async () => {
     const { server, admin } = await setup();
-    const user = await createUser({ email: 'prof@example.org', professor: 'active' });
-    const prof = await prisma.professor.findUniqueOrThrow({ where: { userId: user.id } });
-    const keep = await publication({ title: 'Model checking', doi: null, records: [{ source: 'OPENALEX' }] });
-    const remove = await publication({ title: 'Model checking of programs', doi: '10.1000/remove', records: [{ source: 'DBLP', doi: '10.1000/remove' }] });
-    const c = await candidate(keep.id, remove.id);
-    return { server, admin, user, prof, keep, remove, c };
-  }
-
-  it('a merge waits for a manual entry matching the removed publication by title; both complete', async () => {
-    const { server, admin, user, prof, keep, remove, c } = await world();
-    await withBlockedManualInsert(async () => {
-      const lock = await holdAdvisoryLock();
-      const manual = addManualPublication(prof.id, user.id, { title: 'Model checking of programs', typeFamily: 'JOURNAL', year: 2020, ...INDEPENDENT_ENTRY }, new Date(NOW));
-      await waitUntil(manualBlocked, 'manual entry inside its transaction');
-
-      const merge = request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id }).then((r) => r);
-      // The merge cannot proceed while the manual entry holds the title.
-      await new Promise((r) => setTimeout(r, 300));
-      expect((await prisma.duplicateCandidate.findUniqueOrThrow({ where: { id: c.id } })).status).toBe('OPEN');
-      expect(await prisma.publication.findUnique({ where: { id: remove.id } })).not.toBeNull();
-
-      lock.release();
-      await lock.done;
-      const entry = await manual;
-      expect(entry.match).toMatchObject({ outcome: 'MATCHED_TITLE_YEAR', relationship: 'CREATED' });
-      const res = await merge;
-      expect(res.status).toBe(200);
-      expect(res.body.merge).toMatchObject({ sourceRecordsMoved: 2, relationshipsMoved: 1 });
-    });
-    // The manual record and the professor's approval followed the merge to the survivor.
-    expect(await prisma.publicationSourceRecord.findFirstOrThrow({ where: { source: 'MANUAL' } })).toMatchObject({ publicationId: keep.id });
-    expect(await prisma.professorPublication.findMany({ where: { professorId: prof.id } })).toEqual([
-      expect.objectContaining({ publicationId: keep.id, status: 'APPROVED', origin: 'MANUAL' }),
-    ]);
-    expect(await prisma.publication.count()).toBe(1);
-  });
-
-  it('a manual entry matching the removed publication by DOI is re-matched to the survivor instead of failing', async () => {
-    const { server, admin, user, prof, keep, remove, c } = await world();
-    await withBlockedManualInsert(async () => {
-      const lock = await holdAdvisoryLock();
-      const manual = addManualPublication(prof.id, user.id, { title: 'Model checking of programs: an extended study', typeFamily: 'JOURNAL', year: 2020, doi: '10.1000/REMOVE', ...INDEPENDENT_ENTRY }, new Date(NOW)).then(
-        (value) => ({ value }),
-        (error: unknown) => ({ error }),
-      );
-      await waitUntil(manualBlocked, 'manual entry inside its transaction');
-
-      // A different normalized title (no shared title lock): the merge completes while the manual
-      // entry, already matched to the removed publication by DOI, waits inside its transaction.
-      const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id });
-      expect(res.status).toBe(200);
-      expect(await prisma.publication.findUnique({ where: { id: remove.id } })).toBeNull();
-
-      lock.release();
-      await lock.done;
-      const outcome = await manual;
-      expect(outcome).not.toHaveProperty('error');
-      expect((outcome as { value: { match: unknown } }).value.match).toMatchObject({ outcome: 'MATCHED_DOI', relationship: 'CREATED' });
-    });
-    expect(await prisma.publicationSourceRecord.findFirstOrThrow({ where: { source: 'MANUAL' } })).toMatchObject({ publicationId: keep.id, matchMethod: 'DOI' });
-    expect(await prisma.professorPublication.findMany({ where: { professorId: prof.id } })).toEqual([
-      expect.objectContaining({ publicationId: keep.id, status: 'APPROVED', origin: 'MANUAL' }),
-    ]);
-  });
-
-  it('a title that appears after the locks were chosen makes the merge refuse with 409 MERGE_CONFLICT and change nothing', async () => {
-    const { server, admin, keep, remove, c } = await world();
+    const a = await publication({ title: 'Same' });
+    const b = await publication({ title: 'Same' });
+    const c = await candidate(a.id, b.id);
     const before = await snapshot();
-    // A source-record title that changes after the titles were locked (simulated inside the merge's
-    // transaction, just before its revalidation).
-    await withTrigger(
-      'duplicate_candidates',
-      'BEFORE UPDATE',
-      `UPDATE publication_source_records SET normalized_title = 'retitled meanwhile' WHERE publication_id = '${remove.id}'; RETURN NEW;`,
-      async () => {
-        const res = await request(server).post(`/api/admin/duplicate-candidates/${c.id}/merge`).set('Cookie', admin).send({ keepPublicationId: keep.id });
-        expect(res.status).toBe(409);
-        expect(res.body.error.code).toBe('MERGE_CONFLICT');
-      },
-    );
-    expect(await snapshot()).toEqual(before); // the trigger's own change was rolled back with the merge
+    for (const [method, path, body] of [
+      ['get', '/api/admin/duplicate-candidates', undefined],
+      ['post', `/api/admin/duplicate-candidates/${c.id}/dismiss`, undefined],
+      ['post', `/api/admin/duplicate-candidates/${c.id}/merge`, { keepPublicationId: a.id }],
+    ] as const) {
+      const res = await request(server)[method](path).set('Cookie', admin).send(body ?? {});
+      expect(res.status, path).toBe(404);
+      expect(res.body.error.code, path).toBe('NOT_FOUND');
+    }
+    expect(await snapshot()).toEqual(before);
   });
 });
-

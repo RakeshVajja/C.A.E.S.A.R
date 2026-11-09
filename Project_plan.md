@@ -274,7 +274,7 @@ PublicationSourceRecord
   type_family
   author_names_display   nullable (display only; feeds canonical selection — decision #21)
   raw_metadata           JSON (excluding abstracts, references and full-text content; U+0000 replaced with U+FFFD — §7)
-  match_method           how the record was attached to its Publication
+  match_method           how the record was attached to its Publication (DOI | TITLE_YEAR | NEW_PUBLICATION | ADMIN); a professor's duplicate merge never changes it (#151)
   match_detail           short explanation
   created_by_user_id     nullable (MANUAL records)
   issns                  normalized ISSN list (Phase 15; for journal linking)
@@ -325,7 +325,7 @@ DuplicateCandidate
   publication_b_id       FK → Publication
   reason                 which rule/veto produced the candidate
   status                 OPEN | MERGED | DISMISSED
-  resolved_by_user_id    nullable
+  resolved_by_user_id    nullable; the professor's user who resolved it (#149)
   resolved_at            nullable
   created_at, updated_at
 
@@ -533,11 +533,15 @@ Matching is deterministic and explainable. Every attachment records `match_metho
 
 **Fuzzy matching is DEFERRED** until real project data demonstrates that deterministic matching is insufficient. If introduced, it may only create `DuplicateCandidate` records, never automatic merges, and requires approval.
 
-## 8.5 Duplicate candidate resolution (admin)
+## 8.5 Duplicate candidate resolution (professors, decision #149)
 
+* **Professors only.** Duplicate candidates are resolved by professors; administrators have no role in this workflow — no queue, review, approval, merge, dismissal, fallback or escalation.
+* **Eligibility:** a professor sees, and may resolve, every `OPEN` candidate in which at least one of the two publications has a relationship with them in any status (`APPROVED`, `PENDING` or `REJECTED`). Nothing else restricts it: other professors linked to either publication, suppressed or mismatched publication statuses, preprints and conflicting type families do not exclude a candidate.
 * **Dismiss:** candidate marked `DISMISSED`; both publications remain.
-* **Merge B into A:** B's source records and professor relationships move to A (a professor linked to both keeps one relationship: APPROVED > PENDING > REJECTED); B is then removed; candidate marked `MERGED`.
-* **Detach a source record:** moves a wrongly attached source record to its own new Publication.
+* **Merge B into A** (the professor chooses which publication to keep): B's source records (with their citation observations) and **all professors'** relationships move to A (a professor linked to both keeps one relationship: APPROVED > PENDING > REJECTED, with its decision metadata); B's other open candidates are re-pointed to A; B is then removed; A is recomputed field by field (§9, curated fields kept); candidate marked `MERGED`. A keeps its own status: publications of different statuses (`ACTIVE`/`SUPPRESSED`) can be merged without any administrator action, and the professor's confirmation states the status the merged publication will have (#150; the equal-status rule of #93 no longer applies). The established transaction and coordination rules apply unchanged (#93, #96: one transaction, serialized with synchronization and manual entries). Moved records keep their original `match_method` and `match_detail`; only a short merge note is appended to `match_detail` (the original text is kept in full), because the candidate's reference to the removed publication becomes NULL and the note is then the only link between the record and the merge. The resolving professor and time are recorded authoritatively on the candidate (`resolved_by_user_id`, `resolved_at`), never in the record (#151).
+* **First resolution wins:** the candidate is claimed while still `OPEN` inside the resolving transaction; any concurrent or later attempt is refused (`CANDIDATE_NOT_OPEN`) and changes nothing. `resolved_by_user_id` / `resolved_at` record the professor's user and the time.
+* **Suppressed publications** are shown to the professor with the information needed to compare and resolve the candidate; suppression never hides or restricts a candidate.
+* **Detach a source record** (moving a wrongly attached source record to its own new Publication, `match_method` `ADMIN`) is a separate administrator publication-management operation (§15.1); it is not part of candidate resolution and no candidate resolution depends on it.
 
 ---
 
@@ -786,8 +790,8 @@ Rules:
 
 ## 15.1 Roles
 
-* **ADMIN** (single administrator): manages professors, identities (including manual Scopus/WoS verification with evidence, #118), publications (edit with a declared basis, curate, suppress), duplicate candidates, synchronization (discovery and JCR runs) and analytics; runs provider-data removal from the command line (§13.10).
-* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, edits permitted own information. Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email, activation status and external identities are administrator-managed (decision #67).
+* **ADMIN** (single administrator): manages professors, identities (including manual Scopus/WoS verification with evidence, #118), publications (edit with a declared basis, curate, suppress, detach a source record), synchronization (discovery and JCR runs) and analytics; runs provider-data removal from the command line (§13.10). The administrator has no role in duplicate-candidate resolution (#149).
+* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, resolves the duplicate candidates involving their publications (merge or dismiss, §8.5, #149), edits permitted own information. Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email, activation status and external identities are administrator-managed (decision #67).
 
 ## 15.2 Authentication
 
@@ -845,8 +849,8 @@ Default analytics count **APPROVED** relationships to **ACTIVE**, non-preprint c
 # 17. Frontend
 
 * Public: `/login`
-* Professor: dashboard, profile, publications, pending verification, add publication
-* Admin: dashboard, professors (+ identities, with manual verification evidence), publications, duplicate candidates, synchronization (discovery and JCR runs, provider coverage and configuration status), analytics
+* Professor: dashboard, profile, publications, pending verification, add publication, possible duplicates (candidate list, side-by-side comparison, merge keeping the chosen publication, dismiss, with confirmation — #149)
+* Admin: dashboard, professors (+ identities, with manual verification evidence), publications, synchronization (discovery and JCR runs, provider coverage and configuration status), analytics
 * Phase 15 display rules: provider citation counts and JCR metrics only as allowed by §13.10, with the required attribution
 * Implemented in stage 15.7 (#139): Synchronization shows the five discovery providers' configuration (credentials present or not — never "access works"), and each run's provider coverage from its stored snapshot (configuration at start, outcome, access confirmed, complete). Journal metrics (JCR) have their own page and navigation entry (configuration, refresh, run history, per-journal tasks): status and counters only, no metric value. Scopus citation counts are shown to the administrator (publication detail) and to professors (their publications) as "N citations in Scopus · as of <date>" with the record and cited-by links Scopus provided (https scopus.com links only; none invented), the latest observation per Scopus record and the highest when a publication has several. Admin analytics add internal Scopus aggregates (counted publications, each once; per professor). Web of Science Times Cited and JCR metrics are not returned by any API nor shown anywhere. Professors now see every source of their publications, Scopus and Web of Science included.
 
@@ -1153,3 +1157,21 @@ Live validation has **not** started: no provider credential and no written confi
 6. Open D13 decision on the 24 real OpenAlex/DBLP/ORCID recordings committed in Phases 4–6.
 
 **Checklist once unblocked (Scopus first; WoS and JCR only after the gate is opened):** each item listed "to confirm with a real key" in §13.6–§13.8; D3 `AI=` coverage against a professor's known publication list; D4 metadata comparison (canonical priority unchanged unless decided); the type mappings of §7.3 on real records; quotas, 401/403/429 and rate-limit headers; citation observations per provider and the attribution rules of §13.10. Real responses stay local and uncommitted (D13), credentials only in environment variables and headers, and results are recorded in `PROJECT_PROGRESS.md`.
+
+# 23. Professor duplicate resolution (decisions #149–#152 — implemented on branch `feat/professor-duplicate-resolution`, uncommitted)
+
+**Decision #149:** all duplicate-candidate resolution is the professors' responsibility. Every `OPEN` candidate involving at least one publication linked to a professor — in any relationship status, shared publications included, with no exclusion by publication status, preprint or type — can be listed and resolved (merged keeping either publication, or dismissed) by that professor. Administrators have no involvement. This transfers the existing Phase 13B functionality (#93, #94, #96) to the professor interface; it is not a new resolution system. §6.7, §8.5, §15.1 and §17 are amended accordingly; Phase 13B (§19) keeps its history, with candidate resolution now under the professor role. No schema change, migration or new dependency (#151).
+
+**Reused unchanged:** candidate storage and status model; `mergeCandidate` and `dismissCandidate` (`services/publications/duplicates.ts`) — claim of the `OPEN` candidate inside the transaction (first resolution wins), synchronization exclusivity (`SyncService.exclusive`, #91), per-title serialization and revalidation (#96), row locks, record transfer with a provenance note, citation observations following their records, consolidation of every professor's relationship (APPROVED > PENDING > REJECTED, decision metadata kept), re-pointing or closing of other open candidates, removal of the merged-away publication and field-level recomputation (#125); candidate and publication summaries (`toCandidate`, `toSummary`); the frontend comparison (`Side`), merge/dismiss confirmation dialog and conflict messages of `admin/duplicates/page.tsx`.
+
+**Planned changes:**
+* Backend: `/api/me/duplicate-candidates` (professor session only; the professor comes from the token): `GET` (OPEN candidates where either publication has a relationship with the professor, any status; paged), `POST /:id/dismiss`, `POST /:id/merge { keepPublicationId }`. The service functions take the resolving user plus a professor scope: inside the transaction, after the candidate is claimed and the publications locked, the professor must still be linked to either publication (otherwise 404 `CANDIDATE_NOT_FOUND`, nothing changed); candidates outside the scope are 404 (no disclosure). `resolved_by_user_id` = the professor's user; in the existing merge, moved records keep their `match_method` and their `match_detail` text, to which a merge note is appended (instead of being replaced with `ADMIN` and an administrator note, #151); the `MERGE_STATUS_MISMATCH` refusal is removed (#150). The professor router receives the `SyncService` (for exclusivity). No new restriction and no schema change.
+* Frontend: professor navigation "Possible duplicates" (with an open-candidate badge), a page reusing the comparison, merge (choose the publication to keep) and dismiss with confirmation dialogs; professor help text; publication-review items may link to an open candidate.
+* Retired from the admin side: `/api/admin/duplicate-candidates` (list, dismiss, merge) and its router; the `/admin/duplicates` page, its navigation entry and badge, the dashboard work-area card; the candidates section of the admin publication detail and the `duplicateCandidates` field of the admin publication API; admin help text about duplicates. Synchronization statistics keep counting candidates created (labelled as for professors to resolve). Candidate creation by the matching engine is unchanged.
+* Tests (synthetic, test database only): authorization (no session, admin session 403, other professors' candidates 404, ID from the session only); eligibility with APPROVED, PENDING and REJECTED relationships; shared publications (another professor linked to either side — still resolvable, and their relationships consolidated by precedence); suppressed and preprint candidates listed and resolvable; merging ACTIVE with SUPPRESSED keeping either side (survivor keeps its status, no administrator action); moved records keep their original `match_method` and `match_detail` (merge note appended, no `ADMIN`), resolver and time on the candidate; detach still writes `ADMIN` and creates no candidate dependency; merge keeping either side, record/citation transfer, candidate re-pointing, recomputation; dismiss; concurrent resolution (two professors, merge vs merge and merge vs dismiss: exactly one succeeds, the other `CANDIDATE_NOT_OPEN`, no partial change); relationship removed before resolution → 404; synchronization running → 409; admin endpoints removed (404); existing merge/detach tests migrated to the professor endpoints.
+
+**Owner resolutions (#150):**
+1. *Detach* stays a separate administrator publication-management operation (§15.1), outside candidate resolution; no candidate resolution depends on it.
+2. *Equal-status rule (#93) removed* for professor merging: the `MERGE_STATUS_MISMATCH` refusal is dropped (no administrator caller remains). Any pair can be merged; the kept publication keeps its own status — keeping a `SUPPRESSED` publication moves the other's records and relationships into a publication hidden from professor lists and analytics, keeping an `ACTIVE` one makes the absorbed records and relationships visible — and the confirmation dialog states the resulting status. Matching keeps treating the survivor as before (a suppressed publication still absorbs later records, #30).
+3. *Suppressed publications* are listed and compared with the same summary fields as active ones (title, year, venue, type, authors, DOI, status, sources, relationship counts); suppression never hides or restricts a candidate.
+4. *Provenance (#151):* `match_method` records how a source record was attached (§6.5, §8); a professor's merge does not change it — no record is attributed to `ADMIN`, and the frozen schema is unchanged. The record's `match_detail` keeps its original text in full; the merge appends "; moved by duplicate candidate <candidate id> from publication <removed id>" (no actor), which is needed because the candidate's reference to the removed publication becomes NULL. Who resolved the candidate, and when, is recorded only in `duplicate_candidates.resolved_by_user_id` and `resolved_at`. Records moved by earlier administrator merges and administrator detaches keep their `ADMIN` attribution, and detach is unchanged.

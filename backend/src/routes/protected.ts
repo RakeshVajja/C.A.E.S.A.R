@@ -6,7 +6,8 @@ import { getOwnProfile, updateOwnName } from '../services/professors/professors'
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 import { createAdminAnalyticsRouter } from './adminAnalytics';
-import { createAdminDuplicatesRouter, createAdminPublicationsRouter, createAdminSourceRecordsRouter } from './adminPublications';
+import { createAdminPublicationsRouter, createAdminSourceRecordsRouter } from './adminPublications';
+import { createMeDuplicateCandidatesRouter } from './meDuplicateCandidates';
 import { createAdminProfessorsRouter } from './adminProfessors';
 import { createMePublicationsRouter } from './mePublications';
 import { createAdminSyncRouter } from './adminSync';
@@ -27,7 +28,7 @@ const noStore: RequestHandler = (_req, res, next) => {
 
 const ownProfileBody = z.strictObject({ name: z.string().trim().min(1).max(200) });
 
-export function createMeRouter(deps: { now: () => Date }): Router {
+export function createMeRouter(deps: { now: () => Date; sync: SyncService }): Router {
   const router = Router();
   router.use(noStore, requireAuth, requirePasswordChanged);
 
@@ -47,6 +48,8 @@ export function createMeRouter(deps: { now: () => Date }): Router {
 
   // Verification of the professor's own publication relationships (Phase 10).
   router.use('/publications', createMePublicationsRouter(deps));
+  // Resolution of the professor's duplicate candidates (§8.5; #149–#151).
+  router.use('/duplicate-candidates', createMeDuplicateCandidatesRouter(deps));
 
   return router;
 }
@@ -58,7 +61,6 @@ export function createAdminRouter(deps: { identityClients: IdentityClients; now:
   router.use('/sync', createAdminSyncRouter(deps));
   router.use('/analytics', createAdminAnalyticsRouter());
   router.use('/publications', createAdminPublicationsRouter());
-  router.use('/duplicate-candidates', createAdminDuplicatesRouter(deps));
   router.use('/source-records', createAdminSourceRecordsRouter(deps));
   return router;
 }

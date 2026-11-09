@@ -189,14 +189,6 @@ export interface PublicationDetail extends PublicationSummary {
     professor: { id: string; name: string; isActive: boolean };
     discoveredViaIdentity: { id: string; source: IdentitySource; externalId: string } | null;
   }[];
-  duplicateCandidates: {
-    id: string;
-    reason: string;
-    status: CandidateStatus;
-    resolvedAt: string | null;
-    createdAt: string;
-    otherPublication: { id: string; title: string; year: number | null; typeFamily: TypeFamily; doi: string | null; status: PublicationStatus } | null;
-  }[];
 }
 export interface Paged {
   total: number;
@@ -209,8 +201,12 @@ export interface Candidate {
   status: CandidateStatus;
   resolvedAt: string | null;
   createdAt: string;
-  publicationA: PublicationSummary | null;
-  publicationB: PublicationSummary | null;
+  publicationA: CandidatePublication | null;
+  publicationB: CandidatePublication | null;
+}
+/** A candidate's publication as the professor sees it, with their own relationship status (#149). */
+export interface CandidatePublication extends PublicationSummary {
+  myRelationshipStatus: VerificationStatus | null;
 }
 
 /* Synchronization (/api/admin/sync) */

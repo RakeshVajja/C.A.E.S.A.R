@@ -7,14 +7,24 @@ import { SyncService } from '../sync/syncService';
 import { getPublication, toSummary } from './adminPublications';
 
 /**
- * Duplicate-candidate resolution and source-record detachment by the administrator
- * (Project_plan.md §8.5; Phase 13B, decisions #93 and #94).
+ * Duplicate-candidate resolution by professors (Project_plan.md §8.5; decisions #93, #96, #149–#151)
+ * and source-record detachment by the administrator (§15.1; #94).
  *
+ *   list     the OPEN candidates in which either publication has a relationship with the professor
+ *            (any status; shared, suppressed and mismatched-status publications included).
  *   dismiss  OPEN → DISMISSED; both publications stay.
- *   merge    B into A in one transaction: source records and professor relationships move to A
- *            (one relationship per professor: APPROVED > PENDING > REJECTED), B's other open
- *            candidates are re-pointed to A, B is removed, A is recomputed unless curated.
- *   detach   a wrongly attached source record moves to its own new publication.
+ *   merge    B into A in one transaction: source records and every professor's relationships move
+ *            to A (one relationship per professor: APPROVED > PENDING > REJECTED), B's other open
+ *            candidates are re-pointed to A, B is removed, A keeps its own status and is recomputed
+ *            field by field. Moved records keep their match_method and match_detail; a merge note
+ *            is appended to match_detail (#151). Any publication statuses may be merged (#150).
+ *   detach   (administrator) a wrongly attached source record moves to its own new publication.
+ *
+ * Candidates are resolved only by a professor linked to either publication; the scope is checked
+ * again inside the resolving transaction, and a candidate outside it is 404 (never disclosed). The
+ * first resolution wins: the candidate is claimed while OPEN, so a concurrent or later attempt is
+ * refused with CANDIDATE_NOT_OPEN and changes nothing. resolved_by_user_id / resolved_at record the
+ * professor's user and the time.
  *
  * Merge and detach run through `SyncService.exclusive` (#91): refused with 409 while a
  * synchronization run executes, and a run cannot start before they have finished. A merge also
@@ -45,7 +55,7 @@ const publicationSummary = {
     createdAt: true,
     updatedAt: true,
     sourceRecords: { select: { source: true } },
-    professors: { select: { status: true } },
+    professors: { select: { status: true, professorId: true } },
   },
 } as const;
 
@@ -59,7 +69,12 @@ const candidateSelect = {
   publicationB: publicationSummary,
 } satisfies Prisma.DuplicateCandidateSelect;
 
-function toCandidate(row: Prisma.DuplicateCandidateGetPayload<{ select: typeof candidateSelect }>) {
+type CandidateRow = Prisma.DuplicateCandidateGetPayload<{ select: typeof candidateSelect }>;
+
+/** A candidate as the professor sees it: each side with the professor's own relationship status (null if none). */
+function toCandidate(row: CandidateRow, professorId: string) {
+  const side = (publication: CandidateRow['publicationA']) =>
+    publication && { ...toSummary(publication), myRelationshipStatus: publication.professors.find((r) => r.professorId === professorId)?.status ?? null };
   return {
     id: row.id,
     reason: row.reason,
@@ -67,17 +82,19 @@ function toCandidate(row: Prisma.DuplicateCandidateGetPayload<{ select: typeof c
     resolvedAt: row.resolvedAt,
     createdAt: row.createdAt,
     // A side is null only when that publication was removed (§6.10).
-    publicationA: row.publicationA && toSummary(row.publicationA),
-    publicationB: row.publicationB && toSummary(row.publicationB),
+    publicationA: side(row.publicationA),
+    publicationB: side(row.publicationB),
   };
 }
 
-/** Candidates by status (default OPEN), oldest first. */
-export async function listCandidates(
-  query: { status: DuplicateCandidateStatus; limit: number; offset: number },
-  client: PrismaClient = defaultClient,
-) {
-  const where = { status: query.status };
+/** Candidates in which either publication has a relationship (any status) with the professor (#149). */
+const linkedTo = (professorId: string): Prisma.DuplicateCandidateWhereInput => ({
+  OR: [{ publicationA: { professors: { some: { professorId } } } }, { publicationB: { professors: { some: { professorId } } } }],
+});
+
+/** The professor's OPEN candidates, oldest first. */
+export async function listCandidates(professorId: string, query: { limit: number; offset: number }, client: PrismaClient = defaultClient) {
+  const where: Prisma.DuplicateCandidateWhereInput = { status: 'OPEN', ...linkedTo(professorId) };
   const [rows, total] = await client.$transaction([
     client.duplicateCandidate.findMany({
       where,
@@ -88,25 +105,34 @@ export async function listCandidates(
     }),
     client.duplicateCandidate.count({ where }),
   ]);
-  return { candidates: rows.map(toCandidate), total, limit: query.limit, offset: query.offset };
+  return { candidates: rows.map((row) => toCandidate(row, professorId)), total, limit: query.limit, offset: query.offset };
 }
 
-async function readCandidate(id: string, client: PrismaClient | Tx) {
-  return toCandidate(await client.duplicateCandidate.findUniqueOrThrow({ where: { id }, select: candidateSelect }));
+async function readCandidate(id: string, professorId: string, client: PrismaClient | Tx) {
+  return toCandidate(await client.duplicateCandidate.findUniqueOrThrow({ where: { id }, select: candidateSelect }), professorId);
 }
 
-/** OPEN → DISMISSED with the administrator and time (conditional, so a concurrent resolution wins once). */
-export async function dismissCandidate(id: string, userId: string, now: Date, client: PrismaClient = defaultClient) {
+/** Whether the professor has a relationship (any status) with either of the publications. */
+async function isLinked(db: PrismaClient | Tx, professorId: string, publicationIds: readonly (string | null)[]): Promise<boolean> {
+  const ids = publicationIds.filter((x): x is string => !!x);
+  return ids.length > 0 && (await db.professorPublication.count({ where: { professorId, publicationId: { in: ids } } })) > 0;
+}
+
+/**
+ * OPEN → DISMISSED with the professor's user and time. The conditional update claims the candidate
+ * only while it is OPEN and linked to the professor, so a concurrent resolution wins exactly once.
+ */
+export async function dismissCandidate(id: string, professorId: string, userId: string, now: Date, client: PrismaClient = defaultClient) {
   const { count } = await client.duplicateCandidate.updateMany({
-    where: { id, status: 'OPEN' },
+    where: { id, status: 'OPEN', ...linkedTo(professorId) },
     data: { status: 'DISMISSED', resolvedByUserId: userId, resolvedAt: now },
   });
   if (count === 0) {
-    const current = await client.duplicateCandidate.findUnique({ where: { id }, select: { status: true } });
-    if (!current) throw candidateNotFound();
+    const current = await client.duplicateCandidate.findUnique({ where: { id }, select: { status: true, publicationAId: true, publicationBId: true } });
+    if (!current || !(await isLinked(client, professorId, [current.publicationAId, current.publicationBId]))) throw candidateNotFound();
     throw notOpen(current.status);
   }
-  return { candidate: await readCandidate(id, client) };
+  return { candidate: await readCandidate(id, professorId, client) };
 }
 
 const RANK: Record<VerificationStatus, number> = { APPROVED: 3, PENDING: 2, REJECTED: 1 };
@@ -119,12 +145,13 @@ interface LockedRelationship {
 }
 
 /**
- * Merges the candidate's other publication into `keepPublicationId` (§8.5, #93). Everything
- * happens in one transaction; any failure leaves all rows unchanged.
+ * Merges the candidate's other publication into `keepPublicationId`, chosen by the professor (§8.5;
+ * #93, #149–#151). Everything happens in one transaction; any failure leaves all rows unchanged.
  */
 export async function mergeCandidate(
   id: string,
   keepPublicationId: string,
+  professorId: string,
   userId: string,
   deps: { sync: SyncService; now: () => Date; client?: PrismaClient },
 ) {
@@ -144,6 +171,8 @@ export async function mergeCandidate(
       });
       const candidate = await tx.duplicateCandidate.findUnique({ where: { id } });
       if (!candidate) throw candidateNotFound();
+      // Outside the professor's scope the candidate is not disclosed, whatever its status.
+      if (!(await isLinked(tx, professorId, [candidate.publicationAId, candidate.publicationBId]))) throw candidateNotFound();
       if (claimed.count === 0) throw notOpen(candidate.status);
       const { publicationAId: a, publicationBId: b } = candidate;
       if (!a || !b) {
@@ -156,42 +185,40 @@ export async function mergeCandidate(
       const remove = keep === a ? b : a;
 
       // Row locks (in id order): concurrent writes referencing either publication wait for this merge.
-      const locked = await tx.$queryRaw<{ id: string; status: string }[]>`
-        SELECT id, status::text AS status FROM publications WHERE id = ANY(${[a, b]}::uuid[]) ORDER BY id FOR UPDATE`;
+      // Publications of any status may be merged; the kept one keeps its own status (#150).
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM publications WHERE id = ANY(${[a, b]}::uuid[]) ORDER BY id FOR UPDATE`;
       if (locked.length !== 2) throw new HttpError(404, 'PUBLICATION_NOT_FOUND', 'Publication not found');
-      if (locked[0].status !== locked[1].status) {
-        throw new HttpError(409, 'MERGE_STATUS_MISMATCH', 'An active and a suppressed publication cannot be merged', {
-          statuses: Object.fromEntries(locked.map((p) => [p.id, p.status])),
-        });
-      }
       // Revalidation under the row locks: a title that appeared after the locks were chosen (an
       // edit, or a record attached by DOI meanwhile) is not protected, so the merge is refused.
       if ((await titlesOf(tx, [a, b])).some((title) => !lockedTitles.includes(title))) {
         throw new HttpError(409, 'MERGE_CONFLICT', 'The publications changed while the merge was being prepared; try again');
       }
 
-      // 1. Source records move to the surviving publication; their provenance notes the merge.
+      // Both publications' relationships, locked: the professor must still be linked to either one
+      // (authoritative scope check; a relationship removed meanwhile makes the candidate 404).
+      const relationships = await tx.$queryRaw<LockedRelationship[]>`
+        SELECT id, professor_id, publication_id, status::text AS status FROM professor_publications
+        WHERE publication_id = ANY(${[keep, remove]}::uuid[]) ORDER BY id FOR UPDATE`;
+      if (!relationships.some((r) => r.professor_id === professorId)) throw candidateNotFound();
+
+      // 1. Source records move to the surviving publication. Their attachment provenance is kept:
+      //    match_method unchanged, match_detail kept in full with a merge note appended (#151) — the
+      //    note is the record's only link to the merge once the candidate's reference becomes NULL.
+      //    Who resolved the candidate is recorded on the candidate, not here.
       const records = await tx.publicationSourceRecord.findMany({
         where: { publicationId: remove },
-        select: { id: true, matchMethod: true, matchDetail: true },
+        select: { id: true, matchDetail: true },
       });
       for (const record of records) {
-        const previous = `${record.matchMethod}${record.matchDetail ? `: ${record.matchDetail}` : ''}`;
         await tx.publicationSourceRecord.update({
           where: { id: record.id },
-          data: {
-            publicationId: keep,
-            matchMethod: 'ADMIN',
-            matchDetail: `Merged by the administrator from publication ${remove} (duplicate candidate ${id}); previously ${previous}`,
-          },
+          data: { publicationId: keep, matchDetail: withMergeNote(record.matchDetail, id, remove) },
         });
       }
 
       // 2. Relationships: one per professor, APPROVED > PENDING > REJECTED; a tie keeps the
       //    surviving publication's relationship. The winning row is kept with its decision metadata.
-      const relationships = await tx.$queryRaw<LockedRelationship[]>`
-        SELECT id, professor_id, publication_id, status::text AS status FROM professor_publications
-        WHERE publication_id = ANY(${[keep, remove]}::uuid[]) ORDER BY id FOR UPDATE`;
       let relationshipsMoved = 0;
       let relationshipsRemoved = 0;
       for (const moving of relationships.filter((r) => r.publication_id === remove)) {
@@ -255,8 +282,14 @@ export async function mergeCandidate(
         candidatesClosed,
       };
     }));
-    return { candidate: await readCandidate(id, client), publication: await getPublication(keepPublicationId, client), merge: result };
+    return { candidate: await readCandidate(id, professorId, client), merge: result };
   });
+}
+
+/** match_detail after a merge: the original text in full, then the merge reference (#151). */
+export function withMergeNote(matchDetail: string | null, candidateId: string, fromPublicationId: string): string {
+  const note = `moved by duplicate candidate ${candidateId} from publication ${fromPublicationId}`;
+  return matchDetail ? `${matchDetail}; ${note}` : note.charAt(0).toUpperCase() + note.slice(1);
 }
 
 /** Distinct normalized titles of the publications and their source records, sorted. */

@@ -49,13 +49,13 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/professor/pending", label: "Pending", Icon: ListChecks, badge: "pending" },
     { href: "/professor/publications", label: "My publications", Icon: BookOpen },
     { href: "/professor/add", label: "Add publication", Icon: FilePlus2 },
+    { href: "/professor/duplicates", label: "Possible duplicates", Icon: GitMerge, badge: "candidates" },
     { href: "/professor/profile", label: "Profile", Icon: UserRound },
   ],
   ADMIN: [
     { href: "/admin", label: "Dashboard", Icon: LayoutDashboard },
     { href: "/admin/professors", label: "Professors", Icon: Users },
     { href: "/admin/publications", label: "Publications", Icon: Library },
-    { href: "/admin/duplicates", label: "Duplicates", Icon: GitMerge, badge: "candidates" },
     { href: "/admin/sync", label: "Synchronization", Icon: RefreshCw },
     { href: "/admin/journal-metrics", label: "Journal metrics", Icon: Gauge },
     { href: "/admin/analytics", label: "Analytics", Icon: ChartColumn },
@@ -66,33 +66,51 @@ function isActive(pathname: string, href: string) {
   return href === "/professor" || href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Pending-verification or open-candidate count for the navigation badge. */
-function useBadge(role: Role, pathname: string) {
-  const [count, setCount] = useState<number | null>(null);
+type BadgeCounts = Partial<Record<NonNullable<NavItem["badge"]>, number>>;
+
+const BADGES_REFRESH = "nav-badges:refresh";
+
+/** Reloads the navigation badges now (e.g. after a candidate is resolved), without a page change. */
+export function refreshNavBadges() {
+  window.dispatchEvent(new Event(BADGES_REFRESH));
+}
+
+/** The professor's pending-verification and open-candidate counts for the navigation badges. */
+function useBadges(role: Role, pathname: string) {
+  const [counts, setCounts] = useState<BadgeCounts>({});
+  const [generation, setGeneration] = useState(0);
   useEffect(() => {
+    const refresh = () => setGeneration((g) => g + 1);
+    window.addEventListener(BADGES_REFRESH, refresh);
+    return () => window.removeEventListener(BADGES_REFRESH, refresh);
+  }, []);
+  useEffect(() => {
+    if (role !== "PROFESSOR") return;
     let active = true;
-    const load =
-      role === "PROFESSOR"
-        ? api<OwnList>("/me/publications?status=PENDING&limit=1").then((r) => r.counts.PENDING)
-        : api<{ total: number }>("/admin/duplicate-candidates?status=OPEN&limit=1").then((r) => r.total);
-    load.then(
-      (n) => active && setCount(n),
-      () => active && setCount(null),
-    );
+    const load = async (key: keyof BadgeCounts, request: Promise<number>) => {
+      try {
+        const n = await request;
+        if (active) setCounts((c) => ({ ...c, [key]: n }));
+      } catch {
+        if (active) setCounts((c) => ({ ...c, [key]: undefined }));
+      }
+    };
+    void load("pending", api<OwnList>("/me/publications?status=PENDING&limit=1").then((r) => r.counts.PENDING));
+    void load("candidates", api<{ total: number }>("/me/duplicate-candidates?limit=1").then((r) => r.total));
     return () => {
       active = false;
     };
-  }, [role, pathname]);
-  return count;
+  }, [role, pathname, generation]);
+  return counts;
 }
 
 function NavList({ role, pathname, onNavigate, collapsed = false }: { role: Role; pathname: string; onNavigate?: () => void; collapsed?: boolean }) {
-  const badge = useBadge(role, pathname);
+  const badges = useBadges(role, pathname);
   return (
     <ul className="flex flex-col gap-0.5">
       {NAV[role].map(({ href, label, Icon, badge: badgeKind }) => {
         const active = isActive(pathname, href);
-        const count = badgeKind ? badge : null;
+        const count = badgeKind ? (badges[badgeKind] ?? null) : null;
         return (
           <li key={href}>
             <Link

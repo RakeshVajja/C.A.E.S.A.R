@@ -86,7 +86,7 @@ export default function SyncRunPage() {
             },
             { label: "Records fetched", value: formatNumber(data.recordsFetched) },
             { label: "New / updated", value: `${formatNumber(data.recordsNew)} / ${formatNumber(data.recordsUpdated)}`, note: "source records" },
-            { label: "New links", value: formatNumber(data.linksCreated), note: `${formatNumber(data.candidatesCreated)} possible duplicates` },
+            { label: "New links", value: formatNumber(data.linksCreated), note: `${formatNumber(data.candidatesCreated)} possible duplicates, for professors to resolve` },
           ]}
         />
         <section aria-labelledby="coverage-heading">

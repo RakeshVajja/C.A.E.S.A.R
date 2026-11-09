@@ -78,7 +78,15 @@ export default function AddPublicationPage() {
         <div className="flex max-w-3xl flex-col gap-4">
           <Alert tone="success" role="status" title={RELATIONSHIP[result.match.relationship]}>
             {OUTCOME[result.match.outcome]}
-            {result.match.candidatesCreated > 0 && " A similar publication exists; the administrator will check whether they are the same."}
+            {result.match.candidatesCreated > 0 && (
+              <>
+                {" A similar publication exists: compare them under "}
+                <Link href="/professor/duplicates" className="text-ink underline underline-offset-4">
+                  Possible duplicates
+                </Link>
+                .
+              </>
+            )}
           </Alert>
           <Panel className="px-5 py-4">
             <p className="font-serif text-lg leading-7 font-medium">{p.title}</p>

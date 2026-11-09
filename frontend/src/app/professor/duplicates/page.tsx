@@ -1,54 +1,55 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Ban, GitMerge } from "lucide-react";
+import { refreshNavBadges } from "@/components/app-shell";
 import { CuratedChip, SourceChips, StatusChip } from "@/components/chips";
 import { ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast";
-import { Button, Doi, EmptyState, LoadError, PageHeader, Pagination, Panel, Segmented, SkeletonRows } from "@/components/ui";
+import { Button, Doi, EmptyState, LoadError, PageHeader, Pagination, Panel, SkeletonRows } from "@/components/ui";
 import { api, ApiError, errorMessage, query } from "@/lib/api";
 import { formatDate, formatNumber, plural, TYPE_LABEL } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
-import type { Candidate, CandidateStatus, Paged, PublicationSummary } from "@/lib/types";
+import type { Candidate, CandidatePublication, Paged } from "@/lib/types";
 
 /**
- * Duplicate candidates (Project_plan.md §8.5): possible duplicates the matching engine deliberately
- * did not merge. Dismiss keeps both; merge keeps the chosen publication and moves everything else into it.
+ * Possible duplicates (Project_plan.md §8.5; decisions #149–#151): every open duplicate candidate in
+ * which either publication is linked to the signed-in professor, in any status. Dismiss keeps both;
+ * merge keeps the chosen publication and moves everything else into it, for every professor.
  */
 
 const PAGE_SIZE = 20;
-const STATUSES: CandidateStatus[] = ["OPEN", "MERGED", "DISMISSED"];
-const LABEL: Record<CandidateStatus, string> = { OPEN: "Open", MERGED: "Merged", DISMISSED: "Dismissed" };
+export const CANDIDATES_PATH = "/me/duplicate-candidates";
 
 const CONFLICT: Record<string, string> = {
   SYNC_ALREADY_RUNNING: "A synchronization run is in progress. Merge when it has finished.",
-  MERGE_STATUS_MISMATCH: "An active and a suppressed publication cannot be merged. Restore or suppress one of them first.",
   MERGE_CONFLICT: "The publications changed while the merge was being prepared. Try again.",
-  CANDIDATE_NOT_OPEN: "This candidate was already resolved. Refresh the list.",
+  CANDIDATE_NOT_OPEN: "This candidate was already resolved, possibly by another professor. The list has been refreshed.",
+  CANDIDATE_NOT_FOUND: "This candidate no longer involves your publications. The list has been refreshed.",
   CANDIDATE_INCOMPLETE: "One of the publications no longer exists. Dismiss this candidate instead.",
 };
 
-type Pending = { candidate: Candidate; kind: "dismiss" } | { candidate: Candidate; kind: "merge"; keep: PublicationSummary; remove: PublicationSummary };
+const STATUS_NOTE: Record<CandidatePublication["status"], string> = {
+  ACTIVE: "The merged publication stays active: visible in professors’ lists and analytics.",
+  SUPPRESSED: "The merged publication stays suppressed: hidden from professors’ lists and analytics, including the links moved into it.",
+};
+
+type Pending = { candidate: Candidate; kind: "dismiss" } | { candidate: Candidate; kind: "merge"; keep: CandidatePublication; remove: CandidatePublication };
 
 function CandidateList() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const toast = useToast();
-  const status = (STATUSES as string[]).includes(params.get("status") ?? "") ? (params.get("status") as CandidateStatus) : "OPEN";
   const offset = Math.max(0, Number(params.get("offset")) || 0);
-  const key = `/admin/duplicate-candidates${query({ status, limit: PAGE_SIZE, offset })}`;
+  const key = `${CANDIDATES_PATH}${query({ limit: PAGE_SIZE, offset })}`;
   const { data, error, reload } = useResource(key, (signal) => api<Paged & { candidates: Candidate[] }>(key, { signal }));
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const go = (next: { status?: CandidateStatus; offset?: number }) => {
-    const s = next.status ?? status;
-    router.replace(`${pathname}${query({ status: s === "OPEN" ? undefined : s, offset: next.offset || undefined })}`, { scroll: false });
-  };
+  const go = (next: { offset?: number }) => router.replace(`${pathname}${query({ offset: next.offset || undefined })}`, { scroll: false });
 
   async function apply() {
     if (!pending) return;
@@ -56,15 +57,12 @@ function CandidateList() {
     setErr(null);
     try {
       if (pending.kind === "dismiss") {
-        await api(`/admin/duplicate-candidates/${pending.candidate.id}/dismiss`, { method: "POST" });
+        await api(`${CANDIDATES_PATH}/${pending.candidate.id}/dismiss`, { method: "POST" });
         toast("Candidate dismissed. Both publications stay.");
       } else {
         const r = await api<{ merge: { sourceRecordsMoved: number; relationshipsMoved: number; relationshipsRemoved: number } }>(
-          `/admin/duplicate-candidates/${pending.candidate.id}/merge`,
-          {
-            method: "POST",
-            body: { keepPublicationId: pending.keep.id },
-          },
+          `${CANDIDATES_PATH}/${pending.candidate.id}/merge`,
+          { method: "POST", body: { keepPublicationId: pending.keep.id } },
         );
         const { sourceRecordsMoved: records, relationshipsMoved: moved, relationshipsRemoved: combined } = r.merge;
         toast(
@@ -72,9 +70,15 @@ function CandidateList() {
         );
       }
       setPending(null);
+      // A merge can also change the pending count (links move), so every badge is reloaded.
+      refreshNavBadges();
       await reload();
     } catch (e) {
       setErr(e instanceof ApiError && CONFLICT[e.code] ? CONFLICT[e.code] : errorMessage(e));
+      if (e instanceof ApiError && (e.code === "CANDIDATE_NOT_OPEN" || e.code === "CANDIDATE_NOT_FOUND")) {
+        refreshNavBadges();
+        void reload();
+      }
     } finally {
       setBusy(false);
     }
@@ -82,42 +86,30 @@ function CandidateList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <Segmented
-          label="Candidate status"
-          value={status}
-          onChange={(s) => go({ status: s, offset: 0 })}
-          options={STATUSES.map((s) => ({ value: s, label: LABEL[s], count: s === status ? data?.total : undefined }))}
-        />
-      </div>
       {error && !data ? (
         <LoadError error={error} onRetry={() => void reload()} />
       ) : !data ? (
         <Panel>
-          <SkeletonRows rows={4} label="Loading candidates" />
+          <SkeletonRows rows={4} label="Loading possible duplicates" />
         </Panel>
       ) : data.candidates.length === 0 ? (
         <Panel>
-          <EmptyState>
-            {status === "OPEN"
-              ? "No open candidates. Uncertain matches found during synchronization or manual entry appear here."
-              : `No ${LABEL[status].toLowerCase()} candidates.`}
-          </EmptyState>
+          <EmptyState>No possible duplicates involve your publications. Uncertain matches found during synchronization or manual entry appear here.</EmptyState>
         </Panel>
       ) : (
         <>
+          <p className="text-[13px] text-text-muted" role="status">
+            {plural(data.total, "possible duplicate")} to resolve.
+          </p>
           <ol className="flex flex-col gap-4">
             {data.candidates.map((c) => (
               <li key={c.id}>
                 <Panel labelledBy={`cand-${c.id}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-                    <h2 id={`cand-${c.id}`} className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
-                      <StatusChip status={c.status} />
-                      <span className="font-normal text-text-muted">{c.reason}</span>
+                    <h2 id={`cand-${c.id}`} className="text-[15px] font-normal text-text-muted">
+                      {c.reason}
                     </h2>
-                    <p className="text-[13px] text-text-muted">
-                      {c.status === "OPEN" ? `Found ${formatDate(c.createdAt)}` : `Resolved ${formatDate(c.resolvedAt)}`}
-                    </p>
+                    <p className="text-[13px] text-text-muted">Found {formatDate(c.createdAt)}</p>
                   </div>
                   <div className="grid md:grid-cols-2">
                     {[c.publicationA, c.publicationB].map((p, i) => (
@@ -125,7 +117,7 @@ function CandidateList() {
                         {p ? (
                           <>
                             <Side publication={p} />
-                            {c.status === "OPEN" && c.publicationA && c.publicationB && (
+                            {c.publicationA && c.publicationB && (
                               <div>
                                 <Button
                                   compact
@@ -143,14 +135,12 @@ function CandidateList() {
                       </div>
                     ))}
                   </div>
-                  {c.status === "OPEN" && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
-                      <p className="text-[13px] text-text-muted">Different papers? Dismiss to keep both.</p>
-                      <Button compact variant="quiet" icon={<Ban aria-hidden size={16} />} onClick={() => setPending({ candidate: c, kind: "dismiss" })}>
-                        Dismiss — not duplicates
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+                    <p className="text-[13px] text-text-muted">Different papers? Dismiss to keep both.</p>
+                    <Button compact variant="quiet" icon={<Ban aria-hidden size={16} />} onClick={() => setPending({ candidate: c, kind: "dismiss" })}>
+                      Dismiss — not duplicates
+                    </Button>
+                  </div>
                 </Panel>
               </li>
             ))}
@@ -181,12 +171,13 @@ function CandidateList() {
               {TYPE_LABEL[pending.keep.typeFamily]}).
             </p>
             <p>
-              The other publication is removed. Its source records and professor links move to the kept one; a professor linked to both keeps one decision
-              (approved before pending before rejected).
+              The other publication is removed. Its source records and every professor’s links move to the kept one; a professor linked to both keeps
+              one decision (approved before pending before rejected).
               {pending.keep.isCurated
-                ? " The kept publication is curated, so its metadata does not change."
-                : " Its metadata is then recomputed from all source records."}
+                ? " The kept publication has curated details, which do not change."
+                : " Its details are then recomputed from all source records."}
             </p>
+            {pending.keep.status !== pending.remove.status && <p className="font-medium">{STATUS_NOTE[pending.keep.status]}</p>}
             <p className="text-[13px] text-text-muted">This cannot be undone. Not available while a synchronization run is in progress.</p>
           </>
         ) : (
@@ -197,12 +188,10 @@ function CandidateList() {
   );
 }
 
-function Side({ publication: p }: { publication: PublicationSummary }) {
+function Side({ publication: p }: { publication: CandidatePublication }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Link href={`/admin/publications/${p.id}`} className="font-serif text-base leading-6 font-medium text-ink hover:underline underline-offset-4">
-        {p.title}
-      </Link>
+      <p className="font-serif text-base leading-6 font-medium">{p.title}</p>
       <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1 text-[13px] leading-5">
         <dt className="text-text-muted">Type</dt>
         <dd>{TYPE_LABEL[p.typeFamily]}</dd>
@@ -210,10 +199,14 @@ function Side({ publication: p }: { publication: PublicationSummary }) {
         <dd className="tabular-nums">{p.year ?? "Year unknown"}</dd>
         <dt className="text-text-muted">Venue</dt>
         <dd>{p.venue ?? "–"}</dd>
+        <dt className="text-text-muted">Authors</dt>
+        <dd>{p.authorNamesDisplay ?? "–"}</dd>
         <dt className="text-text-muted">DOI</dt>
         <dd>
           <Doi doi={p.doi} />
         </dd>
+        <dt className="text-text-muted">Your link</dt>
+        <dd>{p.myRelationshipStatus ? <StatusChip status={p.myRelationshipStatus} /> : "Not linked to you"}</dd>
         <dt className="text-text-muted">Professors</dt>
         <dd>
           {formatNumber(p.relationshipCounts.approved)} approved · {formatNumber(p.relationshipCounts.pending)} pending ·{" "}
@@ -229,12 +222,12 @@ function Side({ publication: p }: { publication: PublicationSummary }) {
   );
 }
 
-export default function DuplicatesPage() {
+export default function PossibleDuplicatesPage() {
   return (
     <>
       <PageHeader
-        title="Duplicate candidates"
-        description="Possible duplicates that were not merged automatically because the evidence was not strong enough. Compare both publications, then merge them or dismiss the candidate."
+        title="Possible duplicates"
+        description="Publications that may be the same paper but were not merged automatically, because the evidence was not strong enough. Compare both, then keep one and merge, or dismiss if they are different papers. Your decision applies for every professor linked to them."
       />
       <Suspense fallback={<SkeletonRows rows={4} />}>
         <CandidateList />

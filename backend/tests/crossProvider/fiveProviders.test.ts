@@ -388,8 +388,8 @@ describe('citation observations', () => {
     expect(detail.body.publication.sourceRecords.map((r: { source: string }) => r.source).sort()).toEqual(['DBLP', 'OPENALEX', 'ORCID', 'SCOPUS', 'WOS']);
   });
 
-  it('observations follow their source record through an administrator merge and detach, and are removed only with it', async () => {
-    const { user } = await professorWithFiveIdentities();
+  it('observations follow their source record through a professor\'s merge and an administrator detach, and are removed only with it', async () => {
+    const { user, professor } = await professorWithFiveIdentities();
     await syncRun(papers(), T1);
     const sync = new SyncService({ clients: fiveProviderClients({}), now: testClock(T2).now, providers: allProvidersPresent(), clarivateGate: OPEN_CLARIVATE_GATE });
 
@@ -398,7 +398,7 @@ describe('citation observations', () => {
     const scopusC = await prisma.publicationSourceRecord.findFirstOrThrow({ where: { source: 'SCOPUS', externalId: ext.SCOPUS(3) } });
     const scopusCObservations = await prisma.citationObservation.findMany({ where: { sourceRecordId: scopusC.id } });
     const candidate = await prisma.duplicateCandidate.findFirstOrThrow({ where: { OR: [{ publicationAId: scopusC.publicationId }, { publicationBId: scopusC.publicationId }] } });
-    await mergeCandidate(candidate.id, c.id, user.id, { sync, now: () => new Date(T2) });
+    await mergeCandidate(candidate.id, c.id, professor.id, user.id, { sync, now: () => new Date(T2) });
     expect(await prisma.publicationSourceRecord.findUniqueOrThrow({ where: { id: scopusC.id } })).toMatchObject({ publicationId: c.id });
     expect(await prisma.citationObservation.findMany({ where: { sourceRecordId: scopusC.id } })).toEqual(scopusCObservations);
     expect(await prisma.citationObservation.count({ where: { sourceRecord: { publicationId: c.id } } })).toBe(2); // Scopus 1 + WoS 1, kept apart

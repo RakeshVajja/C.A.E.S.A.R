@@ -48,8 +48,8 @@ export default function AdminHelpPage() {
           body: (
             <ul>
               <li>
-                <strong className="font-medium">Possible duplicates</strong> that were not merged automatically wait in{" "}
-                <HelpLink href="/admin/duplicates">Duplicates</HelpLink>. Compare both, then keep one and merge, or dismiss if they are different papers.
+                <strong className="font-medium">Possible duplicates</strong> that were not merged automatically are resolved by the professors linked to them,
+                under their Possible duplicates page; the administrator has no part in that.
               </li>
               <li>
                 <strong className="font-medium">Wrong metadata:</strong> open the publication in <HelpLink href="/admin/publications">Publications</HelpLink>{" "}

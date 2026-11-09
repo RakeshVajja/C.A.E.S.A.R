@@ -60,7 +60,6 @@ export default function PublicationDetailPage() {
         <MetadataSection publication={data} onSaved={setData} />
         <SourceRecordsSection publication={data} onChanged={() => void reload()} />
         <RelationshipsSection publication={data} />
-        <CandidatesSection publication={data} />
         <SuppressionSection publication={data} onSaved={setData} />
       </div>
     </>
@@ -476,43 +475,6 @@ function RelationshipsSection({ publication }: { publication: PublicationDetail 
             </table>
           </div>
         )}
-      </Panel>
-    </section>
-  );
-}
-
-function CandidatesSection({ publication }: { publication: PublicationDetail }) {
-  if (publication.duplicateCandidates.length === 0) return null;
-  return (
-    <section aria-labelledby="cand-heading">
-      <SectionTitle
-        id="cand-heading"
-        actions={
-          <Link href="/admin/duplicates" className="text-[15px] text-ink hover:underline underline-offset-4">
-            Resolve in duplicate candidates
-          </Link>
-        }
-      >
-        Possible duplicates
-      </SectionTitle>
-      <Panel>
-        <ul className="divide-y divide-border">
-          {publication.duplicateCandidates.map((c) => (
-            <li key={c.id} className="flex flex-col gap-1 px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusChip status={c.status} />
-                {c.otherPublication ? (
-                  <Link href={`/admin/publications/${c.otherPublication.id}`} className="font-serif text-ink hover:underline underline-offset-4">
-                    {c.otherPublication.title}
-                  </Link>
-                ) : (
-                  <span className="text-text-muted">The other publication was merged away</span>
-                )}
-              </div>
-              <p className="text-[13px] text-text-muted">{c.reason}</p>
-            </li>
-          ))}
-        </ul>
       </Panel>
     </section>
   );

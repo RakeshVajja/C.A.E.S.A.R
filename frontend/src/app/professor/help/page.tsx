@@ -56,7 +56,7 @@ export default function ProfessorHelpPage() {
               </p>
               <p>
                 If the publication already exists it is reused rather than duplicated, and it is added to your approved list. When a similar but not identical
-                publication exists, the administrator is asked to check whether they are the same.
+                publication exists, the pair appears under <HelpLink href="/professor/duplicates">Possible duplicates</HelpLink> for you to decide.
               </p>
             </>
           ),
@@ -73,8 +73,14 @@ export default function ProfessorHelpPage() {
                 <strong className="font-medium">A publication is missing:</strong> add it yourself; it may also appear after the next monthly synchronization.
               </li>
               <li>
-                <strong className="font-medium">Wrong metadata, a duplicate entry, or a wrong external identity:</strong> tell the department administrator.
-                They can correct publication details, merge duplicates and fix your identities.
+                <strong className="font-medium">The same paper listed twice:</strong> open{" "}
+                <HelpLink href="/professor/duplicates">Possible duplicates</HelpLink>, compare both, then keep one and merge, or dismiss if they are different
+                papers. You can resolve every possible duplicate that involves one of your publications — approved, pending or rejected — and your decision
+                applies for every professor linked to them.
+              </li>
+              <li>
+                <strong className="font-medium">Wrong metadata or a wrong external identity:</strong> tell the department administrator. They can correct
+                publication details and fix your identities.
               </li>
             </ul>
           ),
