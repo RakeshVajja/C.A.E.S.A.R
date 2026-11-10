@@ -80,6 +80,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   error,
+  confirmDisabled = false,
 }: {
   open: boolean;
   title: string;
@@ -88,6 +89,8 @@ export function ConfirmDialog({
   busyLabel?: string;
   danger?: boolean;
   busy?: boolean;
+  /** The confirm button stays disabled (e.g. until a typed confirmation matches). */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onClose: () => void;
   error?: string | null;
@@ -103,7 +106,7 @@ export function ConfirmDialog({
           <Button onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={busy} loadingLabel={busyLabel}>
+          <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={busy} loadingLabel={busyLabel} disabled={confirmDisabled}>
             {confirmLabel}
           </Button>
         </>

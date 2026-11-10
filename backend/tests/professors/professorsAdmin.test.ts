@@ -180,14 +180,15 @@ describe('listing and details', () => {
     expect(detail.body.professor).toMatchObject({ name: 'Ada Lovelace', account: { email: 'ada@example.org' } });
   });
 
-  it('answers 404 for unknown and malformed IDs; there is no delete route', async () => {
+  it('answers 404 for unknown and malformed IDs; deletion needs a typed confirmation (#170, tests/professors/deletion.test.ts)', async () => {
     const { as } = await setup();
     const prof = await createProf(as);
     expect((await as('get', '/api/admin/professors/00000000-0000-4000-8000-000000000099')).body.error.code).toBe('PROFESSOR_NOT_FOUND');
     expect((await as('get', '/api/admin/professors/not-a-uuid')).body.error.code).toBe('PROFESSOR_NOT_FOUND');
+    // Without the confirmation body the request is refused before anything happens.
     const del = await as('delete', `/api/admin/professors/${prof.body.professor.id}`);
-    expect(del.status).toBe(404);
-    expect(del.body.error.code).toBe('NOT_FOUND');
+    expect(del.status).toBe(400);
+    expect(del.body.error.code).toBe('VALIDATION_ERROR');
     expect(await prisma.professor.count()).toBe(1);
   });
 });

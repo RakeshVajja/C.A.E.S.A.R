@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Mail, Plus, Power, Trash2 } from "lucide-react";
 import { StatusChip } from "@/components/chips";
@@ -262,6 +262,73 @@ function ProfileSection({ professor, onSaved }: { professor: ProfessorDetail; on
   );
 }
 
+/**
+ * Permanent deletion of an inactive professor's record (decision #170): the account, identities,
+ * every publication link, and the publications no other professor is linked to. Irreversible; the
+ * administrator types the professor's name, and the server checks it again.
+ */
+function DeleteProfessor({ professor }: { professor: ProfessorDetail }) {
+  const toast = useToast();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const matches = typed.trim() === professor.name.trim();
+
+  async function remove() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { deleted } = await api<{ deleted: { publications: number; relationships: number } }>(`/admin/professors/${professor.id}`, {
+        method: "DELETE",
+        body: { confirmName: typed },
+      });
+      toast(`${professor.name} was deleted with ${formatNumber(deleted.relationships)} publication links; ${formatNumber(deleted.publications)} publications only they were linked to were deleted.`);
+      router.push("/admin/professors");
+    } catch (e) {
+      setErr(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Button variant="danger" icon={<Trash2 aria-hidden size={18} />} onClick={() => setOpen(true)}>
+        Delete professor
+      </Button>
+      <ConfirmDialog
+        open={open}
+        title={`Delete ${professor.name} permanently?`}
+        confirmLabel="Delete permanently"
+        busyLabel="Deleting…"
+        danger
+        busy={busy}
+        error={err}
+        confirmDisabled={!matches}
+        onConfirm={() => void remove()}
+        onClose={() => {
+          if (busy) return;
+          setOpen(false);
+          setTyped("");
+          setErr(null);
+        }}
+      >
+        <p>This cannot be undone. It deletes, from the database:</p>
+        <ul className="list-disc pl-5 text-[15px]">
+          <li>the professor&apos;s record, login account and external identities;</li>
+          <li>all their publication links — approved, pending and rejected;</li>
+          <li>every publication no other professor is linked to, with its source records and citation data.</li>
+        </ul>
+        <p>Publications shared with other professors are kept, with those professors&apos; decisions.</p>
+        <Field label={`Type “${professor.name}” to confirm`}>
+          {(p) => <input {...p} className="input" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />}
+        </Field>
+      </ConfirmDialog>
+    </>
+  );
+}
+
 function StatusSection({ professor, onSaved }: { professor: ProfessorDetail; onSaved: (p: ProfessorDetail) => void }) {
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
@@ -295,9 +362,12 @@ function StatusSection({ professor, onSaved }: { professor: ProfessorDetail; onS
             ? "Active: the professor can sign in and their active identities are synchronized."
             : "Inactive: the professor cannot sign in and is not synchronized. All publications and decisions are kept."}
         </p>
-        <Button variant={professor.isActive ? "danger" : "primary"} icon={<Power aria-hidden size={18} />} onClick={() => setConfirming(true)}>
-          {professor.isActive ? "Deactivate professor" : "Reactivate professor"}
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button variant={professor.isActive ? "danger" : "primary"} icon={<Power aria-hidden size={18} />} onClick={() => setConfirming(true)}>
+            {professor.isActive ? "Deactivate professor" : "Reactivate professor"}
+          </Button>
+          {!professor.isActive && <DeleteProfessor professor={professor} />}
+        </div>
       </Panel>
       <ConfirmDialog
         open={confirming}

@@ -19,6 +19,8 @@ import {
   setProfessorActive,
   updateProfessor,
 } from '../services/professors/professors';
+import { deleteProfessor } from '../services/professors/deletion';
+import type { SyncService } from '../services/sync/syncService';
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 
@@ -43,6 +45,8 @@ const updateBody = z
   .strictObject({ name: name.optional(), department: optionalText, designation: optionalText, email: email.optional() })
   .refine((body) => Object.keys(body).length > 0, 'Provide at least one field to change');
 const statusBody = z.strictObject({ isActive: z.boolean() });
+/** Permanent deletion (#170): the administrator types the professor's exact name. */
+const deletionBody = z.strictObject({ confirmName: z.string().max(500) });
 const accountBody = z.strictObject({ email });
 const previewBody = z.strictObject({ source, externalId: z.string().trim().min(1).max(200) });
 const saveBody = z.strictObject({ previewToken: z.string().min(1).max(4096) });
@@ -68,7 +72,7 @@ function noStore(res: Response): Response {
   return res.set('Cache-Control', 'no-store');
 }
 
-export function createAdminProfessorsRouter(deps: { identityClients: IdentityClients; now: () => Date; mailer: Mailer | null }): Router {
+export function createAdminProfessorsRouter(deps: { identityClients: IdentityClients; now: () => Date; mailer: Mailer | null; sync: SyncService }): Router {
   const router = Router();
   const invitationDeps = { mailer: deps.mailer, now: deps.now };
   const resendLimiter = new RateLimiter(() => deps.now().getTime());
@@ -95,6 +99,13 @@ export function createAdminProfessorsRouter(deps: { identityClients: IdentityCli
   router.patch('/:professorId/status', async (req, res) => {
     const body = parseBody(statusBody, req.body);
     res.json({ professor: await setProfessorActive(professorId(req.params.professorId), body.isActive) });
+  });
+
+  // Permanent deletion of an inactive professor's record, sole-owner publications included (#170).
+  router.delete('/:professorId', async (req, res) => {
+    const body = parseBody(deletionBody, req.body);
+    const id = professorId(req.params.professorId);
+    noStore(res).json({ deleted: await deleteProfessor(id, body.confirmName, { sync: deps.sync, now: deps.now, actorUserId: req.auth!.user.id }) });
   });
 
   router.post('/:professorId/account', async (req, res) => {

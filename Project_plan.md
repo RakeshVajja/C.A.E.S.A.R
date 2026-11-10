@@ -72,7 +72,7 @@ The system must:
 ## 3.1 In Scope
 
 * **Users:** Administrator, Professor
-* **Professor management:** create, edit, deactivate; manage external identities
+* **Professor management:** create, edit, deactivate, permanently delete an inactive professor's record (#170); manage external identities
 * **Publication management:** automatic discovery, manual addition, verification, rejection, metadata updates, duplicate prevention, multi-source aggregation, admin suppression, admin resolution of duplicate candidates
 * **Sources:** OpenAlex, DBLP, ORCID, Scopus, Web of Science (publication discovery); JCR (journal metrics only)
 * **Citation observations:** per-provider citation counts from Scopus and Web of Science, kept independently over time (#111)
@@ -96,7 +96,7 @@ Must NOT be implemented unless explicitly approved later:
 * Queue infrastructure (Redis, BullMQ), microservices, GraphQL
 * OAuth/SSO, refresh-token infrastructure, complex RBAC
 * Docker/Kubernetes
-* Hard deletion of professors (initially)
+* Hard deletion of professors (initially) — *decided 2026-11-10 (#170): an inactive professor's record can be permanently deleted by the administrator; see §6.10*
 
 ---
 
@@ -203,7 +203,7 @@ Professor
 
 * A professor has at most one user account; the administrator has no Professor record.
 * Contact/login email lives on `User`.
-* Professors are **deactivated**, not hard-deleted (hard delete deferred).
+* Professors are **deactivated**; an inactive professor's record can then be permanently deleted by the administrator (#170, replacing "hard delete deferred").
 
 ## 6.3 ExternalIdentity
 
@@ -370,7 +370,7 @@ SyncTask
 * Deleting an `ExternalIdentity` sets `ProfessorPublication.discovered_via_identity_id` to `NULL` (identity removal cleanup is described in Section 12.4).
 * A `Publication` cannot be deleted while source records or professor relationships reference it; use `SUPPRESSED`.
 * `SyncTask` rows belong to their `SyncRun` (deleted with it); deleting an identity keeps its tasks with `identity_id = NULL`.
-* A `Professor` cannot be hard-deleted while identities or relationships reference it (consistent with deactivation-only).
+* A `Professor` cannot be hard-deleted while identities or relationships reference it (database `RESTRICT`). The administrator's permanent deletion (#170; `DELETE /api/admin/professors/:id`, inactive professors only, the exact name typed as confirmation, refused while a synchronization runs) therefore removes, in one transaction under the synchronization guard: the professor's relationships of every status; the publications no other professor has a relationship of any status with (*sole-owner* publications), with their source records (citation observations cascade) — the one case besides provider-data removal (§13.10) where publications are deleted; OPEN duplicate candidates involving them are closed as DISMISSED with a note; then the professor's external identities, the professor and their login account. Publications shared with another professor are kept with that professor's relationships and decisions. Irreversible; nothing about the deleted professor is kept.
 * `DuplicateCandidate` references become `NULL` when a publication is removed (e.g. merged away), so resolved candidates keep their status and reason. A pair is stored once in canonical order (`publication_a_id < publication_b_id`, enforced by a CHECK constraint).
 * Deleting a `User` unlinks it (`SET NULL`) from its professor and from audit-style references (`created_by`, `decided_by`, `resolved_by`, `triggered_by`).
 * Provider-data removal (§13.10) is the only process besides an administrator merge that deletes publications, and only those left without independently supported metadata, after explicit administrator approval (#124).
@@ -909,7 +909,7 @@ These are intentionally **not** decided yet and must remain marked as deferred u
 * Exact monthly schedule time (Phase 12).
 * Whether analytics count the `OTHER` type family (Phase 13).
 * ORCID public-API client registration (optional).
-* Hard deletion of professors.
+* Hard deletion of professors. — *Decided 2026-11-10 (#170): permanent deletion of an inactive professor's record, sole-owner publications included (§6.10).*
 * Deployment provider (Phase 16).
 * Phase 15: architecture decisions D1–D19 approved with conditions (§22.7); institutional and provider confirmations listed there remain open.
 
