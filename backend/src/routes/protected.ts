@@ -6,8 +6,10 @@ import { getOwnProfile, updateOwnName } from '../services/professors/professors'
 import { HttpError } from '../utils/httpError';
 import { parseBody } from '../utils/validation';
 import { createAdminAnalyticsRouter } from './adminAnalytics';
+import { createAdminPublicationQueriesRouter } from './adminPublicationQueries';
 import { createAdminPublicationsRouter, createAdminSourceRecordsRouter } from './adminPublications';
 import { createMeDuplicateCandidatesRouter } from './meDuplicateCandidates';
+import { createMePublicationQueriesRouter } from './mePublicationQueries';
 import { createAdminProfessorsRouter } from './adminProfessors';
 import { createMePublicationsRouter } from './mePublications';
 import { createAdminSyncRouter } from './adminSync';
@@ -50,6 +52,8 @@ export function createMeRouter(deps: { now: () => Date; sync: SyncService }): Ro
   router.use('/publications', createMePublicationsRouter(deps));
   // Resolution of the professor's duplicate candidates (§8.5; #149–#151).
   router.use('/duplicate-candidates', createMeDuplicateCandidatesRouter(deps));
+  // The professor's publication queries (§24, stage Q2): own APPROVED, ACTIVE publications only.
+  router.use('/publication-queries', createMePublicationQueriesRouter(deps));
 
   return router;
 }
@@ -60,6 +64,7 @@ export function createAdminRouter(deps: { identityClients: IdentityClients; now:
   router.use('/professors', createAdminProfessorsRouter(deps));
   router.use('/sync', createAdminSyncRouter(deps));
   router.use('/analytics', createAdminAnalyticsRouter());
+  router.use('/publication-queries', createAdminPublicationQueriesRouter(deps));
   router.use('/publications', createAdminPublicationsRouter());
   router.use('/source-records', createAdminSourceRecordsRouter(deps));
   return router;

@@ -85,7 +85,16 @@ export async function approvedPerProfessor(client: PrismaClient = defaultClient)
  * `total`, which is the overview's `uniquePublications`.
  */
 export async function publicationsByYear(client: PrismaClient = defaultClient) {
-  const groups = await client.publication.groupBy({ by: ['year'], where: countedPublications, _count: { _all: true }, orderBy: { year: 'asc' } });
+  return yearDistribution(countedPublications, client);
+}
+
+/**
+ * Publications per year for any publication filter (the department policy above, or the matching
+ * set of an administrator's query, §24.6): oldest first, unknown years in `unknownYear`, never
+ * folded into a year; the rows plus `unknownYear` equal `total`.
+ */
+export async function yearDistribution(where: Prisma.PublicationWhereInput, client: Pick<PrismaClient, 'publication'>) {
+  const groups = await client.publication.groupBy({ by: ['year'], where, _count: { _all: true }, orderBy: { year: 'asc' } });
   const years = groups
     .filter((g): g is typeof g & { year: number } => g.year !== null)
     .map((g) => ({ year: g.year, publications: countOf(g._count) }))
