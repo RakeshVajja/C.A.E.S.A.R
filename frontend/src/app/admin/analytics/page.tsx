@@ -1,18 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
+import { AdminQuerySection, type TableState } from "@/components/admin-query";
 import { SourceChip, StatusChip } from "@/components/chips";
-import { EmptyState, Figures, LoadError, PageHeader, Panel, SectionTitle, Segmented, Skeleton } from "@/components/ui";
+import { Alert, Button, EmptyState, Figures, LoadError, PageHeader, Panel, SectionTitle, Segmented, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatDate, formatDateTime, formatNumber, SOURCE_LABEL, TYPE_LABEL } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber, plural, SOURCE_LABEL, TYPE_LABEL } from "@/lib/format";
+import { analyticsConsistency, type AppliedQuery, type QueryAnalyticsResponse } from "@/lib/query-builder";
 import { useResource } from "@/lib/use-resource";
-import type { ByYear, CitationStats, Overview, PerProfessor, SourceStats, SyncStats } from "@/lib/types";
+import type { ByYear, CitationStats, Overview, PerProfessor, Source, SourceStats, SyncStats, TypeFamily } from "@/lib/types";
 
 /**
  * Administrator analytics (Project_plan.md §16; pages/admin-analytics.md). Every figure comes from
  * the backend's analytics endpoints; nothing is recomputed here. Charts are plain HTML with a
  * table view, hover/focus values and no animation.
+ *
+ * Conditional publication queries (§24, stages Q3–Q4): a query builder and, while a query is
+ * applied, its matching publications (components/admin-query.tsx) followed by analytics of exactly
+ * those publications (`ConditionalAnalytics`, §24.6) in place of the department-wide view. Without
+ * a query the department-wide analytics (§16, unchanged) are the view.
  */
 
 interface Data {
@@ -36,15 +44,374 @@ async function load(signal: AbortSignal): Promise<Data> {
   return { overview, professors, years, sources, sync, citations };
 }
 
+const DEPARTMENT_DESCRIPTION =
+  "Counted publications are approved by at least one professor, not suppressed and not preprints. Each publication counts once, however many professors or sources report it.";
+
 export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<PageHeader title="Analytics" description={DEPARTMENT_DESCRIPTION} />}>
+      <AnalyticsHeader />
+      <AdminQuerySection department={<DepartmentAnalytics />} conditional={(query, table) => <ConditionalAnalytics query={query} table={table} />} />
+    </Suspense>
+  );
+}
+
+/**
+ * The page description follows the view: the department counting policy describes the default
+ * analytics only; with a query applied (an administrator's query URL always has a link scope) the
+ * figures cover exactly the matching publications (§24.6).
+ */
+function AnalyticsHeader() {
+  const queryApplied = useSearchParams().has("link");
+  return (
+    <PageHeader
+      title="Analytics"
+      description={
+        queryApplied
+          ? "Showing the publications that match the query below and analytics of exactly those publications. The department counting policy applies only through the query's own conditions."
+          : DEPARTMENT_DESCRIPTION
+      }
+    />
+  );
+}
+
+/* ── Conditional analytics (§24.6; stage Q4) ──────────────────────────── */
+
+/**
+ * Analytics of exactly the publications an applied query returns, computed on the server from the
+ * query itself (never from client-side rows or counts). Only the condition tree and link scope are
+ * sent, so paging and sorting the table do not reload them. With fewer than two matches the server
+ * returns none and nothing is shown (D5); each section is present only when relevant (§24.6).
+ *
+ * The table and the analytics are separate requests (each internally one snapshot). They are shown
+ * together only when their matching-set fingerprints are equal; if the set changed between them the
+ * analytics are withheld with a message and a manual Refresh (no automatic retry) (#163).
+ */
+function ConditionalAnalytics({ query, table }: { query: AppliedQuery; table: TableState }) {
+  const body = { link: query.link, ...(query.root && { root: query.root }) };
+  const key = `query-analytics:${JSON.stringify(body)}`;
+  const { data, error, loading, reload } = useResource<QueryAnalyticsResponse>(key, (signal) =>
+    api<QueryAnalyticsResponse>("/admin/publication-queries/analytics", { method: "POST", body, signal }),
+  );
+
+  if (error && !data) {
+    return (
+      <section aria-labelledby="qa-heading" className="flex flex-col gap-3">
+        <SectionTitle id="qa-heading">Analytics of the matching publications</SectionTitle>
+        <LoadError error={error} onRetry={() => void reload()} />
+      </section>
+    );
+  }
+  if (table.failed) return null; // the table shows the error; nothing to compare against
+  const compared = data && !loading ? analyticsConsistency(table.result, data) : "pending";
+  // A mismatch is reported only once the table's request has settled (e.g. after Refresh).
+  const consistency = compared === "changed" && table.running ? "pending" : compared;
+  if (!data || consistency === "pending") {
+    return (
+      <div role="status" aria-label="Loading analytics of the matching publications" className="flex flex-col gap-6">
+        <Skeleton className="h-28 w-full" />
+      </div>
+    );
+  }
+  if (consistency === "changed") {
+    return (
+      <section aria-labelledby="qa-heading" className="flex flex-col gap-3" data-analytics-changed>
+        <SectionTitle id="qa-heading">Analytics of the matching publications</SectionTitle>
+        <Alert
+          tone="warning"
+          role="alert"
+          title="The matching publications changed while loading"
+          action={
+            <Button
+              compact
+              onClick={() => {
+                table.refresh();
+                void reload();
+              }}
+            >
+              Refresh
+            </Button>
+          }
+        >
+          The table and the analytics were computed over different sets of publications, so the analytics are not shown. Refresh to load both again.
+        </Alert>
+      </section>
+    );
+  }
+  const a = data.analytics;
+  if (!a) return null; // D5: 0 or 1 match — the table only
+
+  return (
+    <div className="flex flex-col gap-10" data-conditional-analytics>
+      <section aria-labelledby="qa-heading">
+        <SectionTitle id="qa-heading">Analytics of the matching publications</SectionTitle>
+        <p className="max-w-[72ch] text-[13px] leading-5 text-text-muted">
+          Computed over exactly the {plural(data.total, "publication")} the query returns, each counted once. The department policy (approved, active, not a
+          preprint) applies only through the query&apos;s own conditions. Only analytics that vary among these publications are shown.
+        </p>
+      </section>
+      {a.years && <YearsSection years={a.years} />}
+      {a.types && (
+        <BarSection
+          id="qa-types"
+          title="By type"
+          rows={a.types.map((t) => ({ key: t.typeFamily, label: TYPE_LABEL[t.typeFamily as TypeFamily] ?? t.typeFamily, value: t.publications }))}
+          unit="Publications"
+        />
+      )}
+      {a.venues && (
+        <BarSection
+          id="qa-venues"
+          title="Top venues"
+          caption={`Venue names are free text; spellings that differ only in case or spacing are combined.${a.venues.otherVenues ? ` ${plural(a.venues.otherVenues, "other venue")} not listed.` : ""}${a.venues.withoutVenue ? ` ${plural(a.venues.withoutVenue, "publication")} without a venue.` : ""}`}
+          rows={a.venues.venues.map((v) => ({ key: v.venue, label: v.venue, value: v.publications }))}
+          unit="Publications"
+        />
+      )}
+      {a.professors && <QueryProfessorsSection professors={a.professors} overlap={a.overlap} />}
+      {a.relationshipStatuses && (
+        <BarSection
+          id="qa-links"
+          title="By relationship status"
+          caption="Qualifying professor links by status; a co-authored publication counts once per professor."
+          rows={a.relationshipStatuses.map((r) => ({
+            key: r.status,
+            label: <StatusChip status={r.status} />,
+            value: r.links,
+            note: `${plural(r.publications, "publication")}`,
+          }))}
+          unit="Links"
+        />
+      )}
+      {a.publicationStatuses && (
+        <BarSection
+          id="qa-status"
+          title="By publication status"
+          rows={a.publicationStatuses.map((r) => ({ key: r.status, label: <StatusChip status={r.status} />, value: r.publications }))}
+          unit="Publications"
+        />
+      )}
+      {a.doi && (
+        <BarSection
+          id="qa-doi"
+          title="DOI coverage"
+          rows={[
+            { key: "with", label: "With a DOI", value: a.doi.withDoi },
+            { key: "without", label: "Without a DOI", value: a.doi.withoutDoi },
+          ]}
+          unit="Publications"
+        />
+      )}
+      {a.sources && (
+        <BarSection
+          id="qa-sources"
+          title="By source"
+          caption="A publication reported by several sources counts for each of them."
+          rows={a.sources.map((src) => ({
+            key: src.source,
+            label: <SourceChip source={src.source as Source} />,
+            value: src.publications,
+            note: plural(src.sourceRecords, "source record"),
+          }))}
+          unit="Publications reported"
+        />
+      )}
+      <QueryCitationsSection citations={a.citations} />
+    </div>
+  );
+}
+
+/** A small table of counts with proportional bars (the per-professor table's style). */
+function BarSection({
+  id,
+  title,
+  caption,
+  rows,
+  unit,
+}: {
+  id: string;
+  title: string;
+  caption?: string;
+  rows: { key: string; label: React.ReactNode; value: number; note?: string }[];
+  unit: string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <section aria-labelledby={id}>
+      <SectionTitle id={id}>{title}</SectionTitle>
+      <Panel>
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            {caption ? <caption className="px-4 pt-3 pb-2 text-left text-[13px] leading-5 text-text-muted">{caption}</caption> : <caption className="sr-only">{title}</caption>}
+            <thead>
+              <tr>
+                <th scope="col">{title.replace(/^By /, "").replace(/^\w/, (c) => c.toUpperCase())}</th>
+                <th scope="col" className="num">
+                  {unit}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <td className="no-label">{r.label}</td>
+                  <td data-label={unit} className="num">
+                    <span className="inline-flex items-center gap-3">
+                      <span aria-hidden className="hidden h-2 w-40 rounded-sm bg-surface-sunken md:inline-block">
+                        <span className="block h-2 rounded-sm bg-ink" style={{ width: `${(r.value / max) * 100}%` }} />
+                      </span>
+                      <span className="min-w-8">{formatNumber(r.value)}</span>
+                      {r.note && <span className="text-[13px] text-text-muted">{r.note}</span>}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </section>
+  );
+}
+
+/**
+ * Per professor over qualifying links (§24.5): every professor with a qualifying link on a matching
+ * publication — selected or not — with selected professors labelled; relationship counts.
+ */
+function QueryProfessorsSection({
+  professors,
+  overlap,
+}: {
+  professors: NonNullable<NonNullable<QueryAnalyticsResponse["analytics"]>["professors"]>;
+  overlap?: { publications: number; selected: number };
+}) {
+  const max = Math.max(1, ...professors.rows.map((p) => p.publications));
+  const others = professors.rows.length - professors.selectedCount;
+  return (
+    <section aria-labelledby="qa-prof">
+      <SectionTitle id="qa-prof">Per professor</SectionTitle>
+      {overlap && (
+        <p className="mb-3 text-[15px]">
+          <span className="font-semibold tabular-nums">{formatNumber(overlap.publications)}</span> matching{" "}
+          {overlap.publications === 1 ? "publication has" : "publications have"} qualifying links of at least two of the {overlap.selected} selected professors.
+        </p>
+      )}
+      <Panel>
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <caption className="px-4 pt-3 pb-2 text-left text-[13px] leading-5 text-text-muted">
+              Matching publications on which each professor has a qualifying link. A co-authored publication counts for each of its professors, so this column
+              can add up to more than the matching total.
+              {professors.selectedCount > 0 && others > 0 && ` ${plural(others, "co-author")} with qualifying links who ${others === 1 ? "was" : "were"} not selected ${others === 1 ? "is" : "are"} listed too.`}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Professor</th>
+                <th scope="col" className="num">
+                  Matching publications
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {professors.rows.map((p) => (
+                <tr key={p.id} data-selected-professor={p.selected || undefined}>
+                  <td className="no-label">
+                    <Link href={`/admin/professors/${p.id}`} className="text-ink hover:underline underline-offset-4">
+                      {p.name}
+                    </Link>
+                    {p.selected && <span className="ml-2 text-[13px] text-text-muted">(selected)</span>}
+                    {!p.isActive && <span className="ml-2 text-[13px] text-text-muted">(inactive)</span>}
+                  </td>
+                  <td data-label="Matching publications" className="num">
+                    <span className="inline-flex items-center gap-3">
+                      <span aria-hidden className="hidden h-2 w-40 rounded-sm bg-surface-sunken md:inline-block">
+                        <span className="block h-2 rounded-sm bg-ink" style={{ width: `${(p.publications / max) * 100}%` }} />
+                      </span>
+                      <span className="min-w-8">{formatNumber(p.publications)}</span>
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+    </section>
+  );
+}
+
+/** Scopus citations of the matches (internal, admin only, #112); a missing count is never shown as zero (D6). */
+function QueryCitationsSection({ citations }: { citations: NonNullable<QueryAnalyticsResponse["analytics"]>["citations"] }) {
+  return (
+    <section aria-labelledby="qa-cit">
+      <SectionTitle id="qa-cit">Citations (Scopus, internal)</SectionTitle>
+      {!citations.available ? (
+        <p className="text-[15px] text-text-muted">Scopus citation data unavailable.</p>
+      ) : citations.withCount === 0 ? (
+        <p className="text-[15px] text-text-muted">
+          None of these publications has a Scopus count ({formatNumber(citations.coverage.notInScopus)} not in Scopus,{" "}
+          {formatNumber(citations.coverage.noCountYet)} with no Scopus count yet).
+        </p>
+      ) : (
+        "totalCitations" in citations && (
+          <>
+            <p className="mb-3 max-w-[72ch] text-[13px] leading-5 text-text-muted">
+              Over the {plural(citations.withCount, "publication")} with a Scopus count; {formatNumber(citations.coverage.noCountYet)} with no Scopus count yet and{" "}
+              {formatNumber(citations.coverage.notInScopus)} not in Scopus are not counted as zero. Each publication contributes its one Scopus count.
+            </p>
+            <Figures
+              items={[
+                { label: "Scopus citations", value: formatNumber(citations.totalCitations), note: `${plural(citations.withCount, "publication")} with a count` },
+                { label: "Median", value: formatNumber(citations.median), note: "per publication with a count" },
+                { label: "Maximum", value: formatNumber(citations.maximum) },
+                {
+                  label: "Latest count",
+                  value: <span className="text-[15px] leading-6 font-medium">{citations.latestObservation ? formatDate(citations.latestObservation) : "None yet"}</span>,
+                },
+              ]}
+            />
+            <Panel className="mt-4">
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <caption className="px-4 pt-3 pb-2 text-left text-[13px] leading-5 text-text-muted">Most cited matching publications (up to 10).</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Publication</th>
+                      <th scope="col" className="num">
+                        Scopus citations
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {citations.top.map((t) => (
+                      <tr key={t.id}>
+                        <td className="no-label">
+                          <span className="font-serif">{t.title}</span>
+                          <span className="text-[13px] text-text-muted"> · {t.year ?? "Year unknown"}</span>
+                        </td>
+                        <td data-label="Scopus citations" className="num">
+                          {formatNumber(t.count)}
+                          <span className="ml-2 text-[13px] text-text-muted">as of {formatDate(t.observedAt)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </>
+        )
+      )}
+    </section>
+  );
+}
+
+/** The department-wide analytics (§16): the page's default view, unchanged by any query. */
+function DepartmentAnalytics() {
   const { data, error, reload } = useResource("analytics", load);
 
   return (
     <>
-      <PageHeader
-        title="Analytics"
-        description="Counted publications are approved by at least one professor, not suppressed and not preprints. Each publication counts once, however many professors or sources report it."
-      />
       {error && !data ? (
         <LoadError error={error} onRetry={() => void reload()} />
       ) : !data ? (
