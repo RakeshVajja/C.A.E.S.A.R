@@ -322,22 +322,25 @@ export function Pagination({
   count,
   total,
   onPage,
+  disabled = false,
 }: {
   offset: number;
   limit: number;
   count: number;
   total: number;
   onPage: (offset: number) => void;
+  /** Both buttons disabled (e.g. while a query workspace has unsaved changes). */
+  disabled?: boolean;
 }) {
   if (total <= limit && offset === 0) return total > 0 ? <p className="px-4 py-3 text-[13px] text-text-muted">{rangeLabel(offset, count, total)}</p> : null;
   return (
     <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
       <p className="text-[13px] text-text-muted tabular-nums">{rangeLabel(offset, count, total)}</p>
       <div className="flex gap-2">
-        <Button compact icon={<ChevronLeft aria-hidden size={16} />} disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - limit))}>
+        <Button compact icon={<ChevronLeft aria-hidden size={16} />} disabled={disabled || offset === 0} onClick={() => onPage(Math.max(0, offset - limit))}>
           Previous
         </Button>
-        <Button compact disabled={offset + limit >= total} onClick={() => onPage(offset + limit)}>
+        <Button compact disabled={disabled || offset + limit >= total} onClick={() => onPage(offset + limit)}>
           Next
           <ChevronRight aria-hidden size={16} />
         </Button>
