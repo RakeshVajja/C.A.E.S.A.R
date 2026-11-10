@@ -2,7 +2,8 @@ import cron from 'node-cron';
 import { ClarivateGateClosedError, describeFailure, SyncAlreadyRunningError, SyncService } from './syncService';
 
 /**
- * Monthly synchronization schedule (Project_plan.md §14, decision #81). node-cron only decides
+ * Publication synchronization schedule (Project_plan.md §14; decisions #81, #169 — by default the
+ * 1st, 11th and 21st of every month, about every 10 days). node-cron only decides
  * *when*; the run itself is the same `SyncService.start` the administrator triggers manually.
  * A tick while a run is in progress is skipped (single-run guard); there is no catch-up run at
  * startup (§20, decided as not needed).
@@ -67,7 +68,7 @@ export function startJournalMetricsScheduler(service: SyncService, options: Sche
 export function startSyncScheduler(service: SyncService, options: SchedulerOptions): { stop: () => Promise<void> } {
   const schedule = options.schedule ?? cron.schedule;
   const task = schedule(options.cronExpression, () => runScheduledSync(service), {
-    name: 'monthly-synchronization',
+    name: 'publication-synchronization',
     timezone: options.timezone,
     noOverlap: true,
   });

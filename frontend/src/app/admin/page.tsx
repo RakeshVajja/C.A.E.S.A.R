@@ -23,7 +23,7 @@ export default function AdminDashboard() {
       href: "/admin/sync",
       Icon: RefreshCw,
       label: "Synchronization",
-      text: overview?.syncRunning ? "A synchronization run is in progress." : "Runs monthly; start one manually when needed.",
+      text: overview?.syncRunning ? "A synchronization run is in progress." : "Runs on the 1st, 11th and 21st of each month; start one manually when needed.",
     },
     { href: "/admin/analytics", Icon: ChartColumn, label: "Analytics", text: "Publications per professor, per year and per source." },
   ];

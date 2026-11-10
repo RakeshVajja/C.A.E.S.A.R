@@ -60,7 +60,7 @@ export default function ProfessorDashboard() {
               {!data ? (
                 <SkeletonRows rows={3} />
               ) : data.items.length === 0 ? (
-                <EmptyState>You’re up to date. New publications appear here after the monthly synchronization.</EmptyState>
+                <EmptyState>You’re up to date. New publications appear here after the next synchronization.</EmptyState>
               ) : (
                 <ul className="divide-y divide-border">
                   {data.items.map((item) => (

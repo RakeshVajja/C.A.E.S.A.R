@@ -57,7 +57,7 @@ The system must:
 6. Detect and avoid duplicate publications deterministically.
 7. Maintain one canonical record per real-world publication.
 8. Preserve all source identifiers and provenance.
-9. Synchronize periodically (monthly) and on demand.
+9. Synchronize periodically (on the 1st, 11th and 21st of each month — about every 10 days; amended from monthly, #169) and on demand.
 10. Require professor verification of newly discovered publications.
 11. Allow professors to manually add missing publications.
 12. Match manual publications with later API discoveries without silent duplication.
@@ -76,7 +76,7 @@ The system must:
 * **Publication management:** automatic discovery, manual addition, verification, rejection, metadata updates, duplicate prevention, multi-source aggregation, admin suppression, admin resolution of duplicate candidates
 * **Sources:** OpenAlex, DBLP, ORCID, Scopus, Web of Science (publication discovery); JCR (journal metrics only)
 * **Citation observations:** per-provider citation counts from Scopus and Web of Science, kept independently over time (#111)
-* **Synchronization:** manual trigger, monthly schedule, history, error tracking
+* **Synchronization:** manual trigger, schedule on the 1st, 11th and 21st of each month (#169; previously monthly), history, error tracking
 * **Analytics:** totals, per-professor counts, by-year counts, by-source statistics, pending statistics, sync statistics; internal Scopus citation aggregates for the administrator (#112)
 
 ## 3.2 Out of Scope
@@ -781,7 +781,7 @@ Rules:
 * Suppressed publications are not automatically re-linked: matching records are absorbed into them as provenance, but no professor relationship is created for them (decision #30).
 * DOI changes do not silently move source records.
 * Runs left `RUNNING` by a crash are marked failed at startup.
-* `node-cron` is only the scheduler (monthly); synchronization logic is independent of it. The admin can also trigger a sync manually.
+* `node-cron` is only the scheduler (default `SYNC_CRON` `0 2 1,11,21 * *`: 02:00 on the 1st, 11th and 21st of each month in `SYNC_TIMEZONE`, about every 10 days — #169, amending the monthly default of #81; cron cannot express an exact 10-day interval, so the 21st → next 1st gap is 8–11 days); synchronization logic is independent of it. The Journal Citation Reports refresh keeps its own monthly schedule (#123). The admin can also trigger a sync manually.
 * Redis/BullMQ are out of scope.
 
 ---

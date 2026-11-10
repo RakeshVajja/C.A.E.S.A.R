@@ -55,7 +55,7 @@ function Runs() {
     <>
       <PageHeader
         title="Synchronization"
-        description="Publications are collected monthly from OpenAlex, DBLP, ORCID, Scopus and Web of Science for every active identity of active professors. A failed source never deletes or changes existing data."
+        description="Publications are collected on the 1st, 11th and 21st of each month from OpenAlex, DBLP, ORCID, Scopus and Web of Science for every active identity of active professors. A failed source never deletes or changes existing data."
         actions={
           <Button variant="primary" icon={<RefreshCw aria-hidden size={18} />} onClick={() => setConfirming(true)} disabled={!!running}>
             Start synchronization
@@ -85,7 +85,7 @@ function Runs() {
           ) : !data ? (
             <SkeletonRows rows={5} label="Loading runs" />
           ) : data.runs.length === 0 ? (
-            <EmptyState>No synchronization has run yet. The first monthly run starts automatically, or start one now.</EmptyState>
+            <EmptyState>No synchronization has run yet. The first scheduled run starts automatically, or start one now.</EmptyState>
           ) : (
             <>
               <div className="overflow-x-auto">

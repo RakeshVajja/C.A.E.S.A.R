@@ -32,7 +32,7 @@ async function startServer(): Promise<void> {
   // One synchronization engine per process, shared by the admin triggers and both schedules.
   const sync = new SyncService({ clients: createSyncClients(), now: () => new Date(), journalMetricsAfterDiscovery: true });
   const scheduler = env.nodeEnv === 'test' ? null : startSyncScheduler(sync, { cronExpression: env.syncCron, timezone: env.syncTimezone });
-  if (scheduler) console.log(`Monthly synchronization scheduled: "${env.syncCron}" (${env.syncTimezone})`);
+  if (scheduler) console.log(`Publication synchronization scheduled: "${env.syncCron}" (${env.syncTimezone})`);
   const jcrScheduler = env.nodeEnv === 'test' ? null : startJournalMetricsScheduler(sync, { cronExpression: env.jcrSyncCron, timezone: env.syncTimezone });
   if (jcrScheduler) console.log(`Monthly journal metrics refresh scheduled: "${env.jcrSyncCron}" (${env.syncTimezone})`);
 

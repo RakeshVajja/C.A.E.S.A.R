@@ -247,7 +247,7 @@ export function PublicationReview({
         ) : data.items.length === 0 ? (
           <EmptyState action={status === "PENDING" ? <ButtonLink href="/professor/add">Add a publication manually</ButtonLink> : undefined}>
             {status === "PENDING"
-              ? "You’re up to date. New publications appear here after the monthly synchronization."
+              ? "You’re up to date. New publications appear here after the next synchronization."
               : status === "APPROVED"
                 ? "No approved publications yet. Approve pending publications or add one manually."
                 : "No rejected publications."}

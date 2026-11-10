@@ -474,7 +474,7 @@ describe('a run that stops unexpectedly (L1)', () => {
 });
 
 describe('scheduling (node-cron)', () => {
-  it('schedules the same engine monthly in the configured time zone; a tick starts a SCHEDULED run', async () => {
+  it('schedules the same engine on the 1st, 11th and 21st in the configured time zone; a tick starts a SCHEDULED run', async () => {
     await world();
     const sync = service();
     let tick: (() => unknown) | undefined;
@@ -485,7 +485,7 @@ describe('scheduling (node-cron)', () => {
       return { stop: vi.fn() };
     });
     const scheduler = startSyncScheduler(sync, { cronExpression: DEFAULT_SYNC_CRON, timezone: DEFAULT_SYNC_TIMEZONE, schedule: schedule as never });
-    expect(schedule).toHaveBeenCalledWith('0 2 1 * *', expect.any(Function), { name: 'monthly-synchronization', timezone: 'Asia/Kolkata', noOverlap: true });
+    expect(schedule).toHaveBeenCalledWith('0 2 1,11,21 * *', expect.any(Function), { name: 'publication-synchronization', timezone: 'Asia/Kolkata', noOverlap: true });
     expect(cron.validate(DEFAULT_SYNC_CRON)).toBe(true);
 
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -508,6 +508,26 @@ describe('scheduling (node-cron)', () => {
     release();
     await sync.idle();
     expect(await prisma.syncRun.count()).toBe(1);
+  });
+
+  it('the default schedule runs at 02:00 (SYNC_TIMEZONE) on the 1st, 11th and 21st only — about every 10 days (#169)', async () => {
+    const task = cron.createTask(DEFAULT_SYNC_CRON, () => undefined, { timezone: DEFAULT_SYNC_TIMEZONE });
+    try {
+      const at = (day: string, time = '02:00') => task.match(new Date(`${day}T${time}:00+05:30`));
+      for (const day of ['2026-11-01', '2026-11-11', '2026-11-21', '2026-12-01', '2027-02-21', '2027-03-01']) expect(at(day), day).toBe(true);
+      for (const day of ['2026-11-10', '2026-11-15', '2026-11-30', '2026-12-31', '2027-02-28']) expect(at(day), day).toBe(false);
+      expect(at('2026-11-11', '03:00')).toBe(false);
+      expect(at('2026-11-11', '01:59')).toBe(false);
+      // Gaps between consecutive runs: 10 days, except the 21st to the next 1st (8–11 days).
+      const runs = task.getNextRuns(9).map((d) => d.getTime());
+      for (let i = 1; i < runs.length; i++) {
+        const days = (runs[i] - runs[i - 1]) / 86_400_000;
+        expect(days).toBeGreaterThanOrEqual(8);
+        expect(days).toBeLessThanOrEqual(11);
+      }
+    } finally {
+      await task.destroy();
+    }
   });
 
   it('the real node-cron scheduler starts and stops without running anything immediately', async () => {

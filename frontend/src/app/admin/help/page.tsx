@@ -34,7 +34,7 @@ export default function AdminHelpPage() {
           body: (
             <>
               <p>
-                Publications are collected automatically on the first of every month, and you can start a run in{" "}
+                Publications are collected automatically on the 1st, 11th and 21st of every month, and you can start a run in{" "}
                 <HelpLink href="/admin/sync">Synchronization</HelpLink>. Each identity is fetched in turn; a source that fails affects only that identity and
                 never deletes or changes existing data. New publications appear as pending for their professors.
               </p>

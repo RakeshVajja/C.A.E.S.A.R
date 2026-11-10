@@ -77,7 +77,7 @@ export default function ProfessorHelpPage() {
                 <strong className="font-medium">A publication is not yours:</strong> reject it.
               </li>
               <li>
-                <strong className="font-medium">A publication is missing:</strong> add it yourself; it may also appear after the next monthly synchronization.
+                <strong className="font-medium">A publication is missing:</strong> add it yourself; it may also appear after the next synchronization.
               </li>
               <li>
                 <strong className="font-medium">The same paper listed twice:</strong> open{" "}

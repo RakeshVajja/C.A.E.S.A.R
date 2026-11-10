@@ -6,12 +6,16 @@ import { z } from 'zod';
 // Values already present in process.env (e.g. set by the test runner) take precedence over .env.
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-/** 02:00 on the 1st of every month (decision #81; the exact time was deferred to Phase 12). */
-export const DEFAULT_SYNC_CRON = '0 2 1 * *';
+/**
+ * 02:00 on the 1st, 11th and 21st of every month — about every 10 days (decision #169, replacing
+ * the monthly default of #81; cron cannot express an exact 10-day interval, so the gap from the
+ * 21st to the next 1st is 8–11 days).
+ */
+export const DEFAULT_SYNC_CRON = '0 2 1,11,21 * *';
 export const DEFAULT_SYNC_TIMEZONE = 'Asia/Kolkata';
 /**
  * Journal Citation Reports refresh (stage 15.6, decision #123: its own schedule): 03:00 on the 15th
- * of every month, away from the discovery run on the 1st. Same time zone as SYNC_TIMEZONE.
+ * of every month, away from the discovery runs on the 1st, 11th and 21st. Same time zone as SYNC_TIMEZONE.
  */
 export const DEFAULT_JCR_SYNC_CRON = '0 3 15 * *';
 
@@ -62,7 +66,7 @@ const envSchema = z
     WOS_STARTER_API_KEY: optionalText,
     // Web of Science Journals API (Journal Citation Reports).
     WOS_JOURNALS_API_KEY: optionalText,
-    // Monthly synchronization (§14, decision #81): node-cron expression and IANA time zone.
+    // Publication synchronization schedule (§14, decisions #81, #169): node-cron expression and IANA time zone.
     SYNC_CRON: optionalText
       .transform((value) => value ?? DEFAULT_SYNC_CRON)
       .refine((value) => cron.validate(value), 'SYNC_CRON must be a valid cron expression'),
