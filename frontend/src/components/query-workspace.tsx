@@ -2,10 +2,11 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoaderCircle, RotateCcw, Wand2 } from "lucide-react";
+import { FileDown, LoaderCircle, RotateCcw, Wand2 } from "lucide-react";
 import { CuratedChip, SourceChips, StatusChip } from "./chips";
+import { useToast } from "./toast";
 import { Alert, Button, Doi, EmptyState, ExternalProfileLink, LoadError, Pagination, Panel, SkeletonRows } from "./ui";
-import { api, ApiError, errorMessage } from "@/lib/api";
+import { api, ApiError, downloadFile, errorMessage } from "@/lib/api";
 import { formatDate, formatNumber, plural, TYPE_LABEL } from "@/lib/format";
 import {
   ApiGroup,
@@ -526,13 +527,32 @@ export function QueryResults({
   sorts,
   admin,
   emptyText,
+  exportPath,
 }: {
   workspace: Workspace;
   sorts: QueryFieldsResponse["sorts"];
   admin: boolean;
   emptyText: string;
+  /** Administrator: CSV download of the applied query's matching publications (decision #168). */
+  exportPath?: string;
 }) {
   const { result, loadError, running, stale, applied, dirty } = workspace;
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+
+  /** Downloads the applied query's rows (the server runs and validates the query again; no IDs are sent). */
+  async function download() {
+    if (!applied || !exportPath) return;
+    setDownloading(true);
+    try {
+      const body = { ...(applied.link && { link: applied.link }), ...(applied.root && { root: applied.root }), sort: applied.sort };
+      await downloadFile(exportPath, "publication-query.csv", { method: "POST", body });
+    } catch (error) {
+      toast(`The download failed: ${errorMessage(error)}`, "danger");
+    } finally {
+      setDownloading(false);
+    }
+  }
   const sort: SortKey = applied?.sort ?? "year";
   const limit = applied?.limit ?? PAGE_SIZES[0];
   const showCitations = result?.citations.available === true;
@@ -586,6 +606,17 @@ export function QueryResults({
               ))}
             </select>
           </label>
+          {exportPath && (
+            <Button
+              compact
+              icon={<FileDown aria-hidden size={16} />}
+              onClick={() => void download()}
+              loading={downloading}
+              disabled={locked || !applied || !result || result.total === 0}
+              aria-label={downloading ? "Preparing the CSV download" : "Download the matching publications as CSV"}
+              title={locked ? lockedNote.replace("change the page or the sorting", "download") : "Download the matching publications as CSV"}
+            />
+          )}
         </div>
       </div>
 

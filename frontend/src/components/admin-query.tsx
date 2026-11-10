@@ -161,7 +161,15 @@ function AdminWorkspace({
         </div>
       </Panel>
 
-      {active && <QueryResults workspace={workspace} sorts={meta.sorts} admin emptyText="No publications match these conditions." />}
+      {active && (
+        <QueryResults
+          workspace={workspace}
+          sorts={meta.sorts}
+          admin
+          emptyText="No publications match these conditions."
+          exportPath={`${BASE}/export`}
+        />
+      )}
     </div>
     </section>
     {/* §24.6: an applied query replaces the department-wide view with the analytics of its matching publications. */}

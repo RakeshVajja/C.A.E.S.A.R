@@ -199,14 +199,14 @@ export async function matchingFilter(tx: Tx, context: QueryContext, query: Profe
 }
 
 /** Sort orders with `id` as the final tie-breaker, so paging is stable (§24.7). */
-const ORDER: Record<Exclude<(typeof SORT_KEYS)[number], 'scopusCitations'>, Prisma.PublicationOrderByWithRelationInput[]> = {
+export const ORDER: Record<Exclude<(typeof SORT_KEYS)[number], 'scopusCitations'>, Prisma.PublicationOrderByWithRelationInput[]> = {
   year: [{ year: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }],
   title: [{ normalizedTitle: 'asc' }, { id: 'asc' }],
   addedOn: [{ createdAt: 'desc' }, { id: 'asc' }],
 };
 
 /** Highest Scopus count first; publications without a count last; then by id. */
-function compareByCitations(counts: Map<string, CitationCount>, a: string, b: string): number {
+export function compareByCitations(counts: Map<string, CitationCount>, a: string, b: string): number {
   const x = counts.get(a)?.count;
   const y = counts.get(b)?.count;
   if (x === undefined && y === undefined) return a.localeCompare(b);
@@ -262,7 +262,7 @@ function isQualifying(link: LinkScope, rel: { status: VerificationStatus; origin
 }
 
 /** The page's rows in page order. Professors' rows never carry other professors' relationships (D10). */
-async function loadRows(tx: Tx, context: QueryContext, link: LinkScope | null, ids: string[], available: boolean): Promise<ResultRow[]> {
+export async function loadRows(tx: Tx, context: QueryContext, link: LinkScope | null, ids: string[], available: boolean): Promise<ResultRow[]> {
   if (ids.length === 0) return [];
   const admin = context.role === 'ADMIN';
   const rows = await tx.publication.findMany({

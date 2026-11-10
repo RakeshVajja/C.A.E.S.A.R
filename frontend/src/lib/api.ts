@@ -90,10 +90,17 @@ function failure(response: Response, body: unknown, options: RequestOptions): Ap
  * Downloads a file from the API (with the session cookie) and hands it to the browser as a save,
  * named by the server's Content-Disposition (or `fallbackName`).
  */
-export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+export async function downloadFile(path: string, fallbackName: string, options: { method?: "GET" | "POST"; body?: unknown } = {}): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl}${path}`, { credentials: "include", cache: "no-store" });
+    // A POST carries its request (e.g. a publication query, §24.8) as a JSON body, never in the URL.
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      method: options.method ?? "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "The server could not be reached. Check your connection and try again.");
   }

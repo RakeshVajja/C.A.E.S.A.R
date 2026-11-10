@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import { LIMITS, parseQuery } from '../services/publicationQuery/ast';
 import { queryAnalytics } from '../services/publicationQuery/analytics';
 import { queryFields, searchPublications } from '../services/publicationQuery/execute';
+import { queryResultsCsv } from '../services/publicationQuery/export';
 import { buildPreset, defaultAdminQuery, listPresets } from '../services/publicationQuery/presets';
 import { HttpError } from '../utils/httpError';
 
@@ -23,6 +24,8 @@ import { HttpError } from '../utils/httpError';
  *   POST /search         run a query: { link, root?, sort?, limit?, offset? }
  *   POST /analytics      conditional analytics over exactly the publications the same query matches
  *                        (§24.6, stage Q4): { total, analytics } — analytics null with fewer than two matches
+ *   POST /export         the matching publications as a CSV file — the table's rows and columns in its
+ *                        sort order, canonical metadata only, no analytics or citation data (#168)
  */
 
 const presetValue = z.strictObject({ value: z.string().trim().min(1).max(LIMITS.professors * 37).optional() });
@@ -33,6 +36,7 @@ const professorIds = z
   .refine((ids) => new Set(ids.map((id) => id.toLowerCase())).size >= 2, 'Select at least two different professors');
 
 export function createAdminPublicationQueriesRouter(deps: { now: () => Date }): Router {
+  const exportDate = () => deps.now().toISOString().slice(0, 10);
   const router = Router();
 
   router.get('/fields', async (_req, res) => {
@@ -73,6 +77,16 @@ export function createAdminPublicationQueriesRouter(deps: { now: () => Date }): 
 
   router.post('/analytics', async (req, res) => {
     res.json(await queryAnalytics(req.body));
+  });
+
+  // POST: the query is a body (§24.8); the file is a download, not a change.
+  router.post('/export', async (req, res) => {
+    const { csv } = await queryResultsCsv(req.body);
+    res
+      .set('Content-Type', 'text/csv; charset=utf-8')
+      .set('Content-Disposition', `attachment; filename="publication-query-${exportDate()}.csv"`)
+      .set('Access-Control-Expose-Headers', 'Content-Disposition')
+      .send(csv);
   });
 
   return router;
