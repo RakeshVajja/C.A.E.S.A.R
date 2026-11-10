@@ -790,8 +790,8 @@ Rules:
 
 ## 15.1 Roles
 
-* **ADMIN** (single administrator): manages professors, identities (including manual Scopus/WoS verification with evidence, #118), publications (edit with a declared basis, curate, suppress, detach a source record), synchronization (discovery and JCR runs) and analytics; runs provider-data removal from the command line (§13.10). The administrator has no role in duplicate-candidate resolution (#149).
-* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, resolves the duplicate candidates involving their publications (merge or dismiss, §8.5, #149), edits permitted own information. Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email, activation status and external identities are administrator-managed (decision #67).
+* **ADMIN** (single administrator): manages professors, identities (including manual Scopus/WoS verification with evidence, #118), publications (edit with a declared basis, curate, suppress, detach a source record), synchronization (discovery and JCR runs) and analytics; runs provider-data removal from the command line (§13.10). The administrator has no role in duplicate-candidate resolution (#149). Conditional publication queries over all publications, with a link scope and conditional analytics on the Analytics page (§24, #154).
+* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, resolves the duplicate candidates involving their publications (merge or dismiss, §8.5, #149), edits permitted own information, queries their own APPROVED, ACTIVE publications on the Query publications page (§24, #154; no analytics). Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email, activation status and external identities are administrator-managed (decision #67).
 
 ## 15.2 Authentication
 
@@ -844,13 +844,15 @@ Default analytics count **APPROVED** relationships to **ACTIVE**, non-preprint c
 * Citation aggregates (internal, administrator only): Scopus per-provider aggregates; Web of Science aggregates only after written Clarivate confirmation (#112). JCR-based analytics only after licence confirmation (#114)
 * Synchronization statistics: successful/failed runs, records fetched/added/updated
 
+The default analytics above are the Analytics page's view without a query and are unchanged by §24. While an administrator's conditional publication query is applied, the page shows analytics over exactly the publications that query returns instead (§24.6, #154, #162–#164); clearing the query restores this default view.
+
 ---
 
 # 17. Frontend
 
 * Public: `/login`
-* Professor: dashboard, profile, publications (approved only, with a CSV download of them — #153; rejected ones are reviewed and reversed under pending verification's Rejected tab), pending verification, add publication, possible duplicates (candidate list, side-by-side comparison, merge keeping the chosen publication, dismiss, with confirmation — #149)
-* Admin: dashboard, professors (+ identities, with manual verification evidence), publications, synchronization (discovery and JCR runs, provider coverage and configuration status), analytics
+* Professor: dashboard, profile, publications (approved only, with a CSV download of them — #153; rejected ones are reviewed and reversed under pending verification's Rejected tab), pending verification, add publication, possible duplicates (candidate list, side-by-side comparison, merge keeping the chosen publication, dismiss, with confirmation — #149), query publications (§24: builder, presets, results table, query kept in the URL — #158)
+* Admin: dashboard, professors (+ identities, with manual verification evidence), publications, synchronization (discovery and JCR runs, provider coverage and configuration status), analytics (with the conditional publication query of §24: link scope, builder, presets, matching-publications table and conditional analytics — #160, #162)
 * Phase 15 display rules: provider citation counts and JCR metrics only as allowed by §13.10, with the required attribution
 * Implemented in stage 15.7 (#139): Synchronization shows the five discovery providers' configuration (credentials present or not — never "access works"), and each run's provider coverage from its stored snapshot (configuration at start, outcome, access confirmed, complete). Journal metrics (JCR) have their own page and navigation entry (configuration, refresh, run history, per-journal tasks): status and counters only, no metric value. Scopus citation counts are shown to the administrator (publication detail) and to professors (their publications) as "N citations in Scopus · as of <date>" with the record and cited-by links Scopus provided (https scopus.com links only; none invented), the latest observation per Scopus record and the highest when a publication has several. Admin analytics add internal Scopus aggregates (counted publications, each once; per professor). Web of Science Times Cited and JCR metrics are not returned by any API nor shown anywhere. Professors now see every source of their publications, Scopus and Web of Science included.
 
@@ -1158,7 +1160,7 @@ Live validation has **not** started: no provider credential and no written confi
 
 **Checklist once unblocked (Scopus first; WoS and JCR only after the gate is opened):** each item listed "to confirm with a real key" in §13.6–§13.8; D3 `AI=` coverage against a professor's known publication list; D4 metadata comparison (canonical priority unchanged unless decided); the type mappings of §7.3 on real records; quotas, 401/403/429 and rate-limit headers; citation observations per provider and the attribution rules of §13.10. Real responses stay local and uncommitted (D13), credentials only in environment variables and headers, and results are recorded in `PROJECT_PROGRESS.md`.
 
-# 23. Professor duplicate resolution (decisions #149–#152 — implemented on branch `feat/professor-duplicate-resolution`, uncommitted)
+# 23. Professor duplicate resolution (decisions #149–#152 — implemented; merged into `main` as 45724b9)
 
 **Decision #149:** all duplicate-candidate resolution is the professors' responsibility. Every `OPEN` candidate involving at least one publication linked to a professor — in any relationship status, shared publications included, with no exclusion by publication status, preprint or type — can be listed and resolved (merged keeping either publication, or dismissed) by that professor. Administrators have no involvement. This transfers the existing Phase 13B functionality (#93, #94, #96) to the professor interface; it is not a new resolution system. §6.7, §8.5, §15.1 and §17 are amended accordingly; Phase 13B (§19) keeps its history, with candidate resolution now under the professor role. No schema change, migration or new dependency (#151).
 
@@ -1175,3 +1177,183 @@ Live validation has **not** started: no provider credential and no written confi
 2. *Equal-status rule (#93) removed* for professor merging: the `MERGE_STATUS_MISMATCH` refusal is dropped (no administrator caller remains). Any pair can be merged; the kept publication keeps its own status — keeping a `SUPPRESSED` publication moves the other's records and relationships into a publication hidden from professor lists and analytics, keeping an `ACTIVE` one makes the absorbed records and relationships visible — and the confirmation dialog states the resulting status. Matching keeps treating the survivor as before (a suppressed publication still absorbs later records, #30).
 3. *Suppressed publications* are listed and compared with the same summary fields as active ones (title, year, venue, type, authors, DOI, status, sources, relationship counts); suppression never hides or restricts a candidate.
 4. *Provenance (#151):* `match_method` records how a source record was attached (§6.5, §8); a professor's merge does not change it — no record is attributed to `ADMIN`, and the frozen schema is unchanged. The record's `match_detail` keeps its original text in full; the merge appends "; moved by duplicate candidate <candidate id> from publication <removed id>" (no actor), which is needed because the candidate's reference to the removed publication becomes NULL. Who resolved the candidate, and when, is recorded only in `duplicate_candidates.resolved_by_user_id` and `resolved_at`. Records moved by earlier administrator merges and administrator detaches keep their `ADMIN` attribution, and detach is unchanged.
+
+# 24. Conditional publication queries (APPROVED 2026-11-10 — decision #154; stage Q1 implemented, #155–#157; stage Q2 implemented, #158–#159; stage Q3 implemented, #160–#161; stage Q4 implemented, #162–#165; stage Q5 complete, #166)
+
+Approved (#154) and implemented on branch `feat/conditional-publication-queries` in stages Q1–Q5 (#155–#166). It amends §15.1 (roles), §16 (analytics) and §17 (frontend), which refer back to it. No schema change, migration or new dependency was needed. Natural-language queries, saved queries and exports of query results are **out of scope**.
+
+## 24.1 Requirements (as agreed with the owner)
+
+* **Professor — Query Publications page** (new, separate): visual filter builder and predefined filters over the publications linked to them by an **APPROVED** `ProfessorPublication`, excluding SUPPRESSED publications (D1); results in a table only — no analytics, charts, statistics or summary cards (filtering and sorting by individual Scopus counts allowed once data exists, D9).
+* **Administrator — Analytics page** (extended): the current department-wide analytics stay the default view. The same builder and presets, plus department-wide and professor-specific options; multiple professors (at most 50) with **ANY** / **ALL** matching. With a query, a results table is shown **above** analytics, and only the analytics relevant to the matching publications are shown (§24.6), computed over exactly the publications the query returns (D4). Clearing the query restores the department-wide view exactly.
+* **Shared:** one structured query engine with role-specific authorization and output; the same presets for both roles, with additional admin presets.
+
+## 24.2 Data actually available (inspected 2026-11-09)
+
+| Dimension | Source | Notes |
+|---|---|---|
+| Title | `publications.title` / `normalized_title` | Substring on the normalized title (case and accents ignored; shared normalizer) |
+| Year | `publications.year` | Nullable |
+| Type | `publications.type_family` | PREPRINT, JOURNAL, CONFERENCE, BOOK_CHAPTER, BOOK, OTHER |
+| Venue (journal / conference name) | `publications.venue` | **Free text**, spelled differently by sources; no journal identity without JCR |
+| Authors | `publications.author_names_display` | **Free text** only (no author table, by design) |
+| DOI | `publications.doi` | Normalized; presence, exact, prefix (e.g. `10.48550/` arXiv) |
+| Sources | `publication_source_records.source` | Which providers reported it (OpenAlex, DBLP, ORCID, Scopus, WoS, Manual) |
+| ISSN | `publication_source_records.issns` | Normalized, GIN-indexed |
+| Publication status | `publications.status` | ACTIVE / SUPPRESSED (admin only) |
+| Curated | `publications.is_curated` | Admin only |
+| Relationship status / origin / decided at | `professor_publications.*` | Admin only (professors: always APPROVED) |
+| Date added | `publications.created_at` | When it entered the system |
+| Scopus citations | `citation_observations` (provider SCOPUS) | Per-publication value = latest observation per Scopus record, highest across its Scopus records (#112); a publication without a Scopus record or observation has **no count** (not zero). **Currently no observations exist** (no Scopus entitlement) — see §24.4 for how this is reported |
+
+**Not supported (excluded from filters and analytics):** keywords / research areas / topics (not collected), structured authors and affiliations (only free text; author tables excluded), abstracts (never stored), Web of Science Times Cited and every JCR metric — JIF, JCI, quartiles, ranks, journal identity (`journal_id`) — (Clarivate gate closed, written confirmations pending, no data; §13.10, #140), citation counts per year (not stored), author metrics (#113).
+
+## 24.3 Query representation
+
+```text
+Query      = { link: LinkScope, root?: Group, sort?: Sort, limit, offset }
+LinkScope  = professor: fixed by the server (APPROVED links of the session professor, ACTIVE publications only — D1); not sent
+             admin:     { mode, statuses?, professors?, match?, origins?, decidedOn? }   (§24.5)
+Group      = { combinator: "AND" | "OR", children: (Condition | Group)[] }   1–20 children, nesting ≤ 3
+Condition  = { field: FieldId, operator: OperatorId, value?: Value }          publication-level fields only
+```
+
+Relationship-level criteria (status, origin, decision date, which professors) are **not** tree conditions: they live in the link scope, so they always apply to one and the same relationship row and cannot be combined with OR in contradictory ways (§24.5). The tree holds publication-level conditions only.
+
+*Implementation decision (Q1, #156) — dates:* every date value (`addedOn`, link scope `decidedOn`) is an ISO calendar day read as a **UTC** day: *before D* = earlier than D 00:00 UTC, *after D* = from the next day 00:00 UTC, *between D1 and D2* = both days inclusive; the same rule decides the database filter and the qualifying marks of admin rows (`services/publicationQuery/dates.ts`). Publication years are not dates: *Recent* takes the current year in the configured time zone (D7).
+
+Strict Zod validation: unknown keys refused; at most 25 conditions in total; `limit` 1–100 (default 25) and `offset` ≥ 0 (D11); at most 50 selected professors (D12); values typed per field (integers 1000–2100 for years with `min ≤ max` for `between`; enum members; strings trimmed, 1–300 characters; ISO dates; non-negative integers for counts); an operator not allowed for the field, or a field not allowed for the role, is refused with 400. The client never sends SQL or Prisma fragments.
+
+| Field | Operators | Value | Roles |
+|---|---|---|---|
+| `year` | `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `between`, `isEmpty`, `isNotEmpty` | integer / [integer, integer] | both |
+| `type` | `in`, `notIn` | type list | both |
+| `title` | `contains`, `notContains` | text | both |
+| `venue` | `contains`, `equals` (case-insensitive), `isEmpty`, `isNotEmpty` | text | both |
+| `authors` | `contains` | text | both |
+| `doi` | `isPresent`, `isAbsent`, `equals`, `startsWith` | text (normalized) | both |
+| `source` | `anyOf`, `noneOf` | source list | both |
+| `issn` | `equals` | ISSN (normalized) | both |
+| `addedOn` | `before`, `after`, `between` | date | both |
+| `scopusCitations` | `gt`, `gte`, `lt`, `lte`, `between` (publications **with** a count only), `hasCount`, `noCount` | integer | both (D9; professors see per-publication counts already, #112); **every operator refused while Scopus data is unavailable** (D6) |
+| `publicationStatus` | `in` | ACTIVE / SUPPRESSED | admin (professor scope is ACTIVE only, D1) |
+| `curated` | `is` | boolean | admin |
+| `linkedProfessors` | `gte`, `eq` | integer: distinct professors with a qualifying link (§24.5) | admin only (D10) |
+
+**Execution:** the validated tree is compiled to one Prisma `PublicationWhereInput`; the link scope is compiled separately (§24.4–§24.5) and the server always combines them as `AND: [linkScope, root]`. Citation conditions are not expressible as Prisma filters: each is resolved by one fixed, parameterized query (latest Scopus observation per record, maximum per publication) to an ID set used as `{ id: { in: … } }`, so it combines with AND/OR like any other condition; `linkedProfessors` likewise uses a fixed `groupBy` within the link scope. Results are canonical publications, each **at most once**.
+
+## 24.4 Authorization, scopes and citation availability
+
+* **Professor:** scope = `professors: some { professorId: <session professor>, status: APPROVED }` **and** `status = ACTIVE` (D1: SUPPRESSED publications are excluded even with an APPROVED relationship, consistent with every other professor-facing list, §6.4, and the CSV export, #153). The professor comes only from the session; a `link` block, `publicationStatus`, `linkedProfessors`, any other admin-only field or an unknown key is refused (400). Conditions can never widen the scope (they are ANDed with it). Professor responses carry no information about other professors' relationships — no linked-professor names, relationship counts or `linkedProfessors` values (D10).
+* **Administrator:** the link scope is an explicit, visible part of every query (§24.5) — there is no hidden restriction inside the query engine. A new query starts with the department analytics population (D3), entirely visible and removable: link scope *Any professor, APPROVED*, and two prefilled conditions `publicationStatus in [ACTIVE]` and `type notIn [PREPRINT]` in the root AND group. Removing them widens the query; nothing re-applies them. The **department-wide analytics view is not produced by the query engine**: it is the existing Analytics page (§16 endpoints, unchanged). Clearing the query discards the whole query state and shows that view again — it does not re-run a query with defaults.
+* **Publication status (admin):** only the prefilled, removable `publicationStatus in [ACTIVE]` condition (D3); the table shows a status column.
+* **Citation data availability.** Four situations are kept apart, everywhere (fields endpoint, search response, table, analytics):
+  1. *Provider data unavailable* — no Scopus observation is stored at all (today: no entitlement). **Every** citation-related filter (including `hasCount` and `noCount`), the citation sort and the "Cited in Scopus" preset are offered disabled with that reason (`GET …/fields` reports `scopus: { available: false }`); a query that still contains any of them is refused with 409 `CITATION_DATA_UNAVAILABLE` and a message — never an empty result, never zero counts and never "no count" (D6).
+  2. *No count for a publication* — Scopus data is available, but this publication has no count. It is **not zero**: numeric comparisons (`gt`, `lt`, …) never match it; only `noCount` does. Two cases are distinguished (#157): **no Scopus source record** — row state `NOT_IN_SCOPUS`, shown as "Not in Scopus"; **a Scopus source record without an observation yet** — row state `NO_COUNT_YET`, shown as "No Scopus count yet". Responses report the coverage of the matching set as `citations.coverage = { withCount, withoutCount, notInScopus, noCountYet }` (search response; `citations.coverage` of the analytics' Scopus section likewise) (`withCount + withoutCount` = matching total; `notInScopus + noCountYet = withoutCount`), so "fewer than 5 citations" is never read as including uncounted publications.
+  3. *Zero citations* — an observed count of 0 (row state `COUNTED`); it matches `lte 0`, `lt 1`, `between 0 …` and is shown as "0 citations" (with the Scopus attribution and date).
+  4. *No matching publications* — an empty result is reported as such ("No publications match these conditions"), distinct from (1).
+  Each response also returns `latestObservation`: the newest among the dates of the observations **supplying the matches' selected counts** (for each publication, the latest observation of the Scopus record whose count is the highest — the existing display rule), not the newest observation of any record; so stale counts are visible. Count and date always move together. While Scopus data is unavailable, rows carry neither a count nor a state (D6).
+
+## 24.5 Admin link scope: professors, ANY / ALL, relationship status
+
+```text
+LinkScope (admin) = { mode: "ANY_PROFESSOR" | "SELECTED" | "NO_LINK" | "ALL_PUBLICATIONS",
+                      statuses: VerificationStatus[]   (1–3; default [APPROVED]),
+                      origins?: RelationshipOrigin[],  decidedOn?: { after?, before? },
+                      professors?: uuid[]  (SELECTED only; 1–50 after removing duplicates (D12), unknown → 400, inactive allowed),
+                      match?: "ANY" | "ALL" (SELECTED only; default ANY) }
+```
+
+A **qualifying link** is one relationship row whose status ∈ `statuses` **and** (if given) origin ∈ `origins` **and** decision date within `decidedOn` — all evaluated on the *same* row. In NO_LINK and ALL_PUBLICATIONS the statuses (and origin / decision date) do not decide which publications match, but they still define which links qualify for `linkedProfessors`, the table's marking and the per-professor analytics; in NO_LINK no link exists, so those are empty.
+
+| Mode | Publication matches when | Notes |
+|---|---|---|
+| ANY_PROFESSOR | some professor — active or inactive — has a qualifying link | default (D2); with statuses [APPROVED] and the D3 prefilled conditions it is exactly the §16 department population (`countedPublications`, #86) |
+| SELECTED, ANY | at least one selected professor has a qualifying link | a selected professor linked only with a non-qualifying status does not count |
+| SELECTED, ALL | **every** selected professor has a qualifying link (one each) | with one professor, ANY = ALL |
+| NO_LINK | the publication has **no `ProfessorPublication` relationship of any status** — not merely no APPROVED or qualifying one | makes the "without any professor link" preset usable |
+| ALL_PUBLICATIONS | always | every canonical publication, linked or not |
+
+Compilation: ANY → `professors: some { professorId in S, status in R, … }`; ALL → `AND over p ∈ S: professors: some { professorId = p, status in R, … }`; NO_LINK → `professors: none {}`; ANY_PROFESSOR → `professors: some { status in R, … }`.
+
+**Deduplication and counting:** the selection is deduplicated before use; results are distinct canonical publications, each listed once however many professors link to it. *Matching publications* counts distinct publications. *Per-professor* figures count, for each professor, the matching publications on which that professor has a qualifying link (relationship counts: rows can sum to more than the total). *Overlap* (SELECTED + ANY) counts matching publications on which ≥ 2 selected professors have qualifying links. The table's Professors column lists every linked professor with their status and marks those whose link qualifies. `linkedProfessors` counts professors with a qualifying link.
+
+**Presets.** Applying a preset replaces the current query with a complete, ordinary, editable query (link scope + conditions); nothing is hidden. Both roles: *Recent* (`year between [Y−4, Y]`, Y = the current year in the server's configured time zone — the current year plus the preceding four, D7), *Journal articles*, *Conference papers*, *Books and chapters*, *Preprints*, *Published in year …* (parameter), *With DOI*, *Without DOI*, *Venue contains …*, *Reported by Scopus*, *Manual entries*, *Cited in Scopus* (`scopusCitations gte 10`, D8; disabled and refused while Scopus data is unavailable, D6). Admin only: *Pending verification* (link statuses [PENDING]), *Rejected links* ([REJECTED]), *Joint publications of the selected professors* (SELECTED + ALL), *Co-authored by department professors* (`linkedProfessors gte 2`), *Without any professor link* (NO_LINK), *Suppressed publications* (`publicationStatus in [SUPPRESSED]`), *Curated publications*. For the admin, every preset starts from the D3 defaults (link scope *Any professor, APPROVED* unless the preset sets another; `publicationStatus in [ACTIVE]`; `type notIn [PREPRINT]`) and adds its own condition, **except** that a preset drops a default it contradicts: *Preprints* drops `type notIn [PREPRINT]`; *Suppressed publications* drops `publicationStatus in [ACTIVE]`. Professors' presets add only their own condition (their scope is fixed, D1).
+
+**Coverage of the agreed use cases:** type (`type`), year (`year`), DOI (`doi`), journal (`venue`, free text — no journal identity, §24.2), citations (`scopusCitations`, with availability handling), publication status (`publicationStatus`), relationship status (link scope `statuses`), plus title, authors, sources, ISSN, date added, curated, origin, decision date, number of linked professors. No preset or analytic uses an unsupported field (§24.2: no keywords, structured authors, abstracts, WoS Times Cited or JCR data).
+
+## 24.6 Admin analytics with a query — relevance matrix
+
+With an active query the department-wide sections are replaced by analytics computed over **exactly the publications the query returns** (D4; distinct publications; per-professor rows are relationship counts, §24.5) — the §16 active / non-preprint policy is not re-applied; it is present only as the visible prefilled conditions of D3 while they are kept. Relevance is decided from the **matching set and the available data**, not from which conditions were used. Analytics are shown only when **at least 2 publications match** (D5); with 0 or 1 match, only the results table is shown. Within that, an analytic is shown only when its dimension takes ≥ 2 values among the matches (or the data it needs exists). The operational sections — overview cards (professors, pending verifications, last synchronization), sources-and-deduplication and synchronization — are never shown for a query. Professors never see analytics.
+
+| Analytic | Shown when (all on the matching set) | Not shown when |
+|---|---|---|
+| Matching publications | always (table header) | — |
+| By year | ≥ 2 distinct known years (unknown years reported beside it) | one year, or all unknown |
+| By type | ≥ 2 type families | one type family |
+| Top venues | ≥ 2 distinct non-empty venues | ≤ 1 venue |
+| Per professor | link mode ANY_PROFESSOR, SELECTED + ANY, or ALL_PUBLICATIONS, and at least two professors have qualifying links (clarified, #164, consistent with §24.5) | SELECTED + ALL (identical rows), NO_LINK, fewer than two professors with qualifying links |
+| Selected-professor overlap | SELECTED + ANY with ≥ 2 selected, and ≥ 1 match with ≥ 2 qualifying selected professors | otherwise |
+| By relationship status | link statuses include ≥ 2 statuses and both occur among the qualifying links | single status; NO_LINK |
+| By publication status | both ACTIVE and SUPPRESSED among the matches | one status |
+| DOI coverage (with / without) | both occur | all with or all without |
+| By source | ≥ 2 sources report the matches | one source |
+| Scopus citations (internal, admin only, #112): coverage (with / without a count), total, median, maximum, top 10 — never summed across providers or records | Scopus data available **and** ≥ 1 match has a count; coverage is always shown with it | data unavailable → one note "Scopus citation data unavailable" instead of the section; no match has a count → note "None of these publications has a Scopus count" |
+
+Clearing the query returns the page to exactly the existing department-wide analytics (same §16 endpoints and policy, unchanged).
+
+## 24.7 Results table, sorting, paging
+
+* Columns — both roles: Title (with the authors (truncated) and venue on a line below it, and the DOI link), Year, Type, Sources, Scopus citations ("N citations" with "Scopus, as of …" and the existing attribution links; "0 citations" for an observed zero; "No Scopus count yet" for a Scopus record without an observation; "Not in Scopus" without a Scopus record (#157); while Scopus data is unavailable the column is replaced by one note above the table, "Scopus citation data unavailable", and no count or state is shown, D6). Admin adds: Professors (qualifying links and linked professors counted, then all linked professors with their status; qualifying links marked; selected professors first and labelled), and Status (publication status, with a Curated mark when curated). *Implementation note (final review, #167):* venue and authors share the title cell, and publication status and curated share one column; the content is as listed.
+* Sort: year (default, newest first, unknown last), title, date added, Scopus citations (both roles, D9; publications without a count last; refused with 409 while Scopus data is unavailable, D6); always `id` as the final tie-breaker so paging is stable.
+* Paging: offset/limit, **default 25, maximum 100** (D11), with the total count.
+* **Query state in the URL** (D11): the applied query — link scope (admin), condition tree, sort, page — is kept in the page's URL parameters (the query as compact JSON, URL-safe encoded, plus `sort`, `offset`, `limit`), so a reload or a bookmark restores it; nothing is stored on the server and there are no saved queries (D14). The URL is only a carrier: the browser decodes it into the builder and sends it as the request body, and the server **re-validates every request in full** — schema and limits, the role's allowed fields and operators, the session professor's scope, admin-only link scope, professor IDs, citation availability — exactly as for a query built by hand; nothing in the URL is trusted or can widen a scope. A URL that does not decode or fails validation shows an error and the default builder (it is never partially applied). Clearing the query removes the parameters and shows the department-wide view (admin) or an empty builder (professor).
+
+## 24.8 API and module structure
+
+* `services/publicationQuery/`: `ast.ts` (Zod schema, limits), `fields.ts` (field registry: role, operators, value schema, compiler, availability), `compile.ts`, `scope.ts` (professor scope; admin link scope: modes, ANY / ALL, qualifying links), `citations.ts` (availability, per-publication counts and ID sets), `presets.ts`, `execute.ts` (search: where, sort, page, total, coverage — `coverage()` lives here and is shared with the analytics — and the read-only query transaction), `analytics.ts` (relevance + aggregates on the matching set).
+* Professor: `GET /api/me/publication-queries/fields` (incl. citation availability), `GET …/presets`, `POST /api/me/publication-queries/search`.
+* Admin: `GET /api/admin/publication-queries/fields`, `GET …/presets`, `POST …/search`, `POST …/analytics`. POST because the query is a body; read-only. Existing guards (session, role, password changed, allowed origin) and `Cache-Control: no-store` apply.
+* The query travels from the URL (D11) to the search endpoints as the POST body; no endpoint reads query criteria from URL parameters, and every request is validated and scoped on its own.
+* Frontend: shared `QueryBuilder` (rows of field / operator / value; add condition, add group, AND/OR per group, remove; presets chosen from a dropdown and loaded with *Use filter*, with a value input for parameterized presets; disabled fields with their reason) and `QueryResults` table; professor page `/professor/query`; admin Analytics gains the link-scope control (mode, statuses, professor multi-select with ANY / ALL), the builder, the results table and conditional analytics.
+
+## 24.9 Performance
+
+Development data: about 1,200 publications, 2,000 source records and 1,200 relationships. Existing indexes cover year, normalized title, DOI, `(professor_id, status)`, relationship `publication_id`, source-record `publication_id` / `doi` / GIN `issns`, and citation observations by record and date. Substring conditions scan (acceptable at this size; `pg_trgm` is excluded); citation ID sets and `linkedProfessors` are one indexed query each; `NO_LINK` is an anti-join on the indexed `publication_id`. **No new index is needed now**; `type_family` and `created_at` indexes would be revisited only beyond roughly 50,000 publications. Safeguards: the size limits of §24.3 and a per-query statement timeout — *implementation decision (Q1, #156):* every search runs in one read-only transaction with `statement_timeout` = **5 s**; a PostgreSQL statement timeout is reported as **503 `QUERY_TIMEOUT`** ("The query took too long; narrow it down and try again"). *Implementation decision (Q4 review, #163):* the transaction is **REPEATABLE READ**, so all statements of one request (total, page, coverage, every analytics section) see one snapshot; search and analytics responses carry a fingerprint of the matching set (SHA-256 of the sorted publication IDs; no IDs disclosed), and the Analytics page shows conditional analytics only when it equals the table's — otherwise it says the set changed while loading and offers a manual Refresh.
+
+## 24.10 Tests (synthetic, test database only)
+
+Authorization (no session, wrong role, professor scope never widened by OR / nesting / extra keys / a `link` block / `publicationStatus` / other admin fields; non-APPROVED links and SUPPRESSED publications never returned to professors — D1); every field × operator, including empty values and invalid input (400); limits (25 conditions, nesting 3, page size 1–100, 50 professors); AND / OR / nested groups; admin D3 defaults present, visible and removable, and never re-applied once removed; presets produce the documented queries, including the dropped defaults of *Preprints* and *Suppressed publications*, and *Recent* = current year and the four before; link scope: every mode, ANY vs ALL with 1, 2 and 3 professors, statuses that make a linked professor non-qualifying, origin / decision date on the same row, duplicates in the selection, unknown and inactive professors, NO_LINK (no relationship of any status — a publication with only a PENDING or REJECTED link does **not** match) vs ALL_PUBLICATIONS, each publication once, per-professor and overlap counts; citations: unavailable data (every citation filter, `noCount` and `hasCount` included, the sort and the preset refused with 409, fields disabled, never an empty result), no count vs zero, latest observation, highest across records, coverage, no double counting, professor filtering and sorting by their own counts; sorting and stable paging; analytics over exactly the returned publications (preprints / suppressed included when the defaults are removed); the relevance matrix row by row (0 and 1 matches → table only, data unavailable, no counts, operational sections never shown); professors never receive analytics and no other professors' relationship data (`linkedProfessors`, names, counts — D10); URL state (D11): reload and bookmark restore the query, a tampered or hand-written URL (admin fields or a `link` block in a professor URL, another professor's ID, oversized or malformed input, citation conditions while data is unavailable) is refused by the server exactly like a built query and never widens a scope, an undecodable URL shows the default builder; clearing removes the URL parameters and restores the department-wide responses unchanged; frontend type check, lint and build; browser check on synthetic data.
+
+## 24.11 Stages
+
+| Stage | Content |
+|---|---|
+| Q0 | Owner final approval of §24; decision log; amend §15.1, §16, §17 |
+| Q1 | Query engine (schema, registry, compiler, scopes and link scope, citation availability and ID sets) + backend tests |
+| Q2 | Professor search endpoints + Query Publications page (builder, presets, table, URL state) |
+| Q3 | Admin search with the link scope (modes, statuses, ANY / ALL) + results table and URL state on Analytics |
+| Q4 | Conditional analytics with the relevance matrix; clearing restores the default view |
+| Q5 | Full validation, browser checks, documentation |
+
+## 24.12 Owner decisions (all incorporated; the proposal as a whole awaits final approval)
+
+| # | Decision |
+|---|---|
+| D1 | Professor scope: APPROVED relationships of the session professor **and** ACTIVE publications; SUPPRESSED publications are excluded even with an APPROVED relationship |
+| D2 | Admin initial link scope *Any professor, APPROVED* — verified against the implementation: the department analytics population (`countedPublications` in `services/analytics/analytics.ts`, #86) is ACTIVE, not PREPRINT, with at least one APPROVED relationship of any professor, active or inactive |
+| D3 | Admin defaults: visible, removable prefilled conditions `publicationStatus in [ACTIVE]` and `type notIn [PREPRINT]` (with D2), matching the department analytics population; no hidden restriction |
+| D4 | Conditional analytics over exactly the publications the applied query returns; the active / non-preprint policy is not silently re-applied |
+| D5 | Conditional analytics only with ≥ 2 matching publications; 0 or 1 → results table only |
+| D6 | While Scopus data is unavailable, every citation-related filter (`hasCount` and `noCount` included), the citation sort and the citation preset are refused; missing provider access is never shown as zero or as "no count" |
+| D7 | *Recent* = the current publication year plus the preceding four |
+| D8 | *Cited in Scopus* = at least 10 citations |
+| D9 | Professors may filter and sort by individual Scopus counts once data exists; no professor-side analytics |
+| D10 | `linkedProfessors` (field and filter) is admin-only; professors receive no aggregate or other information about other professors' relationships |
+| D11 | Paging: default 25 rows, maximum 100; the applied query is kept in URL parameters (reload and bookmark), never stored on the server, and re-validated and re-authorized on every request |
+| D12 | At most 50 selected professors |
+| D13 | Data limitations of §24.2 accepted (free-text venue and authors; no keywords, structured authors, abstracts, WoS Times Cited or JCR data; citation features inactive until Scopus data exists) |
+| D14 | Out of scope: natural-language queries, saved queries and query-result downloads; the My Publications CSV export (#153) is unchanged |
+| — | *No professor link* = no `ProfessorPublication` relationship of any status |
+
+**Open items:** none.
