@@ -413,3 +413,136 @@ export async function deleteIdentity(professorId: string, identityId: string, cl
     return { pendingLinksRemoved: removed };
   });
 }
+
+// ─── Professor self-service and status (decision #171) ─────────────────────────────────────────────
+
+/** Who added an identity, from its recorded verifier (`verifiedByUserId`). */
+export type AddedBy =
+  | { kind: 'PROFESSOR'; name: string | null }
+  | { kind: 'ADMIN' }
+  /** No verifier recorded (identities from before verifiers were stored); only administrators could add identities then. */
+  | { kind: 'ADMIN_UNRECORDED' };
+
+/** The latest synchronization of an identity, or why it has none. */
+export type IdentitySyncStatus =
+  | { state: 'SYNCHRONIZED' | 'FAILED' | 'NOT_CONFIGURED' | 'RUNNING'; at: Date | null; message: string | null }
+  /** Professor-added, never attempted, provider available, and a run or its follow-up is in progress: the drain after it picks the identity up. */
+  | { state: 'QUEUED' }
+  /** Professor-added, never attempted, provider not available (no credentials or the Clarivate gate). */
+  | { state: 'WAITING_FOR_PROVIDER' }
+  /**
+   * Never attempted and nothing in progress that would pick it up: `includedInNextRun` when the next
+   * synchronization run will include it (active identity of an active professor).
+   */
+  | { state: 'NEVER'; includedInNextRun: boolean };
+
+/**
+ * What identity statuses need from the synchronization engine (#171) — `SyncService` itself, so the
+ * administrator's and the professor's views use the engine's own provider availability (credentials
+ * and Clarivate gate) and know whether a queue drain is pending.
+ */
+export interface IdentitySyncView {
+  canSyncSource(source: IdentitySource): boolean;
+  readonly drainPending: boolean;
+}
+
+/**
+ * The identity fields with what `addedBy` and `syncStatus` need. The latest task is chosen by its
+ * run's start; on equal start times an unfinished run is the newest (a run starts only after the
+ * previous one finished), then the later-finishing run, then the task's own finish and start; the
+ * task id only as a last resort.
+ */
+export const identityStatusSelect = {
+  ...identityOutput,
+  verifiedBy: { select: { role: true, professor: { select: { name: true } } } },
+  syncTasks: {
+    select: { status: true, finishedAt: true, startedAt: true, errorMessage: true },
+    orderBy: [
+      { syncRun: { startedAt: 'desc' } },
+      { syncRun: { finishedAt: { sort: 'desc', nulls: 'first' } } },
+      { finishedAt: { sort: 'desc', nulls: 'first' } },
+      { startedAt: { sort: 'desc', nulls: 'first' } },
+      { id: 'desc' },
+    ],
+    take: 1,
+  },
+} satisfies Prisma.ExternalIdentitySelect;
+
+type IdentityWithStatus = Prisma.ExternalIdentityGetPayload<{ select: typeof identityStatusSelect }>;
+
+export function addedByOf(verifiedBy: IdentityWithStatus['verifiedBy']): AddedBy {
+  if (!verifiedBy) return { kind: 'ADMIN_UNRECORDED' };
+  return verifiedBy.role === 'PROFESSOR' ? { kind: 'PROFESSOR', name: verifiedBy.professor?.name ?? null } : { kind: 'ADMIN' };
+}
+
+export function syncStatusOf(identity: IdentityWithStatus, context: { professorActive: boolean; sync: IdentitySyncView }): IdentitySyncStatus {
+  const task = identity.syncTasks[0];
+  if (task) {
+    const state = task.status === 'SUCCESS' ? 'SYNCHRONIZED' : task.status === 'FAILED' ? 'FAILED' : task.status === 'NOT_CONFIGURED' ? 'NOT_CONFIGURED' : 'RUNNING';
+    return { state, at: task.finishedAt ?? task.startedAt, message: state === 'FAILED' || state === 'NOT_CONFIGURED' ? task.errorMessage : null };
+  }
+  const included = identity.isActive && context.professorActive;
+  if (identity.verifiedBy?.role === 'PROFESSOR' && included) {
+    if (!context.sync.canSyncSource(identity.source)) return { state: 'WAITING_FOR_PROVIDER' };
+    // Queued only while a drain will follow; otherwise (e.g. reactivated, or a start that could not
+    // be made) the next run — its drain or a full run — includes it.
+    if (context.sync.drainPending) return { state: 'QUEUED' };
+  }
+  return { state: 'NEVER', includedInNextRun: included };
+}
+
+/** An identity with `addedBy` and `syncStatus`, for administrators and for its professor. */
+export function presentIdentity(identity: IdentityWithStatus, context: { professorActive: boolean; sync: IdentitySyncView }) {
+  const { verifiedBy, syncTasks, ...rest } = identity;
+  void syncTasks;
+  return { ...rest, addedBy: addedByOf(verifiedBy), syncStatus: syncStatusOf(identity, context) };
+}
+
+/** The signed-in professor's own identities (#171). */
+export async function listOwnIdentities(professorId: string, sync: IdentitySyncView, client: PrismaClient = defaultClient) {
+  const professor = await client.professor.findUnique({
+    where: { id: professorId },
+    select: { isActive: true, identities: { select: identityStatusSelect, orderBy: [{ source: 'asc' }, { externalId: 'asc' }] } },
+  });
+  if (!professor) throw professorNotFound();
+  return professor.identities.map((identity) => presentIdentity(identity, { professorActive: professor.isActive, sync }));
+}
+
+/** One identity of this professor with its status (after a save). */
+export async function ownIdentity(professorId: string, identityId: string, sync: IdentitySyncView, client: PrismaClient = defaultClient) {
+  const identity = await client.externalIdentity.findFirst({ where: { id: identityId, professorId }, select: { ...identityStatusSelect, professor: { select: { isActive: true } } } });
+  if (!identity) throw identityNotFound();
+  const { professor, ...rest } = identity;
+  return presentIdentity(rest, { professorActive: professor.isActive, sync });
+}
+
+const PROVIDER_NAME: Record<IdentitySource, string> = { OPENALEX: 'OpenAlex', DBLP: 'DBLP', ORCID: 'ORCID', SCOPUS: 'Scopus', WOS: 'Web of Science' };
+
+/** What happened to the synchronization of a newly added identity (#171). */
+export type IdentitySyncStart = { status: 'STARTED'; runId: string } | { status: 'QUEUED' } | { status: 'NOT_STARTED'; reason: string };
+
+/**
+ * Synchronizes a professor's newly added identity on its own (#171), through the existing engine:
+ * started at once when no run is active; otherwise it stays in the database-derived queue and the
+ * drain after the current run starts it. Never fails the save: the identity stays saved and active.
+ */
+export async function startIdentitySync(
+  sync: { canSyncSource: (source: IdentitySource) => boolean; start: (trigger: 'MANUAL', userId: string | null, scope: { identityIds: readonly string[]; queued: boolean }) => Promise<{ id: string }> },
+  identity: { id: string; source: IdentitySource },
+  userId: string,
+): Promise<IdentitySyncStart> {
+  if (!sync.canSyncSource(identity.source)) {
+    return {
+      status: 'NOT_STARTED',
+      reason: `${PROVIDER_NAME[identity.source]} synchronization is not available because its API access is not configured. The identity is saved and active; it is synchronized by a synchronization run after access has been configured`,
+    };
+  }
+  try {
+    const run = await sync.start('MANUAL', userId, { identityIds: [identity.id], queued: false });
+    return { status: 'STARTED', runId: run.id };
+  } catch (error) {
+    if (error instanceof HttpError && error.code === 'SYNC_ALREADY_RUNNING') return { status: 'QUEUED' };
+    console.error(`Identity synchronization could not start (${error instanceof Error ? error.name : 'unknown error'})`);
+    return { status: 'NOT_STARTED', reason: 'The synchronization could not be started now. The identity is saved and active; the next synchronization run includes it' };
+  }
+}

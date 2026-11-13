@@ -72,3 +72,22 @@ export function rangeLabel(offset: number, count: number, total: number): string
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${formatNumber(n)} ${n === 1 ? one : many}`;
 }
+
+/**
+ * Where a publication-discovery run came from (#171): scheduled, started by the administrator, or
+ * identity-scoped — for a professor's newly added identity, or a queued batch started after another
+ * run (never shown as an ordinary manual run).
+ */
+export function runOrigin(
+  run: { trigger: "MANUAL" | "SCHEDULED"; scope?: { queued: boolean; identityIds: string[] } | null; startedBy?: { role: string; name: string | null } | null },
+  form: "short" | "long" = "short",
+): string {
+  if (run.scope) {
+    const count = plural(run.scope.identityIds.length, "identity", "identities");
+    if (run.scope.queued) return `Identity sync · queued batch (${count})`;
+    const who = run.startedBy?.role === "PROFESSOR" ? (run.startedBy.name ?? "a professor") : "a professor";
+    return `Identity sync · new identity of ${who}`;
+  }
+  if (run.trigger === "SCHEDULED") return "Scheduled";
+  return form === "long" ? "Started by the administrator" : "Manual run";
+}

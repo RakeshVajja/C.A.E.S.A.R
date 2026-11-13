@@ -111,6 +111,13 @@ export class ClarivateGateClosedError extends HttpError {
 
 const MESSAGE_LIMIT = 500;
 
+/** An identity-scoped start found none of its identities still queued (#171); internal, never sent to a client. */
+export class NothingToSyncError extends Error {
+  constructor() {
+    super('None of these identities is waiting for synchronization');
+  }
+}
+
 export class SyncAlreadyRunningError extends HttpError {
   constructor() {
     super(409, 'SYNC_ALREADY_RUNNING', 'A synchronization run is already in progress');
@@ -120,6 +127,14 @@ export class SyncAlreadyRunningError extends HttpError {
 export class SyncService {
   private readonly client: PrismaClient;
   private current: Promise<void> | null = null;
+  /** Work that follows a run or a failed start (JCR follow-up, identity-queue drain, #171); awaited by `idle()`. */
+  private readonly followUps = new Set<Promise<void>>();
+  /**
+   * A start was refused because another start or run held the guard (#171). Such a caller — a
+   * professor's new identity answered QUEUED — relies on a drain once the guard is released; when
+   * the guard is released without a run, this flag schedules that drain. Cleared by every drain.
+   */
+  private startRefused = false;
   /** Settles when every queued `exclusive` operation has finished; never rejects. */
   private exclusiveQueue: Promise<void> = Promise.resolve();
 
@@ -145,23 +160,102 @@ export class SyncService {
     return this.current !== null;
   }
 
-  /** Resolves when the run in progress (if any) has finished. */
+  /**
+   * Resolves when the run in progress (if any) has finished, including what follows it — the JCR
+   * follow-up and the identity-queue drain (#171) — and any run they start.
+   */
   async idle(): Promise<void> {
-    await this.current;
+    for (;;) {
+      if (!this.current && this.followUps.size === 0) return;
+      await this.current;
+      await Promise.all([...this.followUps]);
+    }
+  }
+
+  /**
+   * True while a run executes in this process or the work after it (or after a failed start) is
+   * still pending — i.e. a queued identity will be picked up by a drain without waiting for the
+   * next full run (#171).
+   */
+  get drainPending(): boolean {
+    return this.current !== null || this.followUps.size > 0;
+  }
+
+  /** Runs `work` after a run or a failed start; tracked for `idle()` and `drainPending`, never rejects. */
+  private followUp(work: () => Promise<unknown>): void {
+    const done: Promise<void> = (async () => {
+      try {
+        await work();
+      } catch (error) {
+        console.error(`Synchronization follow-up failed (${describeFailure(error)})`);
+      }
+    })().finally(() => this.followUps.delete(done));
+    this.followUps.add(done);
+  }
+
+  /** Whether a discovery task for this source can be attempted now (credentials present; WoS also needs the Clarivate gate). */
+  canSyncSource(source: IdentitySource): boolean {
+    return canAttempt(this.providers[source].credentials) && (source !== 'WOS' || this.clarivateGateOpen);
+  }
+
+  /**
+   * Identities waiting for an identity-scoped run (#171), derived from the database only: added by
+   * a professor (verifier with the PROFESSOR role), active, of an active professor, never attempted
+   * (no task of any run), and of a source that can be attempted now. A failed first attempt leaves a
+   * task, so the identity is not queued again: full runs retry it like every active identity.
+   */
+  private identityQueueFilter(identityIds?: readonly string[]): Prisma.ExternalIdentityWhereInput {
+    const sources = (['OPENALEX', 'DBLP', 'ORCID', 'SCOPUS', 'WOS'] as const).filter((source) => this.canSyncSource(source));
+    return {
+      isActive: true,
+      professor: { isActive: true },
+      verifiedBy: { role: 'PROFESSOR' },
+      syncTasks: { none: {} },
+      source: { in: sources },
+      ...(identityIds && { id: { in: [...identityIds] } }),
+    };
+  }
+
+  /**
+   * Starts one identity-scoped run for every queued identity (#171). Called after every run (any
+   * kind, any outcome) and once at startup after interrupted-run recovery. Does nothing when the
+   * queue is empty or another run started first (the identities stay queued for the next drain).
+   */
+  async drainIdentityQueue(): Promise<{ runId: string; identities: number } | null> {
+    // Every identity whose start was refused so far is saved already, so this drain covers it.
+    this.startRefused = false;
+    try {
+      const queued = await this.client.externalIdentity.findMany({ where: this.identityQueueFilter(), select: { id: true } });
+      if (queued.length === 0) return null;
+      const run = await this.start('MANUAL', null, { identityIds: queued.map((i) => i.id), queued: true });
+      console.log(`Queued identity synchronization started (run ${run.id}, ${run.tasksTotal} identities)`);
+      return { runId: run.id, identities: run.tasksTotal };
+    } catch (error) {
+      if (error instanceof SyncAlreadyRunningError || error instanceof NothingToSyncError) return null;
+      console.error(`Queued identity synchronization could not start (${describeFailure(error)})`);
+      return null;
+    }
   }
 
   /**
    * Starts a run and returns it immediately; tasks execute in the background (`idle()` awaits
    * them). Refuses with SYNC_ALREADY_RUNNING while another run is executing.
+   *
+   * Without `scope`: every active identity of every active professor (scheduled and manual runs).
+   * With `scope` (#171): only those of the given identities that are still queued (see
+   * `identityQueueFilter`), re-read here under the guard so a deactivated or deleted identity, an
+   * inactive professor or an identity already attempted is never included; refused with
+   * NothingToSyncError when none remains. Same pipeline, guard and recovery as every run.
    */
-  async start(trigger: SyncTrigger, triggeredByUserId: string | null = null) {
+  async start(trigger: SyncTrigger, triggeredByUserId: string | null = null, scope?: { identityIds: readonly string[]; queued: boolean }) {
     return this.launch(
       async () => {
         const identities = await this.client.externalIdentity.findMany({
-          where: { isActive: true, professor: { isActive: true } },
+          where: scope ? this.identityQueueFilter(scope.identityIds) : { isActive: true, professor: { isActive: true } },
           select: { id: true, source: true },
           orderBy: [{ professorId: 'asc' }, { source: 'asc' }, { externalId: 'asc' }],
         });
+        if (scope && identities.length === 0) throw new NothingToSyncError();
         const startedAt = this.options.now();
         return this.client.syncRun.create({
           data: {
@@ -171,7 +265,10 @@ export class SyncService {
             status: 'RUNNING',
             startedAt,
             // Configuration at start, so the outcome stays correct if credentials change later.
-            providerCoverage: coverageSnapshot(this.providers, identities, { clarivateBlocked: !this.clarivateGateOpen }),
+            providerCoverage: coverageSnapshot(this.providers, identities, {
+              clarivateBlocked: !this.clarivateGateOpen,
+              ...(scope && { scope: { kind: 'IDENTITIES' as const, identityIds: identities.map((i) => i.id), queued: scope.queued } }),
+            }),
             tasksTotal: identities.length,
             tasks: { create: identities.map((i) => this.planTask(i, startedAt)) },
           },
@@ -203,9 +300,12 @@ export class SyncService {
    * The single-run guard shared by both run kinds (#82): taken synchronously, then the queued
    * administrator operations finish, then a RUNNING row of either kind still refuses the start.
    */
-  private async launch<R extends { id: string }>(create: () => Promise<R>, execute: (runId: string) => Promise<void>, after?: (runId: string) => void): Promise<R> {
+  private async launch<R extends { id: string }>(create: () => Promise<R>, execute: (runId: string) => Promise<void>, after?: (runId: string) => Promise<void>): Promise<R> {
     // The in-process guard is taken synchronously, before any await, so two starts cannot both pass.
-    if (this.current) throw new SyncAlreadyRunningError();
+    if (this.current) {
+      this.startRefused = true;
+      throw new SyncAlreadyRunningError();
+    }
     let release!: () => void;
     this.current = new Promise<void>((resolve) => (release = resolve));
     try {
@@ -220,20 +320,33 @@ export class SyncService {
       void execute(run.id).finally(() => {
         this.current = null;
         release();
-        after?.(run.id);
+        // After the run: its own follow-up (the JCR refresh after discovery) first, then the identity
+        // queue (#171), so the drain never pre-empts the follow-up. `idle()` awaits this step.
+        this.followUp(async () => {
+          try {
+            await after?.(run.id);
+          } finally {
+            await this.drainIdentityQueue();
+          }
+        });
       });
       return run;
     } catch (error) {
       this.current = null;
       release();
+      // No run was created (a RUNNING row, nothing left to synchronize, or a database error), so no
+      // drain follows one. If a start was refused meanwhile — e.g. a professor's identity answered
+      // QUEUED — drain now (#171). Only a refused start sets the flag, so a persistent failure does
+      // not loop: a further drain needs a further refused start.
+      if (this.startRefused) this.followUp(() => this.drainIdentityQueue());
       throw error;
     }
   }
 
   /** Chains a JCR refresh after a discovery run that added records, when enabled and JCR can be attempted. */
-  private afterDiscovery(runId: string): void {
-    if (!this.options.journalMetricsAfterDiscovery || !this.clarivateGateOpen || !canAttempt(this.providers.JCR.credentials) || !this.options.clients.jcr) return;
-    void (async () => {
+  private afterDiscovery(runId: string): Promise<void> {
+    if (!this.options.journalMetricsAfterDiscovery || !this.clarivateGateOpen || !canAttempt(this.providers.JCR.credentials) || !this.options.clients.jcr) return Promise.resolve();
+    return (async () => {
       const run = await this.client.syncRun.findUnique({ where: { id: runId }, select: { recordsNew: true } });
       if (!run || run.recordsNew === 0) return;
       const started = await this.startJournalMetrics('SCHEDULED', null);

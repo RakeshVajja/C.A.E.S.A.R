@@ -31,6 +31,10 @@ async function startServer(): Promise<void> {
 
   // One synchronization engine per process, shared by the admin triggers and both schedules.
   const sync = new SyncService({ clients: createSyncClients(), now: () => new Date(), journalMetricsAfterDiscovery: true });
+  // Identities a professor added that were never synchronized (e.g. saved just before a crash) are
+  // synchronized now (#171). Only those: there is no startup catch-up for full runs (§20).
+  const drained = await sync.drainIdentityQueue();
+  if (drained) console.log(`Startup: queued identity synchronization started for ${drained.identities} identities`);
   const scheduler = env.nodeEnv === 'test' ? null : startSyncScheduler(sync, { cronExpression: env.syncCron, timezone: env.syncTimezone });
   if (scheduler) console.log(`Publication synchronization scheduled: "${env.syncCron}" (${env.syncTimezone})`);
   const jcrScheduler = env.nodeEnv === 'test' ? null : startJournalMetricsScheduler(sync, { cronExpression: env.jcrSyncCron, timezone: env.syncTimezone });

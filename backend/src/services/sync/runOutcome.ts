@@ -1,4 +1,4 @@
-import type { IdentitySource, SyncRunStatus, SyncTaskStatus } from '@prisma/client';
+import { Prisma, type IdentitySource, type SyncRunStatus, type SyncTaskStatus } from '@prisma/client';
 import { z } from 'zod';
 import { canAttempt, DISCOVERY_PROVIDERS, type CredentialState, type DiscoveryProvider, type ProviderConfiguration } from '../providers/providerStatus';
 
@@ -30,6 +30,13 @@ const CREDENTIAL_STATES = ['NOT_REQUIRED', 'PRESENT', 'NOT_CONFIGURED', 'INCOMPL
  */
 const providerEntry = z.strictObject({ credentials: z.enum(CREDENTIAL_STATES), identities: z.number().int().min(0), blocked: z.literal(true).optional() });
 
+/**
+ * `scope` (decision #171): present only on identity-scoped runs — started for a professor's newly
+ * added identity (`queued: false`) or by the queue drain for identities added while a run was active
+ * (`queued: true`). Optional, so version-1 snapshots without it parse unchanged (absent = a full run).
+ */
+const runScope = z.strictObject({ kind: z.literal('IDENTITIES'), identityIds: z.array(z.uuid()).min(1), queued: z.boolean() });
+
 export const coverageSnapshotSchema = z.strictObject({
   version: z.literal(1),
   providers: z.strictObject({
@@ -39,7 +46,16 @@ export const coverageSnapshotSchema = z.strictObject({
     SCOPUS: providerEntry,
     WOS: providerEntry,
   }),
+  scope: runScope.optional(),
 });
+
+export type RunScope = z.infer<typeof runScope>;
+
+/**
+ * Runs without an identity scope — full scheduled and manual runs, and runs from before Phase 15
+ * without a snapshot (#171). A missing `scope` key reads as SQL NULL, which `AnyNull` matches.
+ */
+export const FULL_RUN = { providerCoverage: { path: ['scope'], equals: Prisma.AnyNull } } satisfies Prisma.SyncRunWhereInput;
 
 export type CoverageSnapshot = z.infer<typeof coverageSnapshotSchema>;
 
@@ -51,7 +67,7 @@ export type CoverageSnapshot = z.infer<typeof coverageSnapshotSchema>;
 export function coverageSnapshot(
   configuration: ProviderConfiguration,
   identities: readonly { source: IdentitySource }[],
-  options: { clarivateBlocked?: boolean } = {},
+  options: { clarivateBlocked?: boolean; scope?: RunScope } = {},
 ): CoverageSnapshot {
   const entry = (provider: DiscoveryProvider) => ({
     credentials: configuration[provider].credentials,
@@ -61,6 +77,7 @@ export function coverageSnapshot(
   return {
     version: 1,
     providers: { OPENALEX: entry('OPENALEX'), DBLP: entry('DBLP'), ORCID: entry('ORCID'), SCOPUS: entry('SCOPUS'), WOS: entry('WOS') },
+    ...(options.scope && { scope: options.scope }),
   };
 }
 

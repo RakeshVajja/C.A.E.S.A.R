@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient, PublicationSource, SyncRunStatus, TypeFamily } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
 import { scopusCitations } from '../citations/scopusCitations';
+import { FULL_RUN } from '../sync/runOutcome';
 
 /**
  * Administrator analytics (Project_plan.md §16; Phase 13, decisions #86–#89). Every figure is
@@ -34,6 +35,13 @@ const runSummarySelect = { id: true, trigger: true, status: true, startedAt: tru
 /** Synchronization figures describe publication-discovery runs only; JCR runs are reported separately (#123). */
 const DISCOVERY = { kind: 'PUBLICATION_DISCOVERY' } as const;
 
+/**
+ * Full discovery runs only (#171): identity-scoped runs — a professor's new identity, or the queue
+ * batch after a run — synchronize a few identities and would otherwise stand in for the last full
+ * synchronization (masking a failed scheduled run). They stay in the synchronization history.
+ */
+const FULL_DISCOVERY = { ...DISCOVERY, ...FULL_RUN } satisfies Prisma.SyncRunWhereInput;
+
 export async function overview(client: PrismaClient = defaultClient) {
   const [professorsTotal, professorsActive, uniquePublications, byType, pendingVerifications, lastSync, running] = await client.$transaction([
     client.professor.count(),
@@ -43,7 +51,8 @@ export async function overview(client: PrismaClient = defaultClient) {
     // The outstanding verification backlog: every PENDING relationship to a non-suppressed
     // publication, whether or not the professor is active, preprints included (#88).
     client.professorPublication.count({ where: { status: 'PENDING', publication: { status: 'ACTIVE' } } }),
-    client.syncRun.findFirst({ where: { ...DISCOVERY, status: { not: 'RUNNING' } }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
+    client.syncRun.findFirst({ where: { ...FULL_DISCOVERY, status: { not: 'RUNNING' } }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
+    // Any run in progress, identity-scoped ones included: the engine is busy either way.
     client.syncRun.count({ where: { ...DISCOVERY, status: 'RUNNING' } }),
   ]);
   const typeCount = new Map(byType.map((row) => [row.typeFamily, countOf(row._count)]));
@@ -138,19 +147,21 @@ export async function sourceStatistics(client: PrismaClient = defaultClient) {
 /**
  * Synchronization history from SyncRun/SyncTask (#89). Record figures are the stored run counters
  * (sums of their tasks) of finished runs; a RUNNING run is counted only under `runs.running`.
+ * Run counts and the last / last successful run describe full runs only (#171); task and record
+ * figures count the work of every discovery run, identity-scoped ones included.
  * `recordsAdded` = new source records, `recordsUpdated` = existing source records seen again.
  */
 export async function syncStatistics(client: PrismaClient = defaultClient) {
   const finished = { ...DISCOVERY, status: { not: 'RUNNING' } } satisfies Prisma.SyncRunWhereInput;
   const [runGroups, taskGroups, totals, lastRun, lastSuccessfulRun] = await client.$transaction([
-    client.syncRun.groupBy({ by: ['status'], where: DISCOVERY, _count: { _all: true }, orderBy: { status: 'asc' } }),
+    client.syncRun.groupBy({ by: ['status'], where: FULL_DISCOVERY, _count: { _all: true }, orderBy: { status: 'asc' } }),
     client.syncTask.groupBy({ by: ['status'], where: { syncRun: finished }, _count: { _all: true }, orderBy: { status: 'asc' } }),
     client.syncRun.aggregate({
       where: finished,
       _sum: { recordsFetched: true, recordsNew: true, recordsUpdated: true, linksCreated: true, candidatesCreated: true },
     }),
-    client.syncRun.findFirst({ where: finished, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
-    client.syncRun.findFirst({ where: { ...DISCOVERY, status: 'SUCCESS' }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
+    client.syncRun.findFirst({ where: { ...finished, ...FULL_RUN }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
+    client.syncRun.findFirst({ where: { ...FULL_DISCOVERY, status: 'SUCCESS' }, select: runSummarySelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] }),
   ]);
   const runs = new Map(runGroups.map((row) => [row.status, countOf(row._count)]));
   const tasks = new Map(taskGroups.map((row) => [row.status, countOf(row._count)]));

@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/dialog";
 import { ProviderConfigurationPanel } from "@/components/providers";
 import { Alert, Button, EmptyState, LoadError, PageHeader, Pagination, Panel, SectionTitle, SkeletonRows } from "@/components/ui";
 import { api, ApiError, errorMessage, query } from "@/lib/api";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber, runOrigin } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
 import type { Paged, SyncRun } from "@/lib/types";
 
@@ -116,7 +116,7 @@ function Runs() {
                           <Link href={`/admin/sync/${r.id}`} className="font-medium text-ink hover:underline underline-offset-4">
                             {formatDateTime(r.startedAt)}
                           </Link>
-                          <p className="text-[13px] text-text-muted">{r.trigger === "MANUAL" ? "Manual run" : "Scheduled"}</p>
+                          <p className="text-[13px] text-text-muted" data-run-origin>{runOrigin(r)}</p>
                         </td>
                         <td data-label="Status">
                           <StatusChip status={r.status} />

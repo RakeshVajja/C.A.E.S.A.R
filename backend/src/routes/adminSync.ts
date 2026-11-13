@@ -57,6 +57,10 @@ const runSelect = {
   id: true,
   trigger: true,
   triggeredByUserId: true,
+  // Who started the run (an administrator, or a professor for their new identity, #171).
+  triggeredBy: { select: { role: true, professor: { select: { name: true } } } },
+  // Carries the identity scope of identity-scoped runs (#171); not returned as such.
+  providerCoverage: true,
   status: true,
   tasksTotal: true,
   tasksSucceeded: true,
@@ -70,6 +74,21 @@ const runSelect = {
   finishedAt: true,
 } as const;
 
+/**
+ * A run as listed: `scope` is the identity scope of an identity-scoped run (#171) — `queued: true`
+ * for a batch started by the queue after another run, `queued: false` for a professor's new
+ * identity — or null for a full run; `startedBy` names who started it.
+ */
+function presentRun<T extends { providerCoverage: unknown; triggeredBy: { role: string; professor: { name: string } | null } | null }>(run: T) {
+  const { providerCoverage: stored, triggeredBy, ...rest } = run;
+  const scope = parseCoverageSnapshot(stored)?.scope ?? null;
+  return {
+    ...rest,
+    scope,
+    startedBy: triggeredBy ? { role: triggeredBy.role, name: triggeredBy.professor?.name ?? null } : null,
+  };
+}
+
 export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
   const router = Router();
 
@@ -77,7 +96,7 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
     // No body: a manual run synchronizes every active identity of every active professor.
     const run = await deps.sync.start('MANUAL', req.auth!.user.id);
     const started = await prisma.syncRun.findUniqueOrThrow({ where: { id: run.id }, select: runSelect });
-    res.status(202).json({ run: started });
+    res.status(202).json({ run: presentRun(started) });
   });
 
   router.get('/runs', async (req, res) => {
@@ -94,7 +113,7 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
       prisma.syncRun.findMany({ where: DISCOVERY, select: runSelect, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], take: parsed.data.limit, skip: parsed.data.offset }),
       prisma.syncRun.count({ where: DISCOVERY }),
     ]);
-    res.json({ runs, total, limit: parsed.data.limit, offset: parsed.data.offset, running: deps.sync.running });
+    res.json({ runs: runs.map(presentRun), total, limit: parsed.data.limit, offset: parsed.data.offset, running: deps.sync.running });
   });
 
   router.get('/runs/:runId', async (req, res) => {
@@ -104,7 +123,6 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
           where: { id: id.data, ...DISCOVERY },
           select: {
             ...runSelect,
-            providerCoverage: true,
             tasks: {
               select: {
                 id: true,
@@ -128,9 +146,8 @@ export function createAdminSyncRouter(deps: { sync: SyncService }): Router {
       : null;
     if (!run) throw new HttpError(404, 'SYNC_RUN_NOT_FOUND', 'Synchronization run not found');
     // Coverage comes from the snapshot stored at run start (null for runs before Phase 15).
-    const { providerCoverage: stored, ...rest } = run;
-    const snapshot = parseCoverageSnapshot(stored);
-    res.json({ run: { ...rest, coverage: snapshot ? providerCoverage(snapshot, run.tasks) : null } });
+    const snapshot = parseCoverageSnapshot(run.providerCoverage);
+    res.json({ run: { ...presentRun(run), coverage: snapshot ? providerCoverage(snapshot, run.tasks) : null } });
   });
 
   router.get('/providers', (_req, res) => {

@@ -97,7 +97,20 @@ export interface Identity {
   verificationMethod: IdentityVerificationMethod;
   verificationEvidenceUrl: string | null;
   createdAt: string;
+  /** Who added it, from the recorded verifier (#171). */
+  addedBy: AddedBy;
+  /** Its latest synchronization, or why it has none (#171). */
+  syncStatus: IdentitySyncStatus;
 }
+export type AddedBy = { kind: "PROFESSOR"; name: string | null } | { kind: "ADMIN" } | { kind: "ADMIN_UNRECORDED" };
+export type IdentitySyncStatus =
+  | { state: "SYNCHRONIZED" | "FAILED" | "NOT_CONFIGURED" | "RUNNING"; at: string | null; message: string | null }
+  | { state: "QUEUED" }
+  | { state: "WAITING_FOR_PROVIDER" }
+  /** Never attempted, nothing in progress to pick it up; `includedInNextRun` when the next run includes it. */
+  | { state: "NEVER"; includedInNextRun: boolean };
+/** The synchronization of a professor's newly added identity (#171). */
+export type IdentitySyncStart = { status: "STARTED"; runId: string } | { status: "QUEUED" } | { status: "NOT_STARTED"; reason: string };
 export interface ProfessorDetail {
   id: string;
   name: string;
@@ -136,7 +149,8 @@ export interface IdentityPreview {
     recentWorks?: { title: string | null; year: number | null }[];
     profileUrl: string;
   };
-  alreadyAssigned: { identityId: string; professorId: string; sameProfessor: boolean; isActive: boolean } | null;
+  /** Administrator: the holder's details; professor: only whether the identity is taken (#171). */
+  alreadyAssigned: { identityId: string; professorId: string; sameProfessor: boolean; isActive: boolean } | "YOURS" | "ANOTHER_PROFESSOR" | null;
   previewToken: string;
   previewExpiresAt: string;
 }
@@ -210,10 +224,19 @@ export interface CandidatePublication extends PublicationSummary {
 }
 
 /* Synchronization (/api/admin/sync) */
+/** The identity scope of an identity-scoped run (#171); null for a full run. */
+export interface SyncRunScope {
+  kind: "IDENTITIES";
+  identityIds: string[];
+  /** True: a batch started by the queue after another run; false: started for a professor's new identity. */
+  queued: boolean;
+}
 export interface SyncRun {
   id: string;
   trigger: "MANUAL" | "SCHEDULED";
   triggeredByUserId: string | null;
+  scope: SyncRunScope | null;
+  startedBy: { role: "ADMIN" | "PROFESSOR"; name: string | null } | null;
   status: SyncRunStatus;
   tasksTotal: number;
   tasksSucceeded: number;

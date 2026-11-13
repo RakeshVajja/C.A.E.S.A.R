@@ -50,7 +50,7 @@ Correctness > Completeness > Convenience
 The system must:
 
 1. Maintain profiles for professors of the department.
-2. Store admin-verified external scholarly identities for each professor.
+2. Store verified external scholarly identities for each professor — added by the administrator, or by the professor for their own profile (#171).
 3. Fetch publication metadata from OpenAlex, DBLP, ORCID, Scopus and Web of Science, and journal metrics from JCR (decisions #107–#125).
 4. Normalize data from all sources into a common internal format.
 5. Build the union of publications across sources.
@@ -225,10 +225,10 @@ ExternalIdentity
 
 * A professor may have **zero, one or several** identities per source (OpenAlex can split one person across several author IDs).
 * The same identity can never belong to two professors.
-* Identities are **admin-managed** only. The admin verifies an identity using a preview fetch before saving.
+* Identities are managed by the administrator for any professor and — since #171 — by each professor for their own profile (`/api/me/identities`: add, activate, deactivate, remove; to correct an identifier, remove it and add the right one). No approval: a professor-added identity is active at once and is synchronized on its own right after it is saved (§14). An identity is verified with a preview fetch before saving (the preview shows the provider-reported researcher name), except the manual Scopus / WoS path below. Who added an identity is its recorded verifier (`verified_by_user_id`): a PROFESSOR user = added by the professor, an ADMIN user = by the administrator, NULL = recorded before verifiers were stored (by the administrator — only administrators could add identities then). Professor-facing responses never disclose another professor's identity or ownership (only that an identity is taken). Per professor: at most 10 previews per 10 minutes and 5 additions per hour (in-process memory, like the login limits of §15.2: per backend instance and reset on restart).
 * Professors are never identified primarily by name.
 * Identity formats: OpenAlex author ID (`A…`), DBLP PID (as used in `https://dblp.org/pid/{pid}`), ORCID iD (`0000-0000-0000-000X`, checksum-validated), Scopus Author ID (digits), Web of Science ResearcherID (e.g. `A-1009-2008`).
-* Scopus and WoS identities may be verified by the API preview or, without credentials, manually from the provider's authoritative public profile, recording method, evidence URL and administrator; the identity is revalidated by its first synchronization before any record is accepted (#118).
+* Scopus and WoS identities may be verified by the API preview or, without credentials, manually from the provider's authoritative public profile, recording method, evidence URL and administrator; the identity is revalidated by its first synchronization before any record is accepted (#118). Professors may use the manual path for their own profile while the provider's API is not configured, with an explicit confirmation that they checked the profile (#171); such an identity is active and waits for provider credentials before it is synchronized.
 
 ## 6.4 Publication (canonical)
 
@@ -781,7 +781,7 @@ Rules:
 * Suppressed publications are not automatically re-linked: matching records are absorbed into them as provenance, but no professor relationship is created for them (decision #30).
 * DOI changes do not silently move source records.
 * Runs left `RUNNING` by a crash are marked failed at startup.
-* `node-cron` is only the scheduler (default `SYNC_CRON` `0 2 1,11,21 * *`: 02:00 on the 1st, 11th and 21st of each month in `SYNC_TIMEZONE`, about every 10 days — #169, amending the monthly default of #81; cron cannot express an exact 10-day interval, so the 21st → next 1st gap is 8–11 days); synchronization logic is independent of it. The Journal Citation Reports refresh keeps its own monthly schedule (#123). The admin can also trigger a sync manually.
+* `node-cron` is only the scheduler (default `SYNC_CRON` `0 2 1,11,21 * *`: 02:00 on the 1st, 11th and 21st of each month in `SYNC_TIMEZONE`, about every 10 days — #169, amending the monthly default of #81; cron cannot express an exact 10-day interval, so the 21st → next 1st gap is 8–11 days); synchronization logic is independent of it. The Journal Citation Reports refresh keeps its own monthly schedule (#123). *Identity-scoped runs (#171):* a professor's newly added identity is synchronized on its own through the same engine — a `MANUAL` run triggered by the professor whose tasks are only that identity, with `provider_coverage.scope = { kind: IDENTITIES, identityIds, queued }` (an optional field of the version-1 snapshot). While another run is active it is queued instead. The queue is derived from the database only — professor-added, active, of an active professor, never attempted (no task) and of a provider that can be attempted — and is drained in one run (triggered by nobody, `queued: true`) after every run, after a start that was refused while another start held the guard if that start then created no run (nothing left to synchronize, or a database error — one drain per refused start, so a persistent failure does not loop), and once at startup after interrupted-run recovery. An identity shows QUEUED only while such a drain will follow; otherwise it is reported as included in the next synchronization run. A failed or interrupted first attempt leaves a task, so it is retried by the next full scheduled or manual run, never by the queue; there is no startup catch-up for full runs. The admin can also trigger a sync manually.
 * Redis/BullMQ are out of scope.
 
 ---
@@ -790,8 +790,8 @@ Rules:
 
 ## 15.1 Roles
 
-* **ADMIN** (single administrator): manages professors, identities (including manual Scopus/WoS verification with evidence, #118), publications (edit with a declared basis, curate, suppress, detach a source record), synchronization (discovery and JCR runs) and analytics; runs provider-data removal from the command line (§13.10). The administrator has no role in duplicate-candidate resolution (#149). Conditional publication queries over all publications, with a link scope and conditional analytics on the Analytics page (§24, #154).
-* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, resolves the duplicate candidates involving their publications (merge or dismiss, §8.5, #149), edits permitted own information, queries their own APPROVED, ACTIVE publications on the Query publications page (§24, #154; no analytics). Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email, activation status and external identities are administrator-managed (decision #67).
+* **ADMIN** (single administrator): manages professors, identities (including manual Scopus/WoS verification with evidence, #118), publications (edit with a declared basis, curate, suppress, detach a source record), synchronization (discovery and JCR runs) and analytics; sees who added each identity and its latest synchronization (#171); runs provider-data removal from the command line (§13.10). The administrator has no role in duplicate-candidate resolution (#149). Conditional publication queries over all publications, with a link scope and conditional analytics on the Analytics page (§24, #154).
+* **PROFESSOR:** views own profile and publications, approves/rejects pending relationships, adds manual publications, resolves the duplicate candidates involving their publications (merge or dismiss, §8.5, #149), edits permitted own information, queries their own APPROVED, ACTIVE publications on the Query publications page (§24, #154; no analytics). Of their profile a professor may edit only their own **name** (`/api/me/profile`); department, designation, login email and activation status are administrator-managed (decision #67); the external identities of their own profile are managed by the professor as well as the administrator (#171).
 
 ## 15.2 Authentication
 
@@ -837,12 +837,12 @@ Codes, reset tokens, passwords and password hashes never appear in logs, respons
 
 Default analytics count **APPROVED** relationships to **ACTIVE**, non-preprint canonical publications, without double-counting source records.
 
-* Overview: total professors, total unique publications, pending verifications, last sync time
+* Overview: total professors, total unique publications, pending verifications, last sync time (of a full run — identity-scoped runs are not counted, #171)
 * Approved publications per professor
 * Publications by year
 * Source statistics: records per source (including Scopus and Web of Science), unique canonical publications after merging
 * Citation aggregates (internal, administrator only): Scopus per-provider aggregates; Web of Science aggregates only after written Clarivate confirmation (#112). JCR-based analytics only after licence confirmation (#114)
-* Synchronization statistics: successful/failed runs, records fetched/added/updated
+* Synchronization statistics: successful/failed runs, records fetched/added/updated (run counts and the last / last successful run describe full runs only; task and record figures include identity-scoped runs — #171)
 
 The default analytics above are the Analytics page's view without a query and are unchanged by §24. While an administrator's conditional publication query is applied, the page shows analytics over exactly the publications that query returns instead (§24.6, #154, #162–#164); clearing the query restores this default view.
 
@@ -851,8 +851,8 @@ The default analytics above are the Analytics page's view without a query and ar
 # 17. Frontend
 
 * Public: `/login`
-* Professor: dashboard, profile, publications (approved only, with a CSV download of them — #153; rejected ones are reviewed and reversed under pending verification's Rejected tab), pending verification, add publication, possible duplicates (candidate list, side-by-side comparison, merge keeping the chosen publication, dismiss, with confirmation — #149), query publications (§24: builder, presets, results table, query kept in the URL — #158)
-* Admin: dashboard, professors (+ identities, with manual verification evidence), publications, synchronization (discovery and JCR runs, provider coverage and configuration status), analytics (with the conditional publication query of §24: link scope, builder, presets, matching-publications table with a CSV download — #168 — and conditional analytics — #160, #162)
+* Professor: dashboard, profile (with their own external identities — My identities, #171), publications (approved only, with a CSV download of them — #153; rejected ones are reviewed and reversed under pending verification's Rejected tab), pending verification, add publication, possible duplicates (candidate list, side-by-side comparison, merge keeping the chosen publication, dismiss, with confirmation — #149), query publications (§24: builder, presets, results table, query kept in the URL — #158)
+* Admin: dashboard, professors (+ identities, with manual verification evidence, who added each and its latest synchronization — #171), publications, synchronization (discovery and JCR runs, provider coverage and configuration status; identity-scoped runs labelled as such — #171), analytics (with the conditional publication query of §24: link scope, builder, presets, matching-publications table with a CSV download — #168 — and conditional analytics — #160, #162)
 * Phase 15 display rules: provider citation counts and JCR metrics only as allowed by §13.10, with the required attribution
 * Implemented in stage 15.7 (#139): Synchronization shows the five discovery providers' configuration (credentials present or not — never "access works"), and each run's provider coverage from its stored snapshot (configuration at start, outcome, access confirmed, complete). Journal metrics (JCR) have their own page and navigation entry (configuration, refresh, run history, per-journal tasks): status and counters only, no metric value. Scopus citation counts are shown to the administrator (publication detail) and to professors (their publications) as "N citations in Scopus · as of <date>" with the record and cited-by links Scopus provided (https scopus.com links only; none invented), the latest observation per Scopus record and the highest when a publication has several. Admin analytics add internal Scopus aggregates (counted publications, each once; per professor). Web of Science Times Cited and JCR metrics are not returned by any API nor shown anywhere. Professors now see every source of their publications, Scopus and Web of Science included.
 

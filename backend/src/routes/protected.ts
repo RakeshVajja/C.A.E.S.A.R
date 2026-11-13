@@ -9,6 +9,7 @@ import { createAdminAnalyticsRouter } from './adminAnalytics';
 import { createAdminPublicationQueriesRouter } from './adminPublicationQueries';
 import { createAdminPublicationsRouter, createAdminSourceRecordsRouter } from './adminPublications';
 import { createMeDuplicateCandidatesRouter } from './meDuplicateCandidates';
+import { createMeIdentitiesRouter } from './meIdentities';
 import { createMePublicationQueriesRouter } from './mePublicationQueries';
 import { createAdminProfessorsRouter } from './adminProfessors';
 import { createMePublicationsRouter } from './mePublications';
@@ -30,7 +31,7 @@ const noStore: RequestHandler = (_req, res, next) => {
 
 const ownProfileBody = z.strictObject({ name: z.string().trim().min(1).max(200) });
 
-export function createMeRouter(deps: { now: () => Date; sync: SyncService }): Router {
+export function createMeRouter(deps: { now: () => Date; sync: SyncService; identityClients: IdentityClients }): Router {
   const router = Router();
   router.use(noStore, requireAuth, requirePasswordChanged);
 
@@ -54,6 +55,8 @@ export function createMeRouter(deps: { now: () => Date; sync: SyncService }): Ro
   router.use('/duplicate-candidates', createMeDuplicateCandidatesRouter(deps));
   // The professor's publication queries (§24, stage Q2): own APPROVED, ACTIVE publications only.
   router.use('/publication-queries', createMePublicationQueriesRouter(deps));
+  // The professor's own external identities (#171): self-service, active at once, synchronized on their own.
+  router.use('/identities', createMeIdentitiesRouter(deps));
 
   return router;
 }

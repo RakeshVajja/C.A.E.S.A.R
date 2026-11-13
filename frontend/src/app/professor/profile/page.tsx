@@ -3,12 +3,13 @@
 import { useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import { ErrorSummary, Field, useFormErrors } from "@/components/form";
+import { IdentitiesSection } from "@/components/identities";
 import { useToast } from "@/components/toast";
 import { Button, LoadError, PageHeader, Panel, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useResource } from "@/lib/use-resource";
-import type { OwnProfile } from "@/lib/types";
+import type { Identity, OwnProfile } from "@/lib/types";
 
 /** The professor's own profile: only the name is editable (decision #67), behind an explicit Edit. */
 export default function ProfilePage() {
@@ -56,7 +57,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="Profile" description="Your department, designation and login email are managed by the administrator. Contact them to change these." />
+      <PageHeader title="Profile" description="Your department, designation and login email are managed by the administrator. Contact them to change these. You manage your own platform identities below." />
       {error && !data ? (
         <LoadError error={error} onRetry={() => void reload()} />
       ) : !data ? (
@@ -133,6 +134,17 @@ export default function ProfilePage() {
           </Panel>
         </div>
       )}
+      <div className="mt-10">
+        <MyIdentities />
+      </div>
     </>
   );
+}
+
+/** The professor's own external identities (#171): added, activated, deactivated and removed here. */
+function MyIdentities() {
+  const { data, error, reload } = useResource<{ identities: Identity[] }>("/me/identities", (signal) => api<{ identities: Identity[] }>("/me/identities", { signal }));
+  if (error && !data) return <LoadError error={error} onRetry={() => void reload()} />;
+  if (!data) return <Skeleton className="h-40 w-full" />;
+  return <IdentitiesSection identities={data.identities} basePath="/me/identities" audience="PROFESSOR" onChanged={() => void reload()} />;
 }

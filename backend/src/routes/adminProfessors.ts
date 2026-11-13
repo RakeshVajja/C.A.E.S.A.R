@@ -74,7 +74,8 @@ function noStore(res: Response): Response {
 
 export function createAdminProfessorsRouter(deps: { identityClients: IdentityClients; now: () => Date; mailer: Mailer | null; sync: SyncService }): Router {
   const router = Router();
-  const invitationDeps = { mailer: deps.mailer, now: deps.now };
+  // The engine provides identity statuses (provider availability, pending queue drain, #171).
+  const invitationDeps = { mailer: deps.mailer, now: deps.now, identityView: deps.sync };
   const resendLimiter = new RateLimiter(() => deps.now().getTime());
 
   router.get('/', async (req, res) => {
@@ -88,7 +89,7 @@ export function createAdminProfessorsRouter(deps: { identityClients: IdentityCli
   });
 
   router.get('/:professorId', async (req, res) => {
-    res.json({ professor: await getProfessor(professorId(req.params.professorId)) });
+    res.json({ professor: await getProfessor(professorId(req.params.professorId), deps.sync) });
   });
 
   router.patch('/:professorId', async (req, res) => {
@@ -98,7 +99,7 @@ export function createAdminProfessorsRouter(deps: { identityClients: IdentityCli
 
   router.patch('/:professorId/status', async (req, res) => {
     const body = parseBody(statusBody, req.body);
-    res.json({ professor: await setProfessorActive(professorId(req.params.professorId), body.isActive) });
+    res.json({ professor: await setProfessorActive(professorId(req.params.professorId), body.isActive, deps.sync) });
   });
 
   // Permanent deletion of an inactive professor's record, sole-owner publications included (#170).

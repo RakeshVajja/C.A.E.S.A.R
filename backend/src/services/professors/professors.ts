@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma as defaultClient } from '../../config/database';
 import { HttpError } from '../../utils/httpError';
 import { CLEARED_RECOVERY_CODE } from '../auth/accounts';
+import { identityStatusSelect, IdentitySyncView, presentIdentity } from '../identities/identities';
 import {
   deliverTemporaryPassword,
   InvitationDeps,
@@ -22,22 +23,14 @@ const accountSelect = { id: true, email: true, mustChangePassword: true, tempora
 
 const detailInclude = {
   user: { select: accountSelect },
-  identities: {
-    select: {
-      id: true,
-      source: true,
-      externalId: true,
-      isActive: true,
-      verifiedAt: true,
-      verificationMethod: true,
-      verificationEvidenceUrl: true,
-      createdAt: true,
-    },
-    orderBy: [{ source: 'asc' }, { externalId: 'asc' }],
-  },
+  // With who added each identity and its latest synchronization (#171).
+  identities: { select: identityStatusSelect, orderBy: [{ source: 'asc' }, { externalId: 'asc' }] },
 } satisfies Prisma.ProfessorInclude;
 
 type ProfessorWithDetail = Prisma.ProfessorGetPayload<{ include: typeof detailInclude }>;
+
+/** Invitation deps plus the synchronization engine for identity statuses (#171). */
+export type ProfessorDetailDeps = InvitationDeps & { identityView: IdentitySyncView };
 
 export interface ProfileInput {
   name?: string;
@@ -45,7 +38,11 @@ export interface ProfileInput {
   designation?: string | null;
 }
 
-export function professorDetail(professor: ProfessorWithDetail) {
+/**
+ * The administrator's professor detail. Identity statuses (who added each, latest synchronization,
+ * queued / waiting) use the synchronization engine's own provider availability (#171).
+ */
+export function professorDetail(professor: ProfessorWithDetail, identityView: IdentitySyncView) {
   return {
     id: professor.id,
     name: professor.name,
@@ -63,7 +60,7 @@ export function professorDetail(professor: ProfessorWithDetail) {
           temporaryPasswordExpiresAt: professor.user.mustChangePassword ? professor.user.temporaryPasswordExpiresAt : null,
         }
       : null,
-    identities: professor.identities,
+    identities: professor.identities.map((identity) => presentIdentity(identity, { professorActive: professor.isActive, sync: identityView })),
   };
 }
 
@@ -98,10 +95,10 @@ export async function listProfessors(client: PrismaClient = defaultClient) {
   }));
 }
 
-export async function getProfessor(id: string, client: PrismaClient = defaultClient) {
+export async function getProfessor(id: string, identityView: IdentitySyncView, client: PrismaClient = defaultClient) {
   const professor = await client.professor.findUnique({ where: { id }, include: detailInclude });
   if (!professor) throw notFound();
-  return professorDetail(professor);
+  return professorDetail(professor, identityView);
 }
 
 /**
@@ -111,7 +108,7 @@ export async function getProfessor(id: string, client: PrismaClient = defaultCli
  */
 export async function createProfessor(
   input: Required<Pick<ProfileInput, 'name'>> & ProfileInput & { email: string },
-  deps: InvitationDeps,
+  deps: ProfessorDetailDeps,
 ): Promise<{ professor: ReturnType<typeof professorDetail>; invitation: { status: InvitationStatus } }> {
   const client = deps.client ?? defaultClient;
   const issued = await issueTemporaryPassword(deps.now());
@@ -140,14 +137,14 @@ export async function createProfessor(
   }
   const user = professor.user!;
   const status = await serializeInvitation(professor.id, () => deliverTemporaryPassword(user, issued, deps));
-  return { professor: professorDetail(await reload(client, professor.id)), invitation: { status } };
+  return { professor: professorDetail(await reload(client, professor.id), deps.identityView), invitation: { status } };
 }
 
 /**
  * Creates the login account of an existing professor who has none (e.g. created before Phase 9)
  * and emails its temporary password (#102).
  */
-export async function createProfessorAccount(professorId: string, email: string, deps: InvitationDeps) {
+export async function createProfessorAccount(professorId: string, email: string, deps: ProfessorDetailDeps) {
   const client = deps.client ?? defaultClient;
   const issued = await issueTemporaryPassword(deps.now());
   let user: { id: string; email: string };
@@ -174,7 +171,7 @@ export async function createProfessorAccount(professorId: string, email: string,
     throw error;
   }
   const status = await serializeInvitation(professorId, () => deliverTemporaryPassword(user, issued, deps));
-  return { professor: professorDetail(await reload(client, professorId)), invitation: { status } };
+  return { professor: professorDetail(await reload(client, professorId), deps.identityView), invitation: { status } };
 }
 
 /**
@@ -183,7 +180,7 @@ export async function createProfessorAccount(professorId: string, email: string,
  * password stops working immediately (and sessions opened with it end, through the password
  * fingerprint). Without SMTP nothing changes and NOT_CONFIGURED is reported.
  */
-export async function resendInvitation(professorId: string, deps: InvitationDeps) {
+export async function resendInvitation(professorId: string, deps: ProfessorDetailDeps) {
   const client = deps.client ?? defaultClient;
   return serializeInvitation(professorId, async () => {
     const professor = await client.professor.findUnique({ where: { id: professorId }, include: detailInclude });
@@ -191,7 +188,7 @@ export async function resendInvitation(professorId: string, deps: InvitationDeps
     if (!professor.user) throw new HttpError(409, 'NO_ACCOUNT', 'This professor has no login account; create one first');
     if (!professor.isActive) throw new HttpError(409, 'PROFESSOR_INACTIVE', 'Reactivate the professor before sending sign-in details');
     if (!professor.user.mustChangePassword) throw alreadyActive();
-    if (!deps.mailer) return { professor: professorDetail(professor), invitation: { status: 'NOT_CONFIGURED' as InvitationStatus } };
+    if (!deps.mailer) return { professor: professorDetail(professor, deps.identityView), invitation: { status: 'NOT_CONFIGURED' as InvitationStatus } };
 
     const issued = await issueTemporaryPassword(deps.now());
     const { count } = await client.user.updateMany({
@@ -200,7 +197,7 @@ export async function resendInvitation(professorId: string, deps: InvitationDeps
     });
     if (count !== 1) throw alreadyActive();
     const status = await deliverTemporaryPassword(professor.user, issued, deps);
-    return { professor: professorDetail(await reload(client, professorId)), invitation: { status } };
+    return { professor: professorDetail(await reload(client, professorId), deps.identityView), invitation: { status } };
   });
 }
 
@@ -219,7 +216,7 @@ function reload(client: PrismaClient, id: string) {
  * so the one sent to the old address stops working, and the new one is emailed to the new address
  * (#102). Returns the delivery status in that case.
  */
-export async function updateProfessor(id: string, input: ProfileInput & { email?: string }, deps: InvitationDeps) {
+export async function updateProfessor(id: string, input: ProfileInput & { email?: string }, deps: ProfessorDetailDeps) {
   const client = deps.client ?? defaultClient;
   return serializeInvitation(id, async () => {
     const issued = input.email !== undefined ? await issueTemporaryPassword(deps.now()) : null;
@@ -250,9 +247,9 @@ export async function updateProfessor(id: string, input: ProfileInput & { email?
       if (isUniqueViolation(error)) throw emailInUse();
       throw error;
     }
-    if (!reissuedFor || !issued) return { professor: professorDetail(professor) };
+    if (!reissuedFor || !issued) return { professor: professorDetail(professor, deps.identityView) };
     const status = await deliverTemporaryPassword(reissuedFor, issued, deps);
-    return { professor: professorDetail(await reload(client, id)), invitation: { status } };
+    return { professor: professorDetail(await reload(client, id), deps.identityView), invitation: { status } };
   });
 }
 
@@ -261,10 +258,10 @@ export async function updateProfessor(id: string, input: ProfileInput & { email?
  * own flags and all relationships stay (decision #71). Phase 8 already refuses sign-in and ends
  * sessions of inactive professors, and discovery skips their identities.
  */
-export async function setProfessorActive(id: string, isActive: boolean, client: PrismaClient = defaultClient) {
+export async function setProfessorActive(id: string, isActive: boolean, identityView: IdentitySyncView, client: PrismaClient = defaultClient) {
   const { count } = await client.professor.updateMany({ where: { id }, data: { isActive } });
   if (count !== 1) throw notFound();
-  return getProfessor(id, client);
+  return getProfessor(id, identityView, client);
 }
 
 /** The signed-in professor's own profile (decision #67). */

@@ -50,8 +50,10 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
   const sync = options.sync ?? new SyncService({ clients: createSyncClients(), now });
-  app.use('/api/me', createMeRouter({ now, sync }));
-  app.use('/api/admin', createAdminRouter({ identityClients: options.identityClients ?? createPreviewClients(), now, sync, mailer }));
+  // One set of identity preview clients for the administrator and professors (#171).
+  const identityClients = options.identityClients ?? createPreviewClients();
+  app.use('/api/me', createMeRouter({ now, sync, identityClients }));
+  app.use('/api/admin', createAdminRouter({ identityClients, now, sync, mailer }));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

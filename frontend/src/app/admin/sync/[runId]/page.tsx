@@ -7,7 +7,7 @@ import { StatusChip } from "@/components/chips";
 import { CoverageTable } from "@/components/providers";
 import { Alert, Figures, LoadError, PageHeader, Panel, SectionTitle, Skeleton } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { formatDateTime, formatNumber, SOURCE_LABEL } from "@/lib/format";
+import { formatDateTime, formatNumber, runOrigin, SOURCE_LABEL } from "@/lib/format";
 import { useResource } from "@/lib/use-resource";
 import type { ProviderCoverage, SyncRun, SyncTask } from "@/lib/types";
 
@@ -65,7 +65,7 @@ export default function SyncRunPage() {
       <PageHeader
         title={`Run of ${formatDateTime(data.startedAt)}`}
         breadcrumbs={crumbs}
-        description={`${data.trigger === "MANUAL" ? "Started by the administrator" : "Scheduled"}${data.finishedAt ? ` · finished ${formatDateTime(data.finishedAt)}` : ""}`}
+        description={`${runOrigin(data, "long")}${data.finishedAt ? ` · finished ${formatDateTime(data.finishedAt)}` : ""}`}
         actions={<StatusChip status={data.status} />}
       />
       <p aria-live="polite" className="sr-only">

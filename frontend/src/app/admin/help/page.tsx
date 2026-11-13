@@ -19,7 +19,8 @@ export default function AdminHelpPage() {
               <li>
                 Open the professor and add their OpenAlex, DBLP, ORCID, Scopus or Web of Science identities. Each identifier is checked with its source first
                 — confirm the name and works before saving. Without Scopus or Web of Science API access, verify the identifier on the author&apos;s public
-                profile and save it with that profile&apos;s address.
+                profile and save it with that profile&apos;s address. Professors can also add and manage their own identities from their profile: those
+                are active at once, synchronized right away, and marked &ldquo;Added by professor&rdquo; here.
               </li>
               <li>
                 Deactivating or removing an identity removes the pending publications found only through it; approved and rejected ones are kept. Deactivating a

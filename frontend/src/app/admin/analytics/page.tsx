@@ -833,7 +833,7 @@ function SyncSection({ sync }: { sync: SyncStats }) {
       />
       <p className="mt-3 text-[13px] text-text-muted">
         Last successful run: {sync.lastSuccessfulRun ? formatDateTime(sync.lastSuccessfulRun.finishedAt ?? sync.lastSuccessfulRun.startedAt) : "none yet"}.
-        Counters cover finished runs only.
+        Counters cover finished runs only. Run counts and the last run are full synchronizations; runs for professors’ new identities are listed in the run history, and their records are included in the record figures.
       </p>
     </section>
   );

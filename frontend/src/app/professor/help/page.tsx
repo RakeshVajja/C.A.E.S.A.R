@@ -12,8 +12,9 @@ export default function ProfessorHelpPage() {
           body: (
             <>
               <p>
-                Once a month the system collects publication metadata from OpenAlex, DBLP, ORCID, Scopus and Web of Science through the identities the
-                administrator verified for you. Where Scopus reports a citation count, it is shown with the publication, with links to Scopus.
+                On the 1st, 11th and 21st of each month the system collects publication metadata from OpenAlex, DBLP, ORCID, Scopus and Web of Science
+                through your identities — those the administrator added and those you add yourself under Profile → My identities. An identity you add is
+                checked with its source, becomes active at once and is synchronized right away; its publications then appear under Pending. Where Scopus reports a citation count, it is shown with the publication, with links to Scopus.
                 Records that describe the same paper are combined into one publication, so a paper reported by several sources appears once, with every source
                 shown.
               </p>
@@ -86,8 +87,9 @@ export default function ProfessorHelpPage() {
                 applies for every professor linked to them.
               </li>
               <li>
-                <strong className="font-medium">Wrong metadata or a wrong external identity:</strong> tell the department administrator. They can correct
-                publication details and fix your identities.
+                <strong className="font-medium">A wrong external identity:</strong> under Profile → My identities, remove it (pending publications found only
+                through it are removed; your decisions are kept) and add the right one. <strong className="font-medium">Wrong metadata:</strong> tell the
+                department administrator, who can correct publication details.
               </li>
             </ul>
           ),
